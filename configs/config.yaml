@@ -1,0 +1,59 @@
+seed: 1
+system:
+    dtype: 64
+    device: 0
+    
+model:
+    name: 'Perceptron'
+    args: '784-200-100-10'
+    act_function: 'tanh'
+    scaling: False
+    init:
+        sigma_w: 1.
+        sigma_b: 0.
+dataset:
+    name: 'MNIST'
+    path: '/gpfswork/rech/tza/uki35ex/dataset'
+    train_size: -1
+    valid_size: 10000
+    test_size: -1
+    batch_size: 100
+    autoencoder: False
+    teacher:
+        args: '1-1'
+        act_function: 'identity'
+        sigma_w: 1.
+        sigma_b: .01
+logs_hg:
+    use: False    # Use or not the logs of hg
+    batch_size: 1000    # batch size when updating H and g
+    ds_size: 10000    # dataset size used when updating H and g
+    test_float: False    # if True, compute the logs with float32 and with float64
+optimizer:
+    epochs: 10
+    name: 'SGD'
+    lr: .01
+    weight_decay: 0.
+    momentum: .9
+    hg: 
+        batch_size: -1    # batch size used to compute H, g, order3 (if -1, then take dataset.batch_size)
+        optimizer: 'SGD'    # optimizer used to propose a direction of descent, used to compute H, g
+        partition: 'canonical'    # dampening of the momentum, as in the SGD
+        damping: 1.    # scale the lrs with the same factor 'damping'
+        damping_schedule: 'None'    # schedule for the damping
+        momentum: .9    # momentum as in the SGD
+        momentum_damp: 0    # dampening of the momentum, as in the SGD
+        period_hg: 1    # period of update of H and g
+        mom_lrs: 0    # momentum, exponential moving average of the lrs
+        ridge: 0    # ridge regularization term to make H invertible: H <- H + ridge * Id
+        nesterov:    # use Nesterov's cubic regularization to compute lrs
+            use: False
+            damping_int: 1.
+        remove_negative: False    # set negative lrs to zero
+    kfac:
+        stat_decay: .95
+        damping: .001
+        kl_clip: .01
+        weight_decay: .003
+        tcov: 10
+        tinv: 100

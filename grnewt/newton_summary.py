@@ -11,8 +11,7 @@ class NewtonSummary(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None,
-            autoencoder: bool = False, noregul: bool = False,
+            dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
             remove_negative: bool = False):
         """
         param_groups: param_groups of the model
@@ -107,8 +106,7 @@ class NewtonSummary(torch.optim.Optimizer):
             # Compute H, g, order3
             H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
-                    group_indices = self.group_indices, noregul = self.noregul,
-                    device = self.device, dtype = self.dtype)
+                    group_indices = self.group_indices, noregul = self.noregul)
 
             # Compute lrs
             if self.noregul or not self.dct_nesterov['use']:
@@ -141,7 +139,7 @@ class NewtonSummary(torch.optim.Optimizer):
             for group in self.param_groups:
                 for p in group['params']:
                     state = self.state[p]
-                    update_curr = -group['lr'] * state['momentum_buffer']
+                    p.add_(state['momentum_buffer'], alpha = -group['lr'])
 
         self.step_counter += 1
 
