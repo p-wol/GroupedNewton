@@ -55,7 +55,11 @@ class NewtonSummary(torch.optim.Optimizer):
         if dct_nesterov is None: dct_nesterov = {'use': False}
         self.dct_nesterov = dct_nesterov
 
-        self.logs = {}
+        self.reset_logs()
+
+    def reset_logs(self):
+        self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [],
+                'nesterov.r': [], 'nesterov.converged': []}
 
     def damping_mul(self, factor):
         for group in self.param_groups:
@@ -118,8 +122,8 @@ class NewtonSummary(torch.optim.Optimizer):
             else:
                 lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
                         damping_int = self.dct_nesterov['damping_int'])
-                self.logs['nesterov.r']: r_root
-                self.logs['nesterov.converged']: r_converged
+                self.logs['nesterov.r'].append(torch.tensor(r_root, device = self.device, dtype = self.dtype))
+                self.logs['nesterov.converged'].append(torch.tensor(r_converged, device = self.device, dtype = self.dtype))
 
             # Assign lrs
             for group, lr in zip(self.param_groups, lrs):
@@ -129,10 +133,12 @@ class NewtonSummary(torch.optim.Optimizer):
                     lr1 = max(0, lr1)
                 group['lr'] = r * group['lr'] + (1 - r) * group['damping'] * lr1
 
-            self.logs['H'] = H
-            self.logs['g'] = g
-            self.logs['order3'] = order3
-            self.logs['lrs'] = [group['lr'] for group in self.param_groups]
+            # Store logs
+            self.logs['H'].append(H)
+            self.logs['g'].append(g)
+            self.logs['order3'].append(order3)
+            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+                device = self.device, dtype = self.dtype))
 
         # Perform update
         with torch.no_grad():

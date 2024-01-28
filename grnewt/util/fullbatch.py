@@ -3,7 +3,7 @@ import torch
 def fullbatch_gradient(model, final_loss, tup_params, train_loader, train_size, *,
         autoencoder = False):
     # Define useful variables
-    p = next(iter(model))
+    p = next(iter(model.parameters()))
     device = p.device
     dtype = p.dtype
 

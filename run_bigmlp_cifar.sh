@@ -1,33 +1,33 @@
 parent_work_dir="./data/.workdir"
-parent_log_dir="./data/outputs/VGG_CIFAR_01_debug"
+parent_log_dir="./data/outputs/BigMLP_CIFAR_01_debug"
 
 
-HYDRA_FULL_ERROR=1   OC_CAUSE=1 python main.py\
+HYDRA_FULL_ERROR=1   OC_CAUSE=1 python main.py  \
                 seed=1\
 				system.dtype=32\
-	        	model.name='VGG'\
-		        model.args='A'\
+				model.name='Perceptron'\
+				model.args='20*1024'\
 				model.act_function='elu'\
 				model.scaling=False\
 				model.init.sigma_w=1.4142\
 				model.init.sigma_b=0.\
 				dataset.name='CIFAR10'\
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
-				dataset.valid_size=5000\
+				dataset.valid_size=6000\
 				dataset.batch_size=100\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
-				logs_hg.ds_size=55000\
+				logs_hg.ds_size=54000\
 				logs_hg.test_float=False\
-				optimizer.epochs=2000\
-				optimizer.name='NewtonSummaryFB'\
-				optimizer.lr=.001\
+				optimizer.epochs=10\
+				optimizer.name='NewtonSummary'\
+				optimizer.lr=.0001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=1000\
 				optimizer.hg.optimizer='SGD'\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=1.\
+				optimizer.hg.damping=.1\
 				optimizer.hg.damping_schedule='None'\
 				optimizer.hg.momentum=.9\
 				optimizer.hg.momentum_damp=.9\

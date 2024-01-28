@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import scipy
 import torch
@@ -19,8 +20,14 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     D_vec = order3.abs().pow(1/3)
     D = D_vec.diag()
     D_inv = (1/D_vec).diag()
-    Hd = torch.linalg.eigh(H).eigenvalues
-    H_pd = ((Hd <= 0).sum() == 0)    # boolean, True if H is Positive Definite
+    try:
+        Hd = torch.linalg.eigh(H).eigenvalues
+        H_pd = ((Hd <= 0).sum() == 0)    # boolean, True if H is Positive Definite
+    except:
+        warnings.warn("pytorch.linalg.eigh failed on the Hessian summary matrix H, \
+                switching to default behavior.")
+        print('Warning "torch.linalg.eigh(H)": H = {}'.format(H))
+        H_pd = True
 
     # Function whose fixed points should be found
     def f(x):

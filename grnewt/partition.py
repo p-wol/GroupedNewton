@@ -5,13 +5,15 @@ def canonical(model: torch.nn.Module):
     """
     Build a partition based on the tensors of parameters of the model.
     """
-    return [{'params': p} for p in model.parameters()]
+    return [{'params': [p]} for p in model.parameters()], \
+            [[n] for n, p in model.named_parameters()]
 
 def trivial(model: torch.nn.Module):
     """
     Build a partition grouping all the parameters of the model.
     """
-    return [{'params': [p for p in model.parameters()]}]
+    return [{'params': [p for p in model.parameters()]}], \
+            [[n for n, p in model.named_parameters()]]
 
 def names(model: torch.nn.Module, lst_names: List[str]):
     """
@@ -43,18 +45,21 @@ def names(model: torch.nn.Module, lst_names: List[str]):
     # Build the groups
     nb_names = len(lst_names)
     param_groups = [{'params': []} for i in range(nb_names + 1)]
+    name_groups = [[] for i in range(nb_names + 1)]
     for k, v in model.named_parameters():
         found = False
         for i, name in enumerate(lst_names):
             if check(k, 'weight'):
                 param_groups[i]['params'].append(v)
+                name_groups[i].append(k)
                 found = True
                 break
 
         if not found:
             param_groups[nb_names]['params'].append(v)
+            name_groups[nb_names].append(k)
 
-    return param_groups
+    return param_groups, name_groups
 
 def wb(model: torch.nn.Module):
     """

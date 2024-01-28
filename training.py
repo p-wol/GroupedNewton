@@ -12,7 +12,7 @@ from torch.utils import data
 import mlxpy
 from mlxpy import TorchModel
 from kfac.optimizers import KFACOptimizer
-from grnewt import compute_Hg, fullbatch_gradient, NewtonSummary
+from grnewt import compute_Hg, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression
@@ -116,7 +116,7 @@ class Trainer:
         if '*' in model_args:
             n_layers = int(args.model.args[:args.model.args.find('*')])
             n_neurons = int(args.model.args[args.model.args.find('*') + 1:])
-            model_args = '-'.join([str(n_neurons) for i in range(n_layers)]) + '-{}'.format(n_classes)
+            model_args = '-'.join([str(n_neurons) for i in range(n_layers)]) + '-{}'.format(self.n_classes)
 
         sigma_w = args.model.init.sigma_w
         sigma_b = args.model.init.sigma_b
@@ -160,11 +160,11 @@ class Trainer:
         if args.optimizer.name in ['NewtonSummary', 'NewtonSummaryFB']:
             # Build partition
             if args_hg.partition == 'canonical':
-                param_groups = build_partition.canonical(model)
+                param_groups, name_groups = build_partition.canonical(model)
             elif args_hg.partition == 'wb':
-                param_groups = build_partition.wb(model)
+                param_groups, name_groups = build_partition.wb(model)
             elif args_hg.partition == 'trivial':
-                param_groups = build_partition.trivial(model)
+                param_groups, name_groups = build_partition.trivial(model)
             full_loss = lambda x, y: self.loss_fn(self.model(x), y)
 
             # Build data loader for Hg
@@ -181,6 +181,7 @@ class Trainer:
                                 'damping_int': args_hg.nesterov.damping_int}
         else:
             param_groups = list(self.model.parameters())
+            name_groups = [n for n, p in self.model.named_parameters()]
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
@@ -198,7 +199,7 @@ class Trainer:
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
-                    damping = args_hg.damping, ridge = args_hg.ridge, tol_order3 = args_hg.tol_order3,
+                    damping = args_hg.damping, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
@@ -212,6 +213,8 @@ class Trainer:
                     TInv = args.optimizer.kfac.tinv)
         else:
             raise NotImplementedError('Unknown optimizer: {}.'.format(args.optimizer.name))
+
+        self.name_groups = name_groups
 
         return optimizer
 
@@ -317,8 +320,7 @@ class Trainer:
                 # compute true fisher
                 self.optimizer.acc_stats = True
                 with torch.no_grad():
-                    sampled_y = torch.multinomial(torch.nn.functional.softmax(outputs.cpu().data, dim=1),
-                                                  1).squeeze().to(device = self.device)
+                    sampled_y = torch.multinomial(torch.nn.functional.softmax(outputs, dim=1), 1).squeeze()
                 loss_sample = self.loss_fn(outputs, sampled_y)
                 loss_sample.backward(retain_graph = True)
                 self.optimizer.acc_stats = False
@@ -367,6 +369,9 @@ class Trainer:
             print('tup_params: ')
             for p in self.tup_params:
                 print('    ', p.size())
+
+        # Store the param names - param_groups correspondence
+        self.logger.log_artifact(TorchModel(self.name_groups, ext = '.pkl'), 'ParamNameGroups')
 
         # Prepare damping schedule
         damp_sch = self.args.optimizer.hg.damping_schedule
@@ -426,13 +431,34 @@ class Trainer:
 
             dct_time = {'epoch': self.epoch, 'time': time.time() - time_t0}
 
-            # Logs
+            # Logs -- metrics
             metrics = dct_time | metrics_tr | metrics_va | metrics_ts
             print(metrics)
 
             #self.logger.log_checkpoint(self, log_name = ckpt_name)
             self.logger.log_metrics(metrics, log_name = log_name)
 
+            # Logs -- artifacts
+            if self.args.optimizer.name == 'NewtonSummary':
+                optim_logs = self.optimizer.logs
+
+                logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0}
+                logs_mean = {k: torch.stack(v).mean(0) for k, v in optim_logs.items() if len(v) > 0}
+                logs_total = {k: torch.stack(v) for k, v in optim_logs.items() if len(v) > 0 and k != 'H'}
+
+                self.logger.log_artifact(TorchModel(logs_last, ext = '.pkl'),
+                            'Hg_logs_last.{:05}'.format(self.epoch))
+                self.logger.log_artifact(TorchModel(logs_mean, ext = '.pkl'),
+                            'Hg_logs_mean.{:05}'.format(self.epoch))
+                self.logger.log_artifact(TorchModel(logs_total, ext = '.pkl'),
+                            'Hg_logs_total.{:05}'.format(self.epoch))
+
+                self.optimizer.reset_logs() 
+            elif self.args.optimizer.name == 'NewtonSummaryFB':
+                self.logger.log_artifact(TorchModel(self.optimizer.logs, ext = '.pkl'),
+                            'Hg_logs_hgfb.{:05}'.format(self.epoch))
+
+            # Update damping schedule
             if damp_sch != 'None' and self.epoch <= damp_sch_epoch:
                 self.optimizer.damping_mul(damp_sch_factor)
 
@@ -518,6 +544,14 @@ class Trainer:
         H_tot.diagonal().mul_(.5)
 
         return H_tot, g_tot, order3
+
+    def logs_end_step(self):
+        """
+        
+        """
+        self.logs_nb_steps
+        self.logs_step = self.optimizer.logs
+
 
     def lr_build_global(self, H, g):
         return g.sum() / H.sum()
