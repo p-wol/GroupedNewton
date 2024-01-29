@@ -156,6 +156,9 @@ class Trainer:
         args = self.args
         args_hg = self.args.optimizer.hg
 
+        # Define useful variables
+        full_loss = lambda x, y: self.loss_fn(self.model(x), y)
+
         # Prepare for NewtonSummary(FB)
         if args.optimizer.name in ['NewtonSummary', 'NewtonSummaryFB']:
             # Build partition
@@ -165,14 +168,15 @@ class Trainer:
                 param_groups, name_groups = build_partition.wb(model)
             elif args_hg.partition == 'trivial':
                 param_groups, name_groups = build_partition.trivial(model)
-            full_loss = lambda x, y: self.loss_fn(self.model(x), y)
+            elif args_hg.partition.find('blocks') == 0:
+                param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
 
             # Build data loader for Hg
             if args_hg.batch_size == -1:
                 hg_batch_size = args.dataset.batch_size
             else:
                 hg_batch_size = args_hg.batch_size
-            self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle = True)
+            self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle)
 
             # Build parameters for Nesterov
             dct_nesterov = None
@@ -214,7 +218,14 @@ class Trainer:
         else:
             raise NotImplementedError('Unknown optimizer: {}.'.format(args.optimizer.name))
 
+        # Store grouping data
         self.name_groups = name_groups
+        self.param_groups = param_groups
+        self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
+        self.group_sizes = [len(dct['params']) for dct in self.param_groups]
+        self.group_indices = [0] + list(np.cumsum(self.group_sizes))
+
+        self.full_loss = full_loss
 
         return optimizer
 
@@ -544,6 +555,13 @@ class Trainer:
         H_tot.diagonal().mul_(.5)
 
         return H_tot, g_tot, order3
+
+    def compute_logs(self):
+        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.hg_loader, self.train_size)
+
+        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.hg_loader, self.train_size, direction, 
+                param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices, 
+                autoencoder = self.args.dataset.autoencoder)
 
     def logs_end_step(self):
         """

@@ -31,6 +31,8 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
 
     # Check if D is singular # XXX: quick patch, to fix
     if (D_vec == 0.).sum() > 0:
+        warnings.warn("The order-3 vector has at least one coefficient equal to zero. \
+                Ignoring the Nesterov cubic regularization.")
         return torch.linalg.solve(H, g), -1, False
 
     # Function whose fixed points should be found
