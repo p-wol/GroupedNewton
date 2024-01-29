@@ -49,6 +49,11 @@ optimizer:
             use: False
             damping_int: 1.
         remove_negative: False    # set negative lrs to zero
+        dmp_auto:
+            use: False
+            patience: 1
+            threshold: .9
+            factor: .9
     kfac:
         stat_decay: .95
         damping: .001

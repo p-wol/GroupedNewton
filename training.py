@@ -17,6 +17,7 @@ from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression
 from grnewt.nesterov import nesterov_lrs
+from grnewt import ReduceDampingOnPlateau
 
 
 def assign_device(device):
@@ -161,12 +162,11 @@ class Trainer:
         full_loss = lambda x, y: self.loss_fn(self.model(x), y)
 
         # Build data loader for Hg
-        if args.logs_hg.use:
-            if args_hg.batch_size == -1:
-                hg_batch_size = args.dataset.batch_size
-            else:
-                hg_batch_size = args_hg.batch_size
-            self.hg_loader = data.DataLoader(self.trainset, hg_batch_size)
+        if args_hg.batch_size == -1:
+            hg_batch_size = args.dataset.batch_size
+        else:
+            hg_batch_size = args_hg.batch_size
+        self.hg_loader = data.DataLoader(self.trainset, hg_batch_size)
 
         # Build partition
         if args_hg.partition == 'canonical':
@@ -340,6 +340,7 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
+
         # Compute performance
         mean_pen = cum_pen / (i + 1)
         mean_nll = cum_nll / (i + 1)
@@ -371,6 +372,11 @@ class Trainer:
         self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)
         self.model = self.build_model()
         self.optimizer = self.build_optimizer(self.model)
+        self.use_scheduler = self.args.optimizer.hg.dmp_auto.use
+        if self.use_scheduler:
+            args_sch = self.args.optimizer.hg.dmp_auto
+            self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
+                    patience = args_sch.patience, threshold = args_sch.threshold)
         self.pre_train()
 
         time_t0 = time.time()
@@ -416,6 +422,10 @@ class Trainer:
                 metrics_tr = self.test_model(self.train_loader, 'tr')
             else:
                 metrics_tr = self.step_train()
+
+            # Use scheduler
+            if self.use_scheduler:
+                self.scheduler.step(metrics_tr['tr_loss'])
 
             metrics_va = self.test_model(self.valid_loader, 'va')
             metrics_ts = self.test_model(self.test_loader, 'ts')

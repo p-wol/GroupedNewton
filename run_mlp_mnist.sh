@@ -17,9 +17,8 @@ HYDRA_FULL_ERROR=1   OC_CAUSE=1 python main.py  \
 				dataset.batch_size=100\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
-				logs_hg.ds_size=54000\
 				logs_hg.test_float=False\
-				optimizer.epochs=2000\
+				optimizer.epochs=100\
 				optimizer.name='NewtonSummary'\
 				optimizer.lr=.001\
 				optimizer.weight_decay=0.\
@@ -36,6 +35,10 @@ HYDRA_FULL_ERROR=1   OC_CAUSE=1 python main.py  \
 				optimizer.hg.nesterov.use=True\
 				optimizer.hg.nesterov.damping_int=1.\
 				optimizer.hg.remove_negative=True\
+				optimizer.hg.dmp_auto.use=True\
+				optimizer.hg.dmp_auto.patience=0\
+				optimizer.hg.dmp_auto.threshold=.0001\
+				optimizer.hg.dmp_auto.factor=.5\
 				optimizer.kfac.stat_decay=.95\
 				optimizer.kfac.damping=.03\
 				optimizer.kfac.kl_clip=.01\
