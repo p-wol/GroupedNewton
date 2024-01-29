@@ -401,33 +401,13 @@ class Trainer:
             if self.args.logs_hg.use:
                 if self.args.logs_hg.test_float:
                     for name_dtype, dtype in (('32', torch.float), ('64', torch.double)):
-                        H, g, order3 = self.compute_Hg_dataset_eff(self.train_loader_logs_hg, self.train_size, 
-                                self.train_loader_logs_hg, self.train_size, with_order3 = True, dtype = dtype)
-
-                        lr_global = self.lr_build_global(H, g)
-                        lr_per_layer = self.lr_build_by_layer(H, g)
-                        dct_artifact = {'H': H, 
-                                'g': g, 
-                                'order3': order3, 
-                                'lr_global': lr_global, 
-                                'lr_per_layer': lr_per_layer}
-
-                        self.logger.log_artifact(TorchModel(dct_artifact, ext = '.pkl'), 
-                                'Hg_logs_{}.{:05}'.format(name_dtype, self.epoch))
+                        raise NotImplementedError('Test float/double to implement.')
                 else:
-                    H, g, order3 = self.compute_Hg_dataset_eff(self.train_loader_logs_hg, self.train_size, 
-                            self.train_loader_logs_hg, self.train_size, with_order3 = True)
+                    logs = self.compute_logs()
+                    self.logger.log_artifact(TorchModel(logs, ext = '.pkl'), 
+                            'Hg_logs_ext.{:05}'.format(self.epoch))
 
-                    lr_global = self.lr_build_global(H, g)
-                    lr_per_layer = self.lr_build_by_layer(H, g)
-                    dct_artifact = {'H': H, 
-                            'g': g, 
-                            'order3': order3, 
-                            'lr_global': lr_global, 
-                            'lr_per_layer': lr_per_layer}
-                    self.logger.log_artifact(TorchModel(dct_artifact, ext = '.pkl'), 
-                            'Hg_logs.{:05}'.format(self.epoch))
-
+            # Training step
             if self.args.optimizer.name == 'NewtonSummaryFB':
                 self.model.train()
                 self.optimizer.step()
@@ -557,19 +537,30 @@ class Trainer:
         return H_tot, g_tot, order3
 
     def compute_logs(self):
+        logs = {}
+
         direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.hg_loader, self.train_size)
 
         H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.hg_loader, self.train_size, direction, 
                 param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices, 
                 autoencoder = self.args.dataset.autoencoder)
 
-    def logs_end_step(self):
-        """
-        
-        """
-        self.logs_nb_steps
-        self.logs_step = self.optimizer.logs
+        # Compute lrs
+        if not self.dct_nesterov['use']:
+            regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
+            lrs = torch.linalg.solve(H + regul_H, g)
+        else:
+            lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
+                    damping_int = self.dct_nesterov['damping_int'])
+            logs['nesterov.r'] = torch.tensor(r_root, device = self.device, dtype = self.dtype)
+            logs['nesterov.converged'] = torch.tensor(r_converged, device = self.device, dtype = self.dtype)
 
+        logs['H'] = H
+        logs['g'] = g
+        logs['order3'] = order3
+        logs['lrs'] = lrs
+
+        return logs
 
     def lr_build_global(self, H, g):
         return g.sum() / H.sum()
