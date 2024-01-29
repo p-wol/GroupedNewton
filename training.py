@@ -12,10 +12,11 @@ from torch.utils import data
 import mlxpy
 from mlxpy import TorchModel
 from kfac.optimizers import KFACOptimizer
-from grnewt import compute_Hg, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
+from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression
+from grnewt.nesterov import nesterov_lrs
 
 
 def assign_device(device):
@@ -159,33 +160,32 @@ class Trainer:
         # Define useful variables
         full_loss = lambda x, y: self.loss_fn(self.model(x), y)
 
-        # Prepare for NewtonSummary(FB)
-        if args.optimizer.name in ['NewtonSummary', 'NewtonSummaryFB']:
-            # Build partition
-            if args_hg.partition == 'canonical':
-                param_groups, name_groups = build_partition.canonical(model)
-            elif args_hg.partition == 'wb':
-                param_groups, name_groups = build_partition.wb(model)
-            elif args_hg.partition == 'trivial':
-                param_groups, name_groups = build_partition.trivial(model)
-            elif args_hg.partition.find('blocks') == 0:
-                param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
-
-            # Build data loader for Hg
+        # Build data loader for Hg
+        if args.logs_hg.use:
             if args_hg.batch_size == -1:
                 hg_batch_size = args.dataset.batch_size
             else:
                 hg_batch_size = args_hg.batch_size
-            self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle)
+            self.hg_loader = data.DataLoader(self.trainset, hg_batch_size)
 
-            # Build parameters for Nesterov
-            dct_nesterov = None
-            if args_hg.nesterov.use:
-                dct_nesterov = {'use': args_hg.nesterov.use,
-                                'damping_int': args_hg.nesterov.damping_int}
+        # Build partition
+        if args_hg.partition == 'canonical':
+            param_groups, name_groups = build_partition.canonical(model)
+        elif args_hg.partition == 'wb':
+            param_groups, name_groups = build_partition.wb(model)
+        elif args_hg.partition == 'trivial':
+            param_groups, name_groups = build_partition.trivial(model)
+        elif args_hg.partition.find('blocks') == 0:
+            param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
         else:
-            param_groups = list(self.model.parameters())
-            name_groups = [n for n, p in self.model.named_parameters()]
+            raise NotImplementedError('Unknown partition.')
+
+        # Build parameters for Nesterov
+        dct_nesterov = None
+        if args_hg.nesterov.use:
+            dct_nesterov = {'use': args_hg.nesterov.use,
+                            'damping_int': args_hg.nesterov.damping_int}
+        self.dct_nesterov = dct_nesterov
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
@@ -459,82 +459,6 @@ class Trainer:
         self.logger.log_checkpoint(self, log_name= ckpt_name)
         self.logger.log_metrics(metrics, log_name=log_name)
         """
-
-    def compute_Hg_dataset_eff(self, train_loader, train_size, test_loader, test_size, with_order3 = True,
-            dtype = None):
-        # Convert model to dtype if necessary
-        if dtype is None:
-            dtype = self.dtype
-        if dtype == self.dtype:
-            model = self.model
-        else:
-            model = copy.deepcopy(self.model).to(dtype = dtype)
-
-        # Compute gradient
-        #grad_tr = self.fullbatch_gradient(train_loader, train_size, dtype = dtype)
-        grad_tr = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.hg_loader, self.train_size)
-
-        if dtype is None:
-            dtype = self.dtype
-        if dtype != self.dtype:
-            model = copy.deepcopy(self.model).to(dtype = dtype)
-            tup_params = tuple(p for n, p in model.named_parameters())
-        else:
-            model = self.model
-            tup_params = self.tup_params
-
-        # Compute reduced gradient
-        g_tot = torch.tensor(list(g.pow(2).sum() for g in grad_tr), 
-                device = self.device, dtype = dtype)
-
-        # Compute reduced Hessian and order3
-        H_tot = torch.zeros(len(tup_params), len(tup_params), device = self.device, dtype = dtype)
-        if with_order3:
-            order3 = torch.zeros(len(tup_params), device = self.device, dtype = dtype)
-        else:
-            order3 = None
-
-        for x_ts, y_ts in test_loader:
-            # Load samples
-            x_ts = x_ts.to(device = self.device, dtype = dtype)
-            y_ts = y_ts.to(device = self.device)
-
-            # Forward pass
-            y_hat = model(x_ts)
-            curr_loss = self.loss_fn(y_hat, y_ts) * x_ts.size(0) / test_size
-
-            # Backward pass
-            g = torch.autograd.grad(curr_loss, tup_params, create_graph = True)   # Compute grad
-            g = tuple((g1 * g2).sum() for g1, g2 in zip(g, grad_tr))   # Reduce result
-
-            # Compute H and order3 from g
-            for i, g_i in enumerate(g):
-                # H is symmetric, so we only compute its upper part
-                tup_params_i = tup_params[i:]   # we differentiate w.r.t. these params
-                H_i = torch.autograd.grad(g_i, tup_params_i, retain_graph = True)   # differentiate
-                H_i = torch.tensor(list((g1 * g2).sum() for g1, g2 in zip(H_i, grad_tr[i:])),
-                        device = self.device, dtype = dtype)   # reduce the result to get elems of H
-                H_tot[i,i:] += H_i   # add to the final result
-
-                # Computation of order3 (only the diagonal of the order-3 reduced derivative)
-                if with_order3:
-                    # 2nd-order diff: differentiate g[i] w.r.t. tup_params[i]
-                    deriv_i = torch.autograd.grad(g_i, tup_params[i], create_graph = True)[0]
-                    deriv_i = (deriv_i * grad_tr[i]).sum()   # reduce
-
-                    # 3rd-order diff
-                    deriv_i = torch.autograd.grad(deriv_i, tup_params[i], retain_graph = True)[0]
-                    deriv_i = (deriv_i * grad_tr[i]).sum()   # reduce
-
-                    # Add to the final result
-                    order3[i] += deriv_i
-                    del deriv_i
-
-        # H_tot was triangular -> symmetrize it
-        H_tot = H_tot + H_tot.t()
-        H_tot.diagonal().mul_(.5)
-
-        return H_tot, g_tot, order3
 
     def compute_logs(self):
         logs = {}

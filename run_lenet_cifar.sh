@@ -15,13 +15,12 @@ HYDRA_FULL_ERROR=1   OC_CAUSE=1 python main.py\
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
 				dataset.valid_size=5000\
 				dataset.batch_size=100\
-				logs_hg.use=False\
+				logs_hg.use=True\
 				logs_hg.batch_size=1000\
-				logs_hg.ds_size=55000\
 				logs_hg.test_float=False\
-				optimizer.epochs=2000\
-				optimizer.name='NewtonSummary'\
-				optimizer.lr=.001\
+				optimizer.epochs=10\
+				optimizer.name='Adam'\
+				optimizer.lr=.0001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=1000\

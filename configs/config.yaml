@@ -27,7 +27,6 @@ dataset:
 logs_hg:
     use: False    # Use or not the logs of hg
     batch_size: 1000    # batch size when updating H and g
-    ds_size: 10000    # dataset size used when updating H and g
     test_float: False    # if True, compute the logs with float32 and with float64
 optimizer:
     epochs: 10
