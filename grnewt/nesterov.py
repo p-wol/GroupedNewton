@@ -29,6 +29,10 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
         print('Warning "torch.linalg.eigh(H)": H = {}'.format(H))
         H_pd = True
 
+    # Check if D is singular # XXX: quick patch, to fix
+    if (D_vec == 0.).sum() > 0:
+        return torch.linalg.solve(H, g), -1, False
+
     # Function whose fixed points should be found
     def f(x):
         try:
