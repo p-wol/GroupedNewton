@@ -373,10 +373,10 @@ class Trainer:
         self.model = self.build_model()
         self.optimizer = self.build_optimizer(self.model)
         self.use_scheduler = self.args.optimizer.hg.dmp_auto.use
-        if self.use_scheduler:
+        if self.use_scheduler and self.args.optimizer.name.find('NewtonSummary') == 0:
             args_sch = self.args.optimizer.hg.dmp_auto
             self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
-                    patience = args_sch.patience, threshold = args_sch.threshold)
+                    patience = args_sch.patience, threshold = args_sch.threshold, verbose = True)
         self.pre_train()
 
         time_t0 = time.time()
@@ -424,7 +424,7 @@ class Trainer:
                 metrics_tr = self.step_train()
 
             # Use scheduler
-            if self.use_scheduler:
+            if self.use_scheduler and self.args.optimizer.name.find('NewtonSummary') == 0:
                 self.scheduler.step(metrics_tr['tr_loss'])
 
             metrics_va = self.test_model(self.valid_loader, 'va')
