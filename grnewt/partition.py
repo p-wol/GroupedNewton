@@ -19,6 +19,19 @@ def check(key: str, name: str):
         else:
             return False
 
+def remove_empty(param_groups, name_groups):
+    """
+    Removes the empty subsets of a partition
+    """
+    new_param_groups = []
+    new_name_groups = []
+    for pg, ng in zip(param_groups, name_groups):
+        if len(pg['params']) > 0:
+            new_param_groups.append(pg)
+            new_name_groups.append(ng)
+
+    return new_param_groups, new_name_groups
+
 def canonical(model: torch.nn.Module):
     """
     Build a partition based on the tensors of parameters of the model.
@@ -49,7 +62,7 @@ def names(model: torch.nn.Module, lst_names: List[str]):
     for k, v in model.named_parameters():
         found = False
         for i, name in enumerate(lst_names):
-            if check(k, 'weight'):
+            if check(k, name):
                 param_groups[i]['params'].append(v)
                 name_groups[i].append(k)
                 found = True
@@ -59,7 +72,7 @@ def names(model: torch.nn.Module, lst_names: List[str]):
             param_groups[nb_names]['params'].append(v)
             name_groups[nb_names].append(k)
 
-    return param_groups, name_groups
+    return remove_empty(param_groups, name_groups)
 
 def wb(model: torch.nn.Module):
     """
