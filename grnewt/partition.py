@@ -65,7 +65,7 @@ def wb(model: torch.nn.Module):
     """
     Build a partition containing 3 groups of parameters: weights, biases and other.
     """
-    return partition_names(model, ['weight', 'bias'])
+    return names(model, ['weight', 'bias'])
 
 def blocks(model: torch.nn.Module, num_blocks):
     params = list(model.named_parameters())
