@@ -6,15 +6,64 @@ Link: [https://arxiv.org/abs/2312.03885](https://arxiv.org/abs/2312.03885).
 
 # Tutorial
 
-TODO
+## Minimal example
+
+```python
+import torch
+import grnewt
+
+# User-specific
+data_loader = torch.utils.data.DataLoader(...)
+model = MyModel(...)
+loss_fn = lambda output, target: ...
+
+# Create a specific data loader
+hg_loader = torch.utils.data.DataLoader(...)
+
+# Set some hyperparameters
+damping = .1
+damping_int = 10.
+
+# Prepare the optimizer
+full_loss = lambda x, target: loss_fn(model(x), target)
+param_groups, name_groups = grnewt.partition.canonical(model)
+optimizer = grnewt.NewtonSummary(param_groups, full_loss, hg_loader, 
+                    damping = damping, dct_nesterov = {'use': True, 'damping_int': damping_int}, 
+                    period_hg = 10, mom_lrs = .5, remove_negative = True,
+                    momentum = .9, momentum_damp = .9)
+
+# Optimization process
+for epoch in range(10):
+    for x, target in data_loader:
+        optimizer.zero_grad()
+        output = model(x)
+        loss = loss_fn(output, target)
+
+        loss.backward()
+        optimizer.step()
+```
+
+## Explanations
+
+Specific variables:
+ * `param_groups`: partition of the set of parameters; given parameters `t1`, `t2`, ..., one may set:
+   * `param_groups = [{'params': [t1, t2]}, {'params': [t3]}, {'params': [t4, t5, t6]}]`,
+   * or simply use a predefined partition: `param_groups, name_groups = grnewt.partition.canonical(model)`;
+ * `data_loader`: loader used to compute the gradient of the loss and use it to propose a descent direction $\mathbf{u}$;
+ * `hg_loader`: loader used to compute $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$ and $\bar{\mathbf{D}}$ in direction $\mathbf{u}$, in order to obtain the vector of learning rates $\boldsymbol{\eta}$;
+ * `period_hg`: period of updates of $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$, $\bar{\mathbf{D}}$ and $\boldsymbol{\eta}^*$;
+ * `damping`: damping, or global learning rates factor $\lambda_1$;
+ * `damping_int`: internal damping $\lambda_{\mathrm{int}}$, strength of regularization of $\bar{\mathbf{H}}$ when using anisotropic Nesterov regularization;
+ * `mom_lrs`: factor of the moving average used to update $\boldsymbol{\eta}^*$, in order to smooth the trajectory of the computed learning rates;
+ * `remove_negative`: set negative learning rates to zero.
 
 # Quick reminder
 
 We consider a loss $\mathcal{L}(\boldsymbol{\theta})$ to minimize according to
 a vector of parameters $\boldsymbol{\theta} \in \mathbb{R}^P$. We represent this vector by
-a tuple of $S$ subsets (or groups) of parameters $(\mathbf{T}_1, \cdots, \mathbf{T}_S)$. This tuple can be seen
+a tuple of $S$ subsets of parameters $(\mathbf{T}_1, \cdots, \mathbf{T}_S)$. This tuple can be seen
 as a partition of the set of the indices $\{1, \cdots, P\}$ of the vector $\boldsymbol{\theta}$,
-so that each parameter $\boldsymbol{\theta}_p$ belongs to exactly one subset (or group) $\mathbf{T}_s$.
+so that each parameter $\boldsymbol{\theta}_p$ belongs to exactly one subset $\mathbf{T}_s$.
 We assume that $S \ll P$. 
 
 For a direction of descent $\mathbf{u}_t$, we consider a training step where a learning rate
