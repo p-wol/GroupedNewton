@@ -1,8 +1,12 @@
-# GroupedNewton
+# Related paper
 
 Code associated to the paper *Adapting Newton's Method to Neural Networks through a Summary of Higher-Order Derivatives* (2023), P. Wolinski.
 
 Link: [https://arxiv.org/abs/2312.03885](https://arxiv.org/abs/2312.03885).
+
+# Tutorial
+
+TODO
 
 # Quick reminder
 
@@ -68,5 +72,7 @@ Package `grnewt`:
    * `wb`: creates a partition with 3 subsets: subsets of weights, subset of biases, subset of all remaining parameters;
  * `hg.compute_Hg`: computes $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$ and $\mathbf{D}$;
  * `nesterov.nesterov_lrs`: computes $\boldsymbol{\eta}^*$ with the anisotropic Nesterov regularization scheme, by using $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$ and $\mathbf{D}$;
- * `newton_summary.NewtonSummary`: main optimizer, implementing the optimization procedure described in the paper (see Appendix F);
- * `util.fullbatch.fullbatch_gradient`: computes the fullbatch gradient of the loss, given a model, a loss and a dataset; useful for proposing a direction of descent $\mathbf{u}$.
+ * `newton_summary.NewtonSummary`: class containing the main optimizer, implementing the optimization procedure described in the paper (see Appendix F);
+ * `util.fullbatch.fullbatch_gradient`: computes the fullbatch gradient of the loss, given a model, a loss and a dataset; useful for proposing a direction of descent $\mathbf{u}$;
+ * `models`: sub-package containing usual models;
+ * `datasets`: sub-package containing usual datasets and dataset tools.
