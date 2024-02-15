@@ -36,12 +36,17 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
         # 2nd-order diff: differentiate g[i] w.r.t. tup_params[i]
         if noregul:
             continue
-        deriv_i = torch.autograd.grad(g_i, param_groups[i]['params'], create_graph = True)
+        deriv_i = torch.autograd.grad(g_i, param_groups[i]['params'], create_graph = True, materialize_grads = True)
         deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
 
         # 3rd-order diff
-        deriv_i = torch.autograd.grad(deriv_i, param_groups[i]['params'], retain_graph = True)
-        deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+        if not deriv_i.requires_grad:
+            deriv_i.zero_()
+        else:
+            deriv_i = torch.autograd.grad(deriv_i, param_groups[i]['params'], retain_graph = True, materialize_grads = True)
+            #deriv_i = tuple(p if p is not None else torch.tensor(0, dtype = dtype, device = device) for p in deriv_i)
+
+            deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
 
         # Add to the final result
         order3[i] += deriv_i
