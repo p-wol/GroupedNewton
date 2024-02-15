@@ -55,5 +55,18 @@ where $\lambda_{\mathrm{int}}$ is the internal damping, which is a hyperparamete
 ```math
 \mathbf{D}_t = \mathrm{Diag}\left(|\mathbf{D}^{(3)}_{\boldsymbol{\theta}_t}(\mathbf{u}_t)|^{1/3}_{iii} : i \in \{1, \cdots, S\}\right).
 ```
-See Section 3 for a formal defintion of $\mathbf{D}^{(3)}_{\boldsymbol{\theta}_t}(\mathbf{u}_t)$.
+See Section 3 of the paper for a formal defintion of $\mathbf{D}^{(3)}_{\boldsymbol{\theta}_t}(\mathbf{u}_t)$.
 
+# Using the code
+
+## Structure
+
+Package `grnewt`:
+ * `partition`: tools for building a partition of the set of parameters:
+   * `canonical`: creates a per-tensor partition,
+   * `trivial`: creates a partition with only one subset, containing all the parameters,
+   * `wb`: creates a partition with 3 subsets: subsets of weights, subset of biases, subset of all remaining parameters;
+ * `hg.compute_Hg`: computes $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$ and $\mathbf{D}$;
+ * `nesterov.nesterov_lrs`: computes $\boldsymbol{\eta}^*$ with the anisotropic Nesterov regularization scheme, by using $\bar{\mathbf{H}}$, $\bar{\mathbf{g}}$ and $\mathbf{D}$;
+ * `newton_summary.NewtonSummary`: main optimizer, implementing the optimization procedure described in the paper (see Appendix F);
+ * `util.fullbatch.fullbatch_gradient`: computes the fullbatch gradient of the loss, given a model, a loss and a dataset; useful for proposing a direction of descent $\mathbf{u}$.
