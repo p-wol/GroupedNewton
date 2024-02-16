@@ -19,7 +19,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     # Define some useful variables
     D_vec = order3.abs().pow(1/3)
     D = D_vec.diag()
-    D_inv = (1/D_vec).diag()
+    D_squ = D.pow(2)
     try:
         Hd = torch.linalg.eigh(H).eigenvalues
         H_pd = ((Hd <= 0).sum() == 0)    # boolean, True if H is Positive Definite
@@ -29,16 +29,14 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
         print('Warning "torch.linalg.eigh(H)": H = {}'.format(H))
         H_pd = True
 
-    # Check if D is singular # XXX: quick patch, to fix
+    # Check if D is singular
     if (D_vec == 0.).sum() > 0:
-        warnings.warn("The order-3 vector has at least one coefficient equal to zero. \
-                Ignoring the Nesterov cubic regularization.")
-        return torch.linalg.solve(H, g), -1, False
+        warnings.warn("The order-3 vector has at least one coefficient equal to zero.")
 
     # Function whose fixed points should be found
     def f(x):
         try:
-            return torch.linalg.solve(H @ D_inv + .5 * damping_int * x * D, g).norm().item() - x
+            return D @ torch.linalg.solve(H + .5 * damping_int * x * D_squ, g).norm().item() - x
         except:
             return np.inf
 
@@ -50,7 +48,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
 
     # Function computing 'lrs' from 'r'
     def compute_lrs(x): 
-        return D_inv @ torch.linalg.solve(H @ D_inv + .5 * damping_int * x * D, g)
+        return torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)
 
     # Compute x0
     if H_pd:
