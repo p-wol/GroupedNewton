@@ -9,9 +9,9 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils import data
-import mlxpy
-from mlxpy import TorchModel
-from kfac.optimizers import KFACOptimizer
+import mlxp
+from mlxp.data_structures.contrib.artifacts import TorchModel
+#from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP

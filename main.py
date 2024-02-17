@@ -3,7 +3,7 @@ import time
 import random
 import numpy as np
 import torch
-import mlxpy
+import mlxp
 from training import Trainer
 
 
@@ -16,7 +16,7 @@ def set_seeds(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-@mlxpy.launch(config_path='./configs', seeding_function = set_seeds)
+@mlxp.launch(config_path='./configs', seeding_function = set_seeds)
 def main(ctx):
     try:
         trainer = ctx.logger.load_checkpoint(log_name = 'last_ckpt') 

@@ -16,6 +16,9 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
         r = ||(H @ D_inv + .5 * damping_int * r * D)^{-1} g||, (1)
     then compute lrs_prime, and finally lrs.
     """
+    device = H.device
+    dtype = H.dtype
+
     # Define some useful variables
     D_vec = order3.abs().pow(1/3)
     D = D_vec.diag()
@@ -74,16 +77,12 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
             x0 = (2/damping_int) * lambd_min
         else:
             # D singular: use root finding
-            fn_g = lambda x: torch.linalg.eigh(H + .5 * damping_int * torch.tensor(x) * D_squ).eigenvalues.min().item()
+            fn_g = lambda x: torch.linalg.eigh(H + .5 * damping_int * x[0] * D_squ).eigenvalues.min().item()
             gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
             r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
             if not r.converged:
                 raise RuntimeError('H has at least one negative eigenvalue, D is singular, and no solution was found to regularize H.')
             x0 = r.root
-
-    print('H_pd = ', H_pd)
-    print('D_sing = ', D_sing)
-    print('x0 = ', x0)
 
     # Compute x1
     x1 = x0 + 1. #compute_r_max()
