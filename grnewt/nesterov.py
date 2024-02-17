@@ -17,7 +17,6 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     then compute lrs_prime, and finally lrs.
     """
     device = H.device
-    dtype = H.dtype
 
     # Define some useful variables
     D_vec = order3.abs().pow(1/3)
@@ -47,12 +46,25 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     if not D_sing:
         D_inv = D.inverse()
 
-    # Function whose fixed points should be found
+    # Function whose roots should be found
     def f(x):
         try:
             return (D @ torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)).norm().item() - x
         except:
             return np.inf
+
+    # Function whose root should be found to compute the minimal r
+    #TODO: explain
+    def fn_g(x):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, device = device).squeeze()
+            if x.dim() == 0:
+                return torch.linalg.eigh(H.to(dtype = x.dtype) + .5 * damping_int * x * D_squ.to(dtype = x.dtype))\
+                        .eigenvalues.min().item() 
+            else:
+                NotImplementedError('Optimization of fn_g involves a non-scalar np.ndarray. Exiting.')
+        else:
+            return torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
 
     # Function returning an upper bound on the solution r of (1)
     def compute_r_max():
@@ -77,7 +89,6 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
             x0 = (2/damping_int) * lambd_min
         else:
             # D singular: use root finding
-            fn_g = lambda x: torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
             gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
             r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
             if not r.converged:
