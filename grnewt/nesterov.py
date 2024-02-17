@@ -77,7 +77,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
             x0 = (2/damping_int) * lambd_min
         else:
             # D singular: use root finding
-            fn_g = lambda x: torch.linalg.eigh(H + .5 * damping_int * x[0] * D_squ).eigenvalues.min().item()
+            fn_g = lambda x: torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
             gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
             r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
             if not r.converged:
@@ -88,7 +88,6 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     x1 = x0 + 1. #compute_r_max()
     i = 0
     while f(x1) >= 0:
-        print(f(x1))
         x1 *= 3
         i += 1
         if i >= 40:
@@ -97,4 +96,3 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100)
     return compute_lrs(r.root), r.root, r.converged
-
