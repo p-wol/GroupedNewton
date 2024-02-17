@@ -3,7 +3,7 @@ import numpy as np
 import scipy
 import torch
 
-def nesterov_lrs(H, g, order3, *, damping_int = 1.):
+def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 0.):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
     Let: D = order3.abs().pow(1/3).diag()
@@ -15,6 +15,20 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     Look first for a scalar r such that:
         r = ||(H @ D_inv + .5 * damping_int * r * D)^{-1} g||, (1)
     then compute lrs_prime, and finally lrs.
+
+    Arguments:
+     * H: summary of the Hessian (in R^(S * S))
+     * g: summary of the gradient (in R^S)
+     * order3: vector such that D = order3.abs().pow(1/3).diag()
+     * damping_int: internal damping, also called lambda_int
+     * force_numerical_x0: when H is not positive definite, r must be searched 
+       in [x0, infinity], where x0 is to be computed:
+        1) if D is not singular, x0 can be computed with a formula,
+        2) if D is singular (or has a close-to-zero diagonal value), a numerical
+          computation via scipy.optimie.root_scalar becomes necessary;
+       if force_numerical_x0 is True, option 2 is always chosen.
+     * threshold_D_sing: if a diagonal value of D is below this threshold, then
+       D is considered as singular and option 2 is chosen to compute x0.
     """
     device = H.device
 
@@ -42,7 +56,10 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1.):
     """
 
     # Check if D is singular
-    D_sing = ((D_vec == 0.).sum() > 0).item()
+    if force_numerical_x0:
+        D_sing = True
+    else:
+        D_sing = ((D_vec <= threshold_D_sing).sum() > 0).item()
     if not D_sing:
         D_inv = D.inverse()
 
