@@ -113,6 +113,7 @@ class NewtonSummary(torch.optim.Optimizer):
                     group_indices = self.group_indices, noregul = self.noregul)
 
             # Compute lrs
+            perform_update = True
             if self.noregul or not self.dct_nesterov['use']:
                 if self.noregul:
                     regul_H = 0
@@ -125,13 +126,19 @@ class NewtonSummary(torch.optim.Optimizer):
                 self.logs['nesterov.r'].append(torch.tensor(r_root, device = self.device, dtype = self.dtype))
                 self.logs['nesterov.converged'].append(torch.tensor(r_converged, device = self.device, dtype = self.dtype))
 
+                if not r_converged:
+                    perform_update = False
+                    print('Nesterov did not converge: lr not updated during this step.')
+                    #TODO: throw warning?
+
             # Assign lrs
-            for group, lr in zip(self.param_groups, lrs):
-                r = group['mom_lrs'] if self.step_counter > 0 else 0
-                lr1 = lr.item()
-                if self.remove_negative:
-                    lr1 = max(0, lr1)
-                group['lr'] = r * group['lr'] + (1 - r) * group['damping'] * lr1
+            if perform_update:
+                for group, lr in zip(self.param_groups, lrs):
+                    r = group['mom_lrs'] if self.step_counter > 0 else 0
+                    lr1 = lr.item()
+                    if self.remove_negative:
+                        lr1 = max(0, lr1)
+                    group['lr'] = r * group['lr'] + (1 - r) * group['damping'] * lr1
 
             # Store logs
             self.logs['H'].append(H)

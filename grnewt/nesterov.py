@@ -3,7 +3,9 @@ import numpy as np
 import scipy
 import torch
 
-def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 0.):
+#TODO: * put threshold_D_sing in args
+#      * add warning when not converged
+def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-4):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
     Let: D = order3.abs().pow(1/3).diag()
@@ -109,7 +111,8 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
             gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
             r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
             if not r.converged:
-                raise RuntimeError('H has at least one negative eigenvalue, D is singular, and no solution was found to regularize H.')
+                return None, 0., False
+                #raise RuntimeError('H has at least one negative eigenvalue, D is singular, and no solution was found to regularize H.')
             x0 = r.root
 
     # Compute x1
