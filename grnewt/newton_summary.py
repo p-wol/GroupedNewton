@@ -121,15 +121,18 @@ class NewtonSummary(torch.optim.Optimizer):
                     regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
-                lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
+                lrs, lrs_logs = nesterov_lrs(H, g, order3, 
                         damping_int = self.dct_nesterov['damping_int'])
-                self.logs['nesterov.r'].append(torch.tensor(r_root, device = self.device, dtype = self.dtype))
-                self.logs['nesterov.converged'].append(torch.tensor(r_converged, device = self.device, dtype = self.dtype))
+                self.logs['nesterov.r'].append(torch.tensor(lrs_logs['r'], device = self.device, dtype = self.dtype))
+                self.logs['nesterov.converged'].append(torch.tensor(lrs_logs['r_converged'], device = self.device, dtype = self.dtype))
+                print(lrs_logs)
 
-                if not r_converged:
+                """
+                if not lrs_logs['r_converged']:
                     perform_update = False
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
+                """
 
             # Assign lrs
             if perform_update:
