@@ -33,6 +33,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
        D is considered as singular and option 2 is chosen to compute x0.
     """
     device = H.device
+    dct_logs = {}
 
     # Define some useful variables
     D_vec = order3.abs().pow(1/3)
@@ -42,6 +43,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
     # Check if H is positive definite
     Hd = torch.linalg.eigh(H).eigenvalues
     H_pd = ((Hd <= 0).sum() == 0).item()
+    dct_logs['H_pd'] = H_pd
 
     # Error if H is not positive definite and damping_int == 0 (case impossible to solve)
     if not H_pd and damping_int == 0:
@@ -62,6 +64,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
         D_sing = True
     else:
         D_sing = ((D_vec <= threshold_D_sing).sum() > 0).item()
+    dct_logs['D_sing'] = D_sing
     if not D_sing:
         D_inv = D.inverse()
 
@@ -98,6 +101,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
     # Compute x0
     if H_pd:
         x0 = 0
+        dct_logs['x0'] = x0
     else:
         # Case H non positive definite
         # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
@@ -106,10 +110,13 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
             lambd_min = torch.linalg.eigh(D_inv @ H @ D_inv).eigenvalues.min().item()
             lambd_min = abs(min(0, lambd_min))
             x0 = (2/damping_int) * lambd_min
+            dct_logs['x0'] = x0
         else:
             # D singular: use root finding
             gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
             r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
+            dct_logs['x0'] = r.root
+            dct_logs['x0_converged'] = r.converged
             if not r.converged:
                 return None, 0., False
                 #raise RuntimeError('H has at least one negative eigenvalue, D is singular, and no solution was found to regularize H.')
@@ -123,7 +130,10 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
         i += 1
         if i >= 40:
             raise RuntimeError('Impossible to find a solution to Nesterov problem.')
+    dct_logs['x1'] = x1
 
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100, rtol = 1e-4)
-    return compute_lrs(r.root), r.root, r.converged
+    dct_logs['r'] = r.root
+    dct_logs['r_converged'] = r.converged
+    return compute_lrs(r.root), dct_logs
