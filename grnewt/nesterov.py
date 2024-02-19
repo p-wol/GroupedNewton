@@ -125,5 +125,5 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
             raise RuntimeError('Impossible to find a solution to Nesterov problem.')
 
     # Compute lrs
-    r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100)
+    r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100, rtol = 1e-4)
     return compute_lrs(r.root), r.root, r.converged
