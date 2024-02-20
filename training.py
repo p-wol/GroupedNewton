@@ -184,7 +184,8 @@ class Trainer:
         dct_nesterov = None
         if args_hg.nesterov.use:
             dct_nesterov = {'use': args_hg.nesterov.use,
-                            'damping_int': args_hg.nesterov.damping_int}
+                            'damping_int': args_hg.nesterov.damping_int,
+                            'mom_order3_': args_hg.nesterov.mom_order3_}
         self.dct_nesterov = dct_nesterov
 
         # Build optimizer

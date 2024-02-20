@@ -48,6 +48,7 @@ optimizer:
         nesterov:    # use Nesterov's cubic regularization to compute lrs
             use: False
             damping_int: 1.
+            mom_order3_: 0.    # momentum, exponential moving averageof D
         remove_negative: False    # set negative lrs to zero
         dmp_auto:
             use: False

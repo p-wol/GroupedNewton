@@ -5,10 +5,10 @@ import torch
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
-def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-4):
+def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-4):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
-    Let: D = order3.abs().pow(1/3).diag()
+    Let: D = order3_.diag()
     Returns a vector lrs such that:
         lrs = (H + .5 * damping_int * ||D lrs||_2 D^2)^{-1} g.
     Additional variables:
@@ -21,7 +21,7 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
     Arguments:
      * H: summary of the Hessian (in R^(S * S))
      * g: summary of the gradient (in R^S)
-     * order3: vector such that D = order3.abs().pow(1/3).diag()
+     * order3_: vector such that D = order3_.diag()
      * damping_int: internal damping, also called lambda_int
      * force_numerical_x0: when H is not positive definite, r must be searched 
        in [x0, infinity], where x0 is to be computed:
@@ -36,12 +36,13 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
     dct_logs = {}
 
     # Define some useful variables
-    D_vec = order3.abs().pow(1/3)
+    D_vec = order3_
     D = D_vec.diag()
     D_squ = D.pow(2)
 
     # Check if H is positive definite
     Hd = torch.linalg.eigh(H).eigenvalues
+    #print('eigs: ', Hd)
     H_pd = ((Hd <= 0).sum() == 0).item()
     dct_logs['H_pd'] = H_pd
 
@@ -77,16 +78,13 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
 
     # Function whose root should be found to compute the minimal r
     #TODO: explain
-    def fn_g(x):
-        if isinstance(x, np.ndarray):
-            x = torch.tensor(x, device = device).squeeze()
-            if x.dim() == 0:
-                return torch.linalg.eigh(H.to(dtype = x.dtype) + .5 * damping_int * x * D_squ.to(dtype = x.dtype))\
-                        .eigenvalues.min().item() 
-            else:
-                NotImplementedError('Optimization of fn_g involves a non-scalar np.ndarray. Exiting.')
+    def fn_g(x, H64, D_squ64):
+        x = torch.tensor(x).squeeze()
+        if x.dim() == 0:
+            return torch.linalg.eigh(H64 + .5 * damping_int * x * D_squ64)\
+                    .eigenvalues.min().item() 
         else:
-            return torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
+            NotImplementedError('Optimization of fn_g involves a non-scalar np.ndarray. Exiting.')
 
     # Function returning an upper bound on the solution r of (1)
     def compute_r_max():
@@ -113,14 +111,29 @@ def nesterov_lrs(H, g, order3, *, damping_int = 1., force_numerical_x0 = False, 
             dct_logs['x0'] = x0
         else:
             # D singular: use root finding
-            gx0 = -torch.linalg.eigh(H).eigenvalues.min().item()
-            r = scipy.optimize.root_scalar(fn_g, x0 = gx0, maxiter = 100, rtol = 1e-4)
+            H64 = H #.to(device = torch.device('cpu'), dtype = torch.float64)
+            D_squ64 = D_squ #.to(device = torch.device('cpu'), dtype = torch.float64)
+            gx0 = 0. # torch.tensor(0., dtype = torch.float64).numpy() # -torch.linalg.eigh(H64).eigenvalues.min().numpy()
+            gx1 = 1. #torch.tensor(1., dtype = torch.float64).numpy() #gx0 + torch.tensor(1e9, dtype = torch.float64).numpy()
+            print('g(x0) =', fn_g(gx0, H64, D_squ64))
+            while fn_g(gx1, H64, D_squ64) <= 0:
+                print('looking for gx1: x1 = {}, g(x1) = {}'.format(gx1, fn_g(gx1, H64, D_squ64)))
+                gx1 *= 3
+            #print('gx0 = {}, gx1 = {}'.format(gx0, gx1))
+            #print('g(gx0) = {}, g(gx1) = {}'.format(fn_g(gx0, H64, D_squ64), fn_g(gx1, H64, D_squ64)))
+            r = scipy.optimize.root_scalar(lambda x: fn_g(x, H64, D_squ64), bracket = [gx0, gx1], maxiter = 100)
+            #print(r)
             dct_logs['x0'] = r.root
             dct_logs['x0_converged'] = r.converged
             if not r.converged:
-                return None, 0., False
+                return None, dct_logs
                 #raise RuntimeError('H has at least one negative eigenvalue, D is singular, and no solution was found to regularize H.')
             x0 = r.root
+            #print('before: g(x0) = {}, f(x0) = {}'.format(fn_g(x0, H64, D_squ64), f(x0)))
+            while f(x0) <= 0:
+                #print('reducing: g(x0) = {}, f(x0) = {}'.format(fn_g(x0), f(x0)))
+                x0 *= .99
+
 
     # Compute x1
     x1 = x0 + 1. #compute_r_max()

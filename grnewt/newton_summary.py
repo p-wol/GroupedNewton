@@ -53,6 +53,10 @@ class NewtonSummary(torch.optim.Optimizer):
         self.step_counter = 0
 
         if dct_nesterov is None: dct_nesterov = {'use': False}
+        if 'mom_order3_' not in dct_nesterov.keys():
+            dct_nesterov['mom_order3_'] = 0.
+        if dct_nesterov['mom_order3_'] !=  0.:
+            self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
         self.reset_logs()
@@ -112,6 +116,15 @@ class NewtonSummary(torch.optim.Optimizer):
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul)
 
+            order3_ = order3.abs().pow(1/3)
+            if self.dct_nesterov['mom_order3_'] != 0.:
+                if self.order3_ is None:
+                    self.order3_ = order3_
+                else:
+                    r = self.dct_nesterov['mom_order3_']
+                    self.order3_ = r * self.order3_ + (1 - r) * order3_
+                    order3_ = self.order3_
+
             # Compute lrs
             perform_update = True
             if self.noregul or not self.dct_nesterov['use']:
@@ -121,11 +134,11 @@ class NewtonSummary(torch.optim.Optimizer):
                     regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
-                lrs, lrs_logs = nesterov_lrs(H, g, order3, 
+                lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
                         damping_int = self.dct_nesterov['damping_int'])
+                #print(lrs_logs)
                 self.logs['nesterov.r'].append(torch.tensor(lrs_logs['r'], device = self.device, dtype = self.dtype))
                 self.logs['nesterov.converged'].append(torch.tensor(lrs_logs['r_converged'], device = self.device, dtype = self.dtype))
-                print(lrs_logs)
 
                 """
                 if not lrs_logs['r_converged']:
