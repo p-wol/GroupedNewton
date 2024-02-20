@@ -42,6 +42,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
 
     # Check if H is positive definite
     Hd = torch.linalg.eigh(H).eigenvalues
+    #print('Hd =', Hd)
     #print('eigs: ', Hd)
     H_pd = ((Hd <= 0).sum() == 0).item()
     dct_logs['H_pd'] = H_pd
