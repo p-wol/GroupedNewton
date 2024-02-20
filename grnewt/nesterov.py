@@ -5,7 +5,7 @@ import torch
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
-def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-4):
+def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-5):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
     Let: D = order3_.diag()
@@ -34,6 +34,17 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
     """
     device = H.device
     dct_logs = {}
+
+    # Check if the computation should be done with float64
+    do_float64 = False
+    if order3_.min() < 1e-5 or torch.linalg.eigh(H).eigenvalues[0].abs() < 1e-5:
+        do_float64 = True
+
+    if do_float64:
+        H = H.to(dtype = torch.float64)
+        g = g.to(dtype = torch.float64)
+        order3_.to(dtype = torch.float64)
+        print('doing float64')
 
     # Define some useful variables
     D_vec = order3_
@@ -112,12 +123,12 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
             dct_logs['x0'] = x0
         else:
             # D singular: use root finding
-            H64 = H #.to(device = torch.device('cpu'), dtype = torch.float64)
-            D_squ64 = D_squ #.to(device = torch.device('cpu'), dtype = torch.float64)
+            #H64 = H #.to(device = torch.device('cpu'), dtype = torch.float64)
+            #D_squ64 = D_squ #.to(device = torch.device('cpu'), dtype = torch.float64)
             gx0 = 0. # torch.tensor(0., dtype = torch.float64).numpy() # -torch.linalg.eigh(H64).eigenvalues.min().numpy()
             gx1 = 1. #torch.tensor(1., dtype = torch.float64).numpy() #gx0 + torch.tensor(1e9, dtype = torch.float64).numpy()
             print('g(x0) =', fn_g(gx0, H64, D_squ64))
-            while fn_g(gx1, H64, D_squ64) <= 0:
+            while fn_g(gx1, H, D_squ) <= 0:
                 print('looking for gx1: x1 = {}, g(x1) = {}'.format(gx1, fn_g(gx1, H64, D_squ64)))
                 gx1 *= 3
             #print('gx0 = {}, gx1 = {}'.format(gx0, gx1))
