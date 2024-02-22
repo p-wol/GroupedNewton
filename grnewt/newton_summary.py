@@ -140,12 +140,10 @@ class NewtonSummary(torch.optim.Optimizer):
                 self.logs['nesterov.r'].append(torch.tensor(lrs_logs['r'], device = self.device, dtype = self.dtype))
                 self.logs['nesterov.converged'].append(torch.tensor(lrs_logs['r_converged'], device = self.device, dtype = self.dtype))
 
-                """
-                if not lrs_logs['r_converged']:
+                if not lrs_logs['found']:
                     perform_update = False
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
-                """
 
             # Assign lrs
             if perform_update:
