@@ -188,6 +188,16 @@ class Trainer:
                             'mom_order3_': args_hg.nesterov.mom_order3_}
         self.dct_nesterov = dct_nesterov
 
+        # Build parameters for lrs clipping
+        dct_lrs_clip = None
+        if args_hg.lrs_clip.mode != 'none':
+            dct_lrs_clip = {'mode': args_hg.lrs_clip.mode,
+                            'per_lr': args_hg.lrs_clip.per_lr,
+                            'momentum': args_hg.lrs_clip.momentum,
+                            'factor': args_hg.lrs_clip.factor,
+                            'median': args_hg.lrs_clip.median}
+        self.dct_lrs_clip = dct_lrs_clip
+
         # Build optimizer
         if args.optimizer.name == 'SGD':
             optimizer = optim.SGD(param_groups, lr = args.optimizer.lr, 
@@ -200,7 +210,7 @@ class Trainer:
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
                     mom_lrs = args_hg.mom_lrs, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
-                    remove_negative = args_hg.remove_negative)
+                    remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,

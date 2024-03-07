@@ -50,6 +50,12 @@ optimizer:
             damping_int: 1.
             mom_order3_: 0.    # momentum, exponential moving averageof D
         remove_negative: False    # set negative lrs to zero
+        lrs_clip:    # perform clipping on lrs that are too large
+            mode: 'none'    # 'none', 'movavg' or 'median'
+            per_lr: True    # per-lr clipping, if False, all the lrs are scaled down
+            momentum: 0.   # rate of the moving average on the lrs
+            factor: 1.01    # factor applied to the moving average to compute the clipping threshold
+            median: 1    # number of past computations used to compute the median
         dmp_auto:
             use: False
             patience: 1

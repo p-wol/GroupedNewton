@@ -12,7 +12,7 @@ class NewtonSummary(torch.optim.Optimizer):
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False):
+            remove_negative: bool = False, dct_lrs_clip = None):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -58,6 +58,9 @@ class NewtonSummary(torch.optim.Optimizer):
         if dct_nesterov['mom_order3_'] !=  0.:
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
+
+        if dct_lrs_clip is None: dct_lrs_clip = {'mode': 'none'}
+        self.dct_lrs_clip = dct_lrs_clip
 
         self.reset_logs()
 
@@ -144,6 +147,51 @@ class NewtonSummary(torch.optim.Optimizer):
                     perform_update = False
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
+
+            # Lrs clipping
+            if self.dct_lrs_clip['mode'] == 'movavg':
+                #print('use clipping')
+                lrs = lrs.relu()
+                if not hasattr(self, 'lrs_movavg'):
+                    self.lrs_movavg = lrs
+                else:
+                    lrs_thres = self.dct_lrs_clip['factor']
+                    lrs_mom = self.dct_lrs_clip['momentum']
+                    lrs_cond = self.lrs_movavg + (self.lrs_movavg == 0).to(dtype = self.dtype) * 1e9
+                    if self.dct_lrs_clip['per_lr']:
+                        lrs_cond = ((lrs / lrs_cond) >= lrs_thres).to(dtype = self.dtype)
+                        lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * self.lrs_movavg
+                        #print('lrs_cond:', lrs_cond)
+                    else:
+                        lrs_cond_max = (lrs / lrs_cond).max()
+                        #print('lrs_cond_max:', lrs_cond_max)
+                        #print('lrs / lrs_cond:', lrs / lrs_cond)
+                        if lrs_cond_max > lrs_thres:
+                            lrs.mul_(lrs_thres / lrs_cond_max)
+
+                    #print('lrs_movavg:', self.lrs_movavg)
+
+                    self.lrs_movavg = lrs_mom * self.lrs_movavg + (1 - lrs_mom) * lrs
+            elif self.dct_lrs_clip['mode'] == 'median':
+                lrs = lrs.relu()
+                if not hasattr(self, 'lrs_median'):
+                    self.lrs_median = [lrs]
+                else:
+                    curr_lrs = lrs.clone().detach()
+                    median = torch.stack(self.lrs_median).median(0).values
+
+                    lrs_thres = self.dct_lrs_clip['factor']
+                    lrs_cond = (lrs >= lrs_thres * median).to(dtype = self.dtype)
+
+                    lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * median
+
+                    if len(self.lrs_median) == self.dct_lrs_clip['median']:
+                        self.lrs_median.pop(0)
+                    self.lrs_median.append(curr_lrs)
+            elif self.dct_lrs_clip['mode'] == 'none':
+                pass
+            else:
+                NotImplementedError('Error: unknown mode for lrs_clip: {}'.format(self.dct_lrs_clip['mode']))
 
             # Assign lrs
             if perform_update:
