@@ -387,7 +387,8 @@ class Trainer:
         if self.use_scheduler and self.args.optimizer.name.find('NewtonSummary') == 0:
             args_sch = self.args.optimizer.hg.dmp_auto
             self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
-                    patience = args_sch.patience, threshold = args_sch.threshold, verbose = True)
+                    patience = args_sch.patience, cooldown = args_sch.cooldown,
+                    threshold = args_sch.threshold, verbose = True)
         self.pre_train()
 
         time_t0 = time.time()

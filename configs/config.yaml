@@ -59,6 +59,7 @@ optimizer:
         dmp_auto:
             use: False
             patience: 1
+            cooldown: 0
             threshold: .9
             factor: .9
     kfac:

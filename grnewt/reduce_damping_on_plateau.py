@@ -125,7 +125,9 @@ class ReduceDampingOnPlateau:
             old_lr = float(param_group['damping'])
             new_lr = max(old_lr * self.factor, self.min_lrs[i])
             if old_lr - new_lr > self.eps:
+                rate = new_lr / param_group['damping']
                 param_group['damping'] = new_lr
+                param_group['lr'] *= rate
                 if self.verbose:
                     epoch_str = ("%.2f" if isinstance(epoch, float) else
                                  "%.5d") % epoch
