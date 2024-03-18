@@ -225,23 +225,25 @@ class NewtonSummary(torch.optim.Optimizer):
                 else:
                     NotImplementedError('Error: unknown mode for lrs_clip: {}'.format(self.dct_lrs_clip['mode']))
 
-                r = self.mom_lrs if self.step_counter > 0 else 0
-                if self.maintain_true_lrs:
-                    self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-                    lrs = self.curr_lrs
-                    if self.remove_negative:
-                        lrs = lrs.relu()
-                else:
-                    if self.remove_negative:
-                        lrs = lrs.relu()
-                    self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-                    lrs = self.curr_lrs
+            # To execute even when update_lrs = False? Block #1
+            r = self.mom_lrs if self.step_counter > 0 else 0
+            if self.maintain_true_lrs:
+                self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+                lrs = self.curr_lrs
+                if self.remove_negative:
+                    lrs = lrs.relu()
+            else:
+                if self.remove_negative:
+                    lrs = lrs.relu()
+                self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+                lrs = self.curr_lrs
 
-                # Assign lrs
-                self.logs['lrs_clipped'].append(lrs)
-                self.logs['curr_lrs'].append(self.curr_lrs)
-                for group, lr in zip(self.param_groups, lrs):
-                    group['lr'] = group['damping'] * lr.item()
+            # To execute even when update_lrs = False? Block #2
+            # Assign lrs
+            self.logs['lrs_clipped'].append(lrs)
+            self.logs['curr_lrs'].append(self.curr_lrs)
+            for group, lr in zip(self.param_groups, lrs):
+                group['lr'] = group['damping'] * lr.item()
 
             # Store logs
             self.logs['H'].append(H)

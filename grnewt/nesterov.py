@@ -51,16 +51,22 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
                 o3_, o3_.diag(), o3_.pow(2).diag(), (1/o3_).diag()
 
     # Check if the computation should be done with float64
-    if order3_.min() < 1e-5 or torch.linalg.eigh(H).eigenvalues[0].abs() < 1e-5:
+    H32_eigens = torch.linalg.eigh(H).eigenvalues
+    do_float64 = True
+    """
+    if order3_.min() < 1e-5 or H32_eigens[0].abs() < 1e-5:
         do_float64 = True
         dct_logs['small_eigs'] = True
     else:
         do_float64 = False
         dct_logs['small_eigs'] = False
+    """
     dct_logs['do_float64'] = do_float64
 
     # Create useful variables
     H, g, order3_, D, D_squ, D_inv = create_useful_variables(do_float64)
+    if do_float64:
+        H64_eigens = torch.linalg.eigh(H).eigenvalues
 
     # Check if H is positive definite
     Hd = torch.linalg.eigh(H).eigenvalues
@@ -158,7 +164,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
 
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100) #, rtol = 1e-4)
-    r_root = torch.tensor(r.root, dtype = dtype, device = device)
+    r_root = torch.tensor(r.root, dtype = D.dtype, device = device)
     dct_logs['r'] = r_root
     dct_logs['r_converged'] = r.converged
     dct_logs['found'] = r.converged
@@ -178,4 +184,4 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
     dct_logs['lrs'] = lrs
     
     dct_logs['time'] = time.time() - time_beginning
-    return lrs, dct_logs
+    return lrs.to(dtype = dtype), dct_logs
