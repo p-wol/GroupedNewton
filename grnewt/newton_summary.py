@@ -12,7 +12,7 @@ class NewtonSummary(torch.optim.Optimizer):
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False, dct_lrs_clip = None):
+            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -38,11 +38,13 @@ class NewtonSummary(torch.optim.Optimizer):
         self.autoencoder = autoencoder
         self.noregul = noregul
         self.remove_negative = remove_negative
+        self.mom_lrs = mom_lrs
+        self.maintain_true_lrs = maintain_true_lrs
+        self.curr_lrs = 0
         defaults = {'lr': 0, 
                     'damping': damping,
                     'momentum': momentum,
-                    'momentum_damp': momentum_damp,
-                    'mom_lrs': mom_lrs}
+                    'momentum_damp': momentum_damp}
         super().__init__(param_groups, defaults)
 
         self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
@@ -65,8 +67,8 @@ class NewtonSummary(torch.optim.Optimizer):
         self.reset_logs()
 
     def reset_logs(self):
-        self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [],
-                'nesterov.r': [], 'nesterov.converged': []}
+        self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [], 'lrs_clipped': [],
+                'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
 
     def damping_mul(self, factor):
         for group in self.param_groups:
@@ -138,17 +140,31 @@ class NewtonSummary(torch.optim.Optimizer):
                     regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
+                if self.dct_lrs_clip['mode'] != 'median_r' or not hasattr(self, 'r_median'):
+                    clip_r = None
+                else:
+                    median = torch.stack(self.r_median).median(0).values
+                    clip_r = self.dct_lrs_clip['factor'] * median
+                    #print('clip_r =', clip_r)
+
                 lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
-                        damping_int = self.dct_nesterov['damping_int'])
-                #print(lrs_logs)
+                        damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
+
+                for k, v in lrs_logs.items():
+                    kk = 'nesterov.' + k
+                    if kk not in self.logs.keys():
+                        self.logs[kk] = []
+                    self.logs[kk].append(v)
 
                 if not lrs_logs['found']:
                     perform_update = False
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
+                """
                 else:
                     self.logs['nesterov.r'].append(torch.tensor(lrs_logs['r'], device = self.device, dtype = self.dtype))
                     self.logs['nesterov.converged'].append(torch.tensor(lrs_logs['r_converged'], device = self.device, dtype = self.dtype))
+                """
 
             if not perform_update:
                 lrs = torch.zeros(g.size(0), dtype = self.dtype, device = self.device)
@@ -156,15 +172,16 @@ class NewtonSummary(torch.optim.Optimizer):
                 # Lrs clipping
                 if self.dct_lrs_clip['mode'] == 'movavg':
                     #print('use clipping')
-                    lrs = lrs.relu()
+                    #lrs = lrs.relu()
                     if not hasattr(self, 'lrs_movavg'):
                         self.lrs_movavg = lrs
                     else:
                         lrs_thres = self.dct_lrs_clip['factor']
                         lrs_mom = self.dct_lrs_clip['momentum']
-                        lrs_cond = self.lrs_movavg + (self.lrs_movavg == 0).to(dtype = self.dtype) * 1e9
+                        lrs_movavg = self.lrs_movavg.relu()
+                        lrs_cond = lrs_movavg + (lrs_movavg == 0).to(dtype = self.dtype) * 1e9
                         if self.dct_lrs_clip['per_lr']:
-                            lrs_cond = ((lrs / lrs_cond) >= lrs_thres).to(dtype = self.dtype)
+                            lrs_cond = (lrs >= lrs_thres * lrs_cond).to(dtype = self.dtype)
                             lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * self.lrs_movavg
                             #print('lrs_cond:', lrs_cond)
                         else:
@@ -178,12 +195,12 @@ class NewtonSummary(torch.optim.Optimizer):
 
                         self.lrs_movavg = lrs_mom * self.lrs_movavg + (1 - lrs_mom) * lrs
                 elif self.dct_lrs_clip['mode'] == 'median':
-                    lrs = lrs.relu()
+                    #lrs = lrs.relu()
                     if not hasattr(self, 'lrs_median'):
                         self.lrs_median = [lrs]
                     else:
                         curr_lrs = lrs.clone().detach()
-                        median = torch.stack(self.lrs_median).median(0).values
+                        median = torch.stack(self.lrs_median).median(0).values.relu()
 
                         lrs_thres = self.dct_lrs_clip['factor']
                         lrs_cond = (lrs >= lrs_thres * median).to(dtype = self.dtype)
@@ -192,19 +209,39 @@ class NewtonSummary(torch.optim.Optimizer):
 
                         if len(self.lrs_median) == self.dct_lrs_clip['median']:
                             self.lrs_median.pop(0)
-                        self.lrs_median.append(curr_lrs)
+                        if self.dct_lrs_clip['incremental']:
+                            self.lrs_median.append(lrs)
+                        else:
+                            self.lrs_median.append(curr_lrs)
+                elif self.dct_lrs_clip['mode'] == 'median_r':
+                    curr_r = lrs_logs['r']
+                    if not hasattr(self, 'r_median'):
+                        self.r_median = []
+                    self.r_median.append(curr_r)
+                    if len(self.r_median) > self.dct_lrs_clip['median']:
+                        self.r_median.pop(0)
                 elif self.dct_lrs_clip['mode'] == 'none':
                     pass
                 else:
                     NotImplementedError('Error: unknown mode for lrs_clip: {}'.format(self.dct_lrs_clip['mode']))
 
-                # Assign lrs
-                for group, lr in zip(self.param_groups, lrs):
-                    r = group['mom_lrs'] if self.step_counter > 0 else 0
-                    lr1 = lr.item()
+                r = self.mom_lrs if self.step_counter > 0 else 0
+                if self.maintain_true_lrs:
+                    self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+                    lrs = self.curr_lrs
                     if self.remove_negative:
-                        lr1 = max(0, lr1)
-                    group['lr'] = r * group['lr'] + (1 - r) * group['damping'] * lr1
+                        lrs = lrs.relu()
+                else:
+                    if self.remove_negative:
+                        lrs = lrs.relu()
+                    self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+                    lrs = self.curr_lrs
+
+                # Assign lrs
+                self.logs['lrs_clipped'].append(lrs)
+                self.logs['curr_lrs'].append(self.curr_lrs)
+                for group, lr in zip(self.param_groups, lrs):
+                    group['lr'] = group['damping'] * lr.item()
 
             # Store logs
             self.logs['H'].append(H)

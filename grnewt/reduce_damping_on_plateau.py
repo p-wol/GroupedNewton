@@ -52,9 +52,9 @@ class ReduceDampingOnPlateau:
         >>>     scheduler.step(val_loss)
     """
 
-    def __init__(self, optimizer, mode='min', factor=0.1, patience=10,
-                 threshold=1e-4, threshold_mode='rel', cooldown=0,
-                 min_lr=0, eps=1e-8, verbose=False):
+    def __init__(self, optimizer, mode = 'min', factor = 0.1, patience = 10,
+                 threshold = 1e-4, threshold_mode='rel', cooldown = 0,
+                 min_lr = 0, eps = 1e-8, verbose=False):
 
         if factor >= 1.0:
             raise ValueError('Factor should be < 1.0.')
@@ -117,6 +117,7 @@ class ReduceDampingOnPlateau:
             self._reduce_lr(epoch)
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
+            self.best = current
 
         self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
 

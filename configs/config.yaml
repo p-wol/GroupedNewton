@@ -44,6 +44,7 @@ optimizer:
         momentum_damp: 0    # dampening of the momentum, as in the SGD
         period_hg: 1    # period of update of H and g
         mom_lrs: 0    # momentum, exponential moving average of the lrs
+        maintain_true_lrs: False    # if False, take the momentum over clipped lrs (removed negative values)
         ridge: 0    # ridge regularization term to make H invertible: H <- H + ridge * Id
         nesterov:    # use Nesterov's cubic regularization to compute lrs
             use: False
@@ -51,8 +52,9 @@ optimizer:
             mom_order3_: 0.    # momentum, exponential moving averageof D
         remove_negative: False    # set negative lrs to zero
         lrs_clip:    # perform clipping on lrs that are too large
-            mode: 'none'    # 'none', 'movavg' or 'median'
+            mode: 'none'    # 'none', 'movavg', 'median' or 'median_r'
             per_lr: True    # per-lr clipping, if False, all the lrs are scaled down
+            incremental: False    # when using 'median', clips the lrs before putting them into the median calculation
             momentum: 0.   # rate of the moving average on the lrs
             factor: 1.01    # factor applied to the moving average to compute the clipping threshold
             median: 1    # number of past computations used to compute the median

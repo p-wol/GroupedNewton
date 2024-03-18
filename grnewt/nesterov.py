@@ -6,7 +6,8 @@ import torch
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
-def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-5):
+def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-5,
+        clip_r = None):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
     Let: D = order3_.diag()
@@ -82,8 +83,10 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
         return (D @ torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)).norm().item() - x
 
     # Compute x0
+    dct_logs['x0_computation'] = ''
     if H_pd:
         x0 = 0
+        dct_logs['x0_computation'] = 'Direct_Hpd'
     else:
         # Case H non positive definite
         # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
@@ -99,7 +102,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
 
             # Redo computation with float64 if not precise enough
             if f(x0) > 0:
-                dct_logs['x0_analytical'] = 'float32'
+                dct_logs['x0_computation'] = 'Analyt_f32'
             else:
                 do_float64 = True
                 dct_logs['do_float64'] = do_float64
@@ -107,7 +110,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
 
                 x0 = compute_x0_analytical(H, D_inv, damping_int)
 
-                dct_logs['x0_analytical'] = 'float64'
+                dct_logs['x0_computation'] = 'Analyt_f64'
         else:
             # D singular: use root finding
 
@@ -124,10 +127,10 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
             rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
             
             if rx0.converged:
-                dct_logs['x0_numerical'] = 'converged'
+                dct_logs['x0_computation'] = 'Numer_conv'
                 x0 = rx0.root
             else:
-                dct_logs['x0_numerical'] = 'not converged'
+                dct_logs['x0_computation'] = 'Numer_divg'
                 dct_logs['found'] = False
                 dct_logs['time'] = time.time() - time_beginning
                 return None, dct_logs
@@ -155,14 +158,24 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
 
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100) #, rtol = 1e-4)
-    dct_logs['r'] = r.root
+    r_root = torch.tensor(r.root, dtype = dtype, device = device)
+    dct_logs['r'] = r_root
     dct_logs['r_converged'] = r.converged
     dct_logs['found'] = r.converged
+    if clip_r is not None:
+        if r_root > clip_r:
+            dct_logs['found'] = False
+            dct_logs['time'] = time.time() - time_beginning
+            return None, dct_logs
 
-    # Function computing 'lrs' from 'r'
-    def compute_lrs(x): 
-        return torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)
-    lrs = compute_lrs(r.root).to(dtype = dtype)
+        """
+        r_root = min(r_root, torch.tensor(clip_r, dtype = dtype, device = device))
+        dct_logs['r_clipped'] = r_root
+        """
+
+    # Compute 'lrs' from 'r'
+    lrs = torch.linalg.solve(H + .5 * damping_int * r_root * D_squ, g)
+    dct_logs['lrs'] = lrs
     
     dct_logs['time'] = time.time() - time_beginning
     return lrs, dct_logs

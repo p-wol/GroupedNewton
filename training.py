@@ -193,6 +193,7 @@ class Trainer:
         if args_hg.lrs_clip.mode != 'none':
             dct_lrs_clip = {'mode': args_hg.lrs_clip.mode,
                             'per_lr': args_hg.lrs_clip.per_lr,
+                            'incremental': args_hg.lrs_clip.incremental,
                             'momentum': args_hg.lrs_clip.momentum,
                             'factor': args_hg.lrs_clip.factor,
                             'median': args_hg.lrs_clip.median}
@@ -210,7 +211,8 @@ class Trainer:
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
                     mom_lrs = args_hg.mom_lrs, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
-                    remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip)
+                    remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
+                    maintain_true_lrs = args_hg.maintain_true_lrs)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
@@ -307,6 +309,7 @@ class Trainer:
         if self.classification:
             correct = [torch.tensor([0], dtype = self.dtype, device = self.device) for i in range(len(self.topk_acc))]
         self.idx_substep = 0
+        self.logs_nlls = []
         for i, (images, labels) in enumerate(self.train_loader):
             # Convert torch tensor to Variable
             images = images.to(device = self.device, dtype = self.dtype)
@@ -321,6 +324,9 @@ class Trainer:
             nll = self.loss_fn(outputs, labels)
             pen = torch.tensor(0.)
             loss = nll + pen
+
+            #TODO: detailed sequence of NLLs
+            self.logs_nlls.append(nll.item())
 
             cum_nll += nll.item()
             cum_pen += pen.item()
@@ -415,7 +421,7 @@ class Trainer:
         for self.epoch in range(self.args.optimizer.epochs):
             print('Epoch {}'.format(self.epoch))
 
-            # Logs Hg
+            # If args.logs_hg.use, then compute H, g and order3 with full-batch
             if self.args.logs_hg.use:
                 if self.args.logs_hg.test_float:
                     for name_dtype, dtype in (('32', torch.float), ('64', torch.double)):
@@ -455,9 +461,12 @@ class Trainer:
             if self.args.optimizer.name == 'NewtonSummary':
                 optim_logs = self.optimizer.logs
 
-                logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0}
-                logs_mean = {k: torch.stack(v).mean(0) for k, v in optim_logs.items() if len(v) > 0}
-                logs_total = {k: torch.stack(v) for k, v in optim_logs.items() if len(v) > 0 and k != 'H'}
+                logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
+                logs_mean = {k: torch.stack(v).mean(0) for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
+                logs_total = {k: v for k, v in optim_logs.items() if len(v) > 0 and k != 'H'}
+
+                if False:
+                    logs_total['H'] = optim_logs['H']
 
                 self.logger.log_artifact(TorchModel(logs_last, ext = '.pkl'),
                             'Hg_logs_last.{:05}'.format(self.epoch))
@@ -465,6 +474,8 @@ class Trainer:
                             'Hg_logs_mean.{:05}'.format(self.epoch))
                 self.logger.log_artifact(TorchModel(logs_total, ext = '.pkl'),
                             'Hg_logs_total.{:05}'.format(self.epoch))
+                self.logger.log_artifact(TorchModel(self.logs_nlls, ext = '.pkl'),
+                            'nlls_logs_total.{:05}'.format(self.epoch))
 
                 self.optimizer.reset_logs() 
             elif self.args.optimizer.name == 'NewtonSummaryFB':
