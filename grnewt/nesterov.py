@@ -6,7 +6,7 @@ import torch
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
-def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False, threshold_D_sing = 1e-5,
+def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None, threshold_D_sing = 1e-5,
         clip_r = None):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
@@ -40,108 +40,29 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
     dtype = H.dtype
     dct_logs = {}
 
-    def create_useful_variables(do_float64 = False):
-        if not do_float64:
-            return H, g, \
-                order3_, order3_.diag(), order3_.pow(2).diag(), (1/order3_).diag()
-        else:
-            o3_ = order3_.to(dtype = torch.float64)
-            return H.to(dtype = torch.float64), \
-                g.to(dtype = torch.float64), \
-                o3_, o3_.diag(), o3_.pow(2).diag(), (1/o3_).diag()
-
-    # Check if the computation should be done with float64
-    #H32_eigens = torch.linalg.eigh(H).eigenvalues
-    do_float64 = True
-    """
-    if order3_.min() < 1e-5 or H32_eigens[0].abs() < 1e-5:
-        do_float64 = True
-        dct_logs['small_eigs'] = True
-    else:
-        do_float64 = False
-        dct_logs['small_eigs'] = False
-    """
-    dct_logs['do_float64'] = do_float64
-
     # Create useful variables
-    H, g, order3_, D, D_squ, D_inv = create_useful_variables(do_float64)
-    if do_float64:
-        H64_eigens = torch.linalg.eigh(H).eigenvalues
+    H = H.to(dtype = torch.float64)
+    g = g.to(dtype = torch.float64)
+    order3_ = order3_.to(dtype = torch.float64)
+    D = order3_.diag()
+    D_squ = order3_.pow(2).diag()
+    D_inv = (1/order3_).diag()
 
-    # Check if H is positive definite
-    Hd = torch.linalg.eigh(H).eigenvalues
-    H_pd = ((Hd <= 0).sum() == 0).item()
-    dct_logs['H_pd'] = H_pd
-
-    # Error if H is not positive definite and damping_int == 0 (case impossible to solve)
-    if not H_pd and damping_int == 0:
-        raise ValueError('H is not positive definite and damping_int == 0: case impossible to solve. You may try damping_int > 0.')
-
-    # Check if D is singular
-    if force_numerical_x0:
-        D_sing = True
-    else:
-        D_sing = ((order3_ <= threshold_D_sing).sum() > 0).item()
-    dct_logs['D_sing'] = D_sing
-
-    # Function whose roots should be found
+    # Function whose roots should be found, between x0 and x1
     def f(x):
         return (D @ torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)).norm().item() - x
 
     # Compute x0
-    dct_logs['x0_computation'] = ''
-    if H_pd:
-        x0 = 0
-        dct_logs['x0_computation'] = 'Direct_Hpd'
-    else:
-        # Case H non positive definite
-        # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
-        if not D_sing:
-            # D non singular: explicit computation
-            def compute_x0_analytical(H, D_inv, damping_int):
-                lambd_min = torch.linalg.eigh(D_inv @ H @ D_inv).eigenvalues.min().item()
-                lambd_min = abs(min(0, lambd_min))
-                return (2/damping_int) * lambd_min
+    x0, dct_logs_x0 = compute_x0(H, order3_, D_squ, D_inv, damping_int, \
+        threshold_D_sing = threshold_D_sing, force_x0_computation = force_x0_computation)
+    for k, v in dct_logs_x0.items():
+        dct_logs['x0.' + k] = v
 
-            # Compute x0
-            x0 = compute_x0_analytical(H, D_inv, damping_int)
-
-            # Redo computation with float64 if not precise enough
-            if f(x0) > 0:
-                dct_logs['x0_computation'] = 'Analyt_f32'
-            else:
-                do_float64 = True
-                dct_logs['do_float64'] = do_float64
-                H, g, order3_, D, D_squ, D_inv = create_useful_variables(do_float64)
-
-                x0 = compute_x0_analytical(H, D_inv, damping_int)
-
-                dct_logs['x0_computation'] = 'Analyt_f64'
-        else:
-            # D singular: use root finding
-
-            # Function whose root should be found to compute x0
-            #TODO: explain
-            def fn_g(x):
-                return torch.linalg.eigh(H + .5 * damping_int * x * D_squ)\
-                            .eigenvalues.min().item()
-        
-            gx0 = 0.
-            gx1 = 1.
-            while fn_g(gx1) <= 0:
-                gx1 *= 3
-            rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
-            
-            if rx0.converged:
-                dct_logs['x0_computation'] = 'Numer_conv'
-                x0 = rx0.root
-            else:
-                dct_logs['x0_computation'] = 'Numer_divg'
-                dct_logs['found'] = False
-                dct_logs['time'] = time.time() - time_beginning
-                return None, dct_logs
-    
     # Check the validity of x0
+    if x0 is None:
+        dct_logs['found'] = False
+        dct_logs['time'] = time.time() - time_beginning
+        return None, dct_logs
     val_fx0 = f(x0)
     dct_logs['x0'] = x0
     dct_logs['f(x0) > 0'] = (val_fx0 > 0)
@@ -156,15 +77,11 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
     while f(x1) >= 0:
         x1 *= 3
         i += 1
-        """
-        if i >= 40:
-            raise RuntimeError('Impossible to find a solution to Nesterov problem.')
-        """
     dct_logs['x1'] = x1
 
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100) #, rtol = 1e-4)
-    r_root = torch.tensor(r.root, dtype = D.dtype, device = device)
+    r_root = torch.tensor(r.root, dtype = torch.float64, device = device)
     dct_logs['r'] = r_root
     dct_logs['r_converged'] = r.converged
     dct_logs['found'] = r.converged
@@ -174,14 +91,85 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
             dct_logs['time'] = time.time() - time_beginning
             return None, dct_logs
 
-        """
-        r_root = min(r_root, torch.tensor(clip_r, dtype = dtype, device = device))
-        dct_logs['r_clipped'] = r_root
-        """
-
     # Compute 'lrs' from 'r'
     lrs = torch.linalg.solve(H + .5 * damping_int * r_root * D_squ, g)
     dct_logs['lrs'] = lrs
     
     dct_logs['time'] = time.time() - time_beginning
     return lrs.to(dtype = dtype), dct_logs
+
+def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
+        threshold_D_sing = 1e-5, force_x0_computation = None):
+    dct_logs = {}
+
+    # Check if H is positive definite
+    Hd = torch.linalg.eigh(H).eigenvalues
+    H_pd = ((Hd <= 0).sum() == 0).item()
+    dct_logs['H_pd'] = H_pd
+
+    # Error if H is not positive definite and damping_int == 0 (case impossible to solve)
+    if not H_pd and damping_int == 0:
+        raise ValueError('H is not positive definite and damping_int == 0: case impossible to solve. You may try damping_int > 0.')
+
+    # Determine how to compute x0
+    dct_logs['D_sing'] = 'None'
+    if force_x0_computation is None:
+        if H_pd:                # H positive definite (PD)
+            x0_computation = 'Direct_Hpd'
+        else:
+            # Check if D is singular
+            D_sing = ((order3_ <= threshold_D_sing).sum() > 0).item()
+            dct_logs['D_sing'] = '{}'.format(D_sing)
+
+            if not D_sing:      # H not PD and D not singular
+                x0_computation = 'Analytical'
+            else:               # H not PD and D singular
+                x0_computation = 'Numerical'
+    else:
+        if force_x0_computation in ['Direct_Hpd', 'Analytical', 'Numerical']:
+            x0_computation = force_x0_computation
+        else:
+            raise ValueError('Error: unknown value for "force_x0_computation", found {}.'.format(force_x0_computation))
+
+    # Compute x0
+    dct_logs['computation'] = x0_computation
+    if x0_computation == 'Direct_Hpd':
+        # Case H positive definite (PD)
+        x0 = 0.
+        dct_logs['found'] = True
+    elif x0_computation == 'Analytical':
+        # Case H not PD and D not singular
+        # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
+
+        lambd_min = torch.linalg.eigh(D_inv @ H @ D_inv).eigenvalues.min().item()
+        lambd_min = abs(min(0, lambd_min))
+        x0 = (2/damping_int) * lambd_min
+        dct_logs['found'] = True
+    elif x0_computation == 'Numerical':
+        # Case H not PD and D singular
+        # D singular: use root finding
+
+        # Function whose root should be found to compute x0
+        #TODO: explain
+        def fn_g(x):
+            return torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
+    
+        gx0 = 0.
+        gx1 = 1.
+        while fn_g(gx1) <= 0:
+            gx1 *= 3
+        rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
+        
+        if rx0.converged:
+            x0 = rx0.root
+            dct_logs['found'] = True
+            dct_logs['computation'] = 'Numer_conv'
+        else:
+            x0 = None
+            found = False
+            dct_logs['found'] = False
+            dct_logs['computation'] = 'Numer_divg'
+    else:
+        raise NotImplementedError('Unsupported case x0_computation == {}.'.format(x0_computation))
+
+    return x0, dct_logs
