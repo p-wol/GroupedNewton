@@ -7,7 +7,7 @@ scheduler:
     name: SLURMScheduler
     cleanup_cmd: module purge
     option_cmd: ["--job-name=GrNewt",
-                 "--time=3:00:00", # TODO dev=02:00:00 ; gpu-t3=20:00:00 ; gpu-t4=100:00:00
+                 "--time=0:50:00", # TODO dev=02:00:00 ; gpu-t3=20:00:00 ; gpu-t4=100:00:00
                  "--qos=qos_gpu-t3", #TODO qos_gpu-dev (2 h) ; qos_gpu-t3 (20 h) ; qos_gpu-t4 (200 h)
                  "--partition=gpu_p13", #TODO
                  "--gres=gpu:1",

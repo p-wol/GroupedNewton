@@ -51,7 +51,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_numerical_x0 = False,
                 o3_, o3_.diag(), o3_.pow(2).diag(), (1/o3_).diag()
 
     # Check if the computation should be done with float64
-    H32_eigens = torch.linalg.eigh(H).eigenvalues
+    #H32_eigens = torch.linalg.eigh(H).eigenvalues
     do_float64 = True
     """
     if order3_.min() < 1e-5 or H32_eigens[0].abs() < 1e-5:
