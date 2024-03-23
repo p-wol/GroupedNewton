@@ -177,6 +177,12 @@ class Trainer:
             param_groups, name_groups = build_partition.trivial(model)
         elif args_hg.partition.find('blocks') == 0:
             param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
+        elif args_hg.partition.find('alternate') == 0:
+            alternate = int(args_hg.partition[len('alternate-'):])
+            nlayers = len(model.layers)
+            lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
         else:
             raise NotImplementedError('Unknown partition.')
 
@@ -212,7 +218,7 @@ class Trainer:
                     mom_lrs = args_hg.mom_lrs, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
                     remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
-                    maintain_true_lrs = args_hg.maintain_true_lrs)
+                    maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
@@ -394,7 +400,7 @@ class Trainer:
             args_sch = self.args.optimizer.hg.dmp_auto
             self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
                     patience = args_sch.patience, cooldown = args_sch.cooldown,
-                    threshold = args_sch.threshold, verbose = True)
+                    threshold = args_sch.threshold, apply_to = args_sch.apply_to, verbose = True)
         self.pre_train()
 
         time_t0 = time.time()

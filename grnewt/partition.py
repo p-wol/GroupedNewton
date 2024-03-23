@@ -46,6 +46,37 @@ def trivial(model: torch.nn.Module):
     return [{'params': [p for p in model.parameters()]}], \
             [[n for n, p in model.named_parameters()]]
 
+def names_by_lst(model: torch.nn.Module, lst_lst_names: List[List[str]]):
+    """
+    Build a partition containing len(lst_names) + 1 groups of parameters.
+    The parameters are grouped based on the end of their names.
+    Example: 
+        With model = torch.nn.Linear(2, 3) and lst_names = ['weight', 'bias'],
+        the partition will be: [{'params': [model.weight]}, {'params': [model.bias]}, {'params': []}].
+        The last group gathers all the parameters that do not match any of the names in lst_names.
+    """
+    # Build the groups
+    nb_names = len(lst_lst_names)
+    param_groups = [{'params': []} for i in range(nb_names + 1)]
+    name_groups = [[] for i in range(nb_names + 1)]
+    for k, v in model.named_parameters():
+        found = False
+        for i, lst_names in enumerate(lst_lst_names):
+            for name in lst_names:
+                if check(k, name):
+                    param_groups[i]['params'].append(v)
+                    name_groups[i].append(k)
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            param_groups[nb_names]['params'].append(v)
+            name_groups[nb_names].append(k)
+
+    return remove_empty(param_groups, name_groups)
+
 def names(model: torch.nn.Module, lst_names: List[str]):
     """
     Build a partition containing len(lst_names) + 1 groups of parameters.

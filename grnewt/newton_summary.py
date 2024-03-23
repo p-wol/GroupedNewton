@@ -12,7 +12,8 @@ class NewtonSummary(torch.optim.Optimizer):
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False):
+            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
+            diagonal = False):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -41,6 +42,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.mom_lrs = mom_lrs
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
+        self.diagonal = diagonal
         defaults = {'lr': 0, 
                     'damping': damping,
                     'momentum': momentum,
@@ -122,6 +124,9 @@ class NewtonSummary(torch.optim.Optimizer):
             H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul)
+
+            if self.diagonal:
+                H = H.diag().diag()
 
             order3_ = order3.abs().pow(1/3)
             if self.dct_nesterov['mom_order3_'] != 0.:

@@ -54,10 +54,12 @@ class ReduceDampingOnPlateau:
 
     def __init__(self, optimizer, mode = 'min', factor = 0.1, patience = 10,
                  threshold = 1e-4, threshold_mode='rel', cooldown = 0,
-                 min_lr = 0, eps = 1e-8, verbose=False):
+                 min_lr = 0, eps = 1e-8, apply_to = 'damping', verbose = False):
 
-        if factor >= 1.0:
+        if apply_to == 'damping' and factor >= 1.0:
             raise ValueError('Factor should be < 1.0.')
+        if apply_to == 'damping_int' and factor <= 1.0:
+            raise ValueError('Factor should be > 1.0.')
         self.factor = factor
 
         # Attach optimizer
@@ -79,6 +81,7 @@ class ReduceDampingOnPlateau:
         self.mode = mode
         self.threshold = threshold
         self.threshold_mode = threshold_mode
+        self.apply_to = apply_to    # 'damping' or 'damping_int'
         self.best = None
         self.num_bad_epochs = None
         self.mode_worse = None  # the worse value for the chosen mode
@@ -122,17 +125,27 @@ class ReduceDampingOnPlateau:
         self._last_lr = [group['lr'] for group in self.optimizer.param_groups]
 
     def _reduce_lr(self, epoch):
-        for i, param_group in enumerate(self.optimizer.param_groups):
-            old_lr = float(param_group['damping'])
-            new_lr = max(old_lr * self.factor, self.min_lrs[i])
-            if old_lr - new_lr > self.eps:
-                rate = new_lr / param_group['damping']
-                param_group['damping'] = new_lr
-                param_group['lr'] *= rate
-                if self.verbose:
-                    epoch_str = ("%.2f" if isinstance(epoch, float) else
-                                 "%.5d") % epoch
-                    print(f'Epoch {epoch_str}: reducing damping of group {i} to {new_lr:.4e}.')
+        if self.apply_to == 'damping':
+            for i, param_group in enumerate(self.optimizer.param_groups):
+                old_lr = float(param_group['damping'])
+                new_lr = max(old_lr * self.factor, self.min_lrs[i])
+                if old_lr - new_lr > self.eps:
+                    rate = new_lr / param_group['damping']
+                    param_group['damping'] = new_lr
+                    param_group['lr'] *= rate
+                    if self.verbose:
+                        epoch_str = ("%.2f" if isinstance(epoch, float) else
+                                     "%.5d") % epoch
+                        print(f'Epoch {epoch_str}: reducing damping of group {i} to {new_lr:.4e}.')
+        elif self.apply_to == 'damping_int':
+            self.optimizer.dct_nesterov['damping_int'] *= self.factor
+            if self.verbose:
+                epoch_str = ("%.2f" if isinstance(epoch, float) else
+                             "%.5d") % epoch
+                print(f'Epoch {epoch_str}: change damping_int to {self.optimizer.dct_nesterov["damping_int"]:.4e}.')
+        else:
+            raise ValueError('Error: unrecognized value for "apply_to": found {}.'.format(self.apply_to))
+
 
     @property
     def in_cooldown(self):
