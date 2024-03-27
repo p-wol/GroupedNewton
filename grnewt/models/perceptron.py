@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from .. import partition as build_partition
 
 class Perceptron(torch.nn.Module):
     def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
@@ -53,3 +54,38 @@ class Perceptron(torch.nn.Module):
             x = torch.nn.functional.log_softmax(x, dim = 1)
 
         return x
+
+    def partition(self, partition_args):
+        idx_conv2d = list(range(len(self.layers)))
+        nlayers = len(idx_conv2d)
+        if partition_args.find('blocks') == 0:
+            def fn_blocks(size, nblocks):
+                q = size // nblocks
+                r = size % nblocks
+                return [q + 1 for i in range(r)] + [q for i in range(nblocks - r)]
+
+            n = int(partition_args[len('blocks-'):])
+            lst_blocks = fn_blocks(nlayers, n)
+            pre_groups = []
+            k = 0
+            for bsize in lst_blocks:
+                gr = []
+                for i in range(bsize):
+                    gr.append(idx_conv2d[k + i])
+                pre_groups.append(gr)
+                k += bsize
+
+            lst_names_w = [['layers.{}.weight'.format(k) for k in gr] for gr in pre_groups]
+            lst_names_b = [['layers.{}.bias'.format(k) for k in gr] for gr in pre_groups]
+
+            param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
+        elif partition_args.find('alternate') == 0:
+            n = int(partition_args[len('alternate-'):])
+            lst_names_w = [['layers.{}.weight'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_b = [['layers.{}.bias'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+
+            param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
+        else:
+            NotImplementedError('Error: not implemented partition_args: "{}".'.format(partition_args))
+
+        return param_groups, name_groups

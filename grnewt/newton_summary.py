@@ -10,7 +10,7 @@ from .hg import compute_Hg
 class NewtonSummary(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
-            period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
+            period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
             remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
             diagonal = False):
@@ -40,6 +40,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.noregul = noregul
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
+        self.movavg = movavg
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
         self.diagonal = diagonal
@@ -65,6 +66,11 @@ class NewtonSummary(torch.optim.Optimizer):
 
         if dct_lrs_clip is None: dct_lrs_clip = {'mode': 'none'}
         self.dct_lrs_clip = dct_lrs_clip
+
+        if self.movavg != 0:
+            self.H = None
+            self.g = None
+            self.order3 = None
 
         self.reset_logs()
 
@@ -137,6 +143,22 @@ class NewtonSummary(torch.optim.Optimizer):
                     self.order3_ = r * self.order3_ + (1 - r) * order3_
                     order3_ = self.order3_
 
+            if self.movavg != 0:
+                if self.H is None:
+                    self.H = H
+                    self.g = g
+                    self.order3 = order3
+                else:
+                    r = self.movavg
+                    self.H = r * self.H + (1 - r) * H
+                    self.g = r * self.g + (1 - r) * g
+                    self.order3 = r * self.order3 + (1 - r) * order3
+
+                    H = self.H
+                    g = self.g
+                    order3 = self.order3
+                order3_ = order3_ = order3.abs().pow(1/3)
+
             # Compute lrs
             if self.noregul or not self.dct_nesterov['use']:
                 if self.noregul:
@@ -154,6 +176,8 @@ class NewtonSummary(torch.optim.Optimizer):
 
                 lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
                         damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
+                #print('lrs = ', lrs)
+                #print('lrs_logs =', lrs_logs)
 
                 for k, v in lrs_logs.items():
                     kk = 'nesterov.' + k

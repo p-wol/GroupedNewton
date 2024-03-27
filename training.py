@@ -138,11 +138,13 @@ class Trainer:
             model = LeNet(layers, act_function, scaling = args.model.scaling, sigma_w = sigma_w, sigma_b = sigma_b)
         elif args.model.name == 'VGG':
             vgg_setup = [s for s in model_args.split('-')]
-            vgg_type = vgg_setup[0]
+            vgg_type = vgg_setup[0][0]
+            with_batch_norm = True if 'bn' in vgg_setup[0] else False
             fc_sizes = [int(s) for s in vgg_setup[1:]]
 
             model = VGG(vgg_type, fc_sizes = fc_sizes, image_size = self.image_size, num_classes = self.n_classes,
-                        scaling = args.model.scaling, sigma_w = sigma_w, name_act_function = args.model.act_function)
+                        scaling = args.model.scaling, sigma_w = sigma_w, name_act_function = args.model.act_function,
+                        batch_norm = with_batch_norm)
         elif args.model.name == 'AutoencoderMLP':
             layers = [int(s) for s in model_args.split('-')]
             layers = [self.input_size] + layers
@@ -179,12 +181,23 @@ class Trainer:
             param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
         elif args_hg.partition.find('alternate') == 0:
             alternate = int(args_hg.partition[len('alternate-'):])
-            nlayers = len(model.layers)
+            if args.model.name == 'Perceptron':
+                nlayers = len(model.layers)
+            elif args.model.name == 'VGG':
+                nlayers = len(model.features)
             lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
             lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
             param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
+        elif args_hg.partition.find('vgg') == 0:
+            partition_args = args_hg.partition[len('vgg-'):]
+            param_groups, name_groups = model.partition(partition_args)
+        elif args_hg.partition.find('perceptron') == 0:
+            partition_args = args_hg.partition[len('perceptron-'):]
+            param_groups, name_groups = model.partition(partition_args)
         else:
             raise NotImplementedError('Unknown partition.')
+
+        print(name_groups)
 
         # Build parameters for Nesterov
         dct_nesterov = None
@@ -215,7 +228,7 @@ class Trainer:
             optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
                     damping = args_hg.damping, momentum = args_hg.momentum, 
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
-                    mom_lrs = args_hg.mom_lrs, ridge = args_hg.ridge, 
+                    mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
                     remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
                     maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)

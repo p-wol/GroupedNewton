@@ -45,6 +45,7 @@ optimizer:
         momentum_damp: 0    # dampening of the momentum, as in the SGD
         period_hg: 1    # period of update of H and g
         mom_lrs: 0.    # momentum, exponential moving average of the lrs
+        movavg: 0.    # momentum, exponential moving average of: H, g, order3
         maintain_true_lrs: True    # if False, take the momentum over clipped lrs (removed negative values)
         ridge: 0    # ridge regularization term to make H invertible: H <- H + ridge * Id
         nesterov:    # use Nesterov's cubic regularization to compute lrs

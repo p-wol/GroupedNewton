@@ -152,12 +152,24 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
         # Function whose root should be found to compute x0
         #TODO: explain
         def fn_g(x):
+            #mat = (H + .5 * damping_int * x * D_squ).cpu().numpy()
+            #return np.linalg.eigh(mat)[0].min()
             return torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
     
         gx0 = 0.
         gx1 = 1.
-        while fn_g(gx1) <= 0:
+        last_g = fn_g(gx1)
+        while last_g <= 0:
             gx1 *= 3
+            curr_g = fn_g(gx1)
+            if curr_g < last_g:
+                x0 = None
+                dct_logs['found'] = False
+                dct_logs['computation'] = 'Numer_dvx1'
+                return x0, dct_logs
+            else:
+                last_g = curr_g
+
         rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
         
         if rx0.converged:
@@ -166,7 +178,6 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
             dct_logs['computation'] = 'Numer_conv'
         else:
             x0 = None
-            found = False
             dct_logs['found'] = False
             dct_logs['computation'] = 'Numer_divg'
     else:
