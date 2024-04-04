@@ -128,3 +128,39 @@ def build_toy_regression(args, dct):
 
     return create_loaders(args, dct)
 
+def build_None(args, dct):
+    args_teacher = args.dataset.teacher
+    model_args = args_teacher.args
+    act_function = args_teacher.act_function
+    sigma_w = args_teacher.sigma_w
+    sigma_b = args_teacher.sigma_b
+    if '*' in model_args:
+        n_layers = int(model_args[:model_args.find('*')])
+        n_neurons = int(model_args[model_args.find('*') + 1:])
+        model_args = '-'.join([str(n_neurons) for i in range(n_layers)])
+    layers = [int(s) for s in model_args.split('-')]
+    in_size = layers[0]
+    out_size = layers[-1]
+
+    teacher = Perceptron(layers, act_function, scaling = False, sigma_w = sigma_w, sigma_b = sigma_b,
+        classification = False)
+    with torch.no_grad():
+        tv_in = torch.zeros(2, 1, dtype = dct['dtype'], device = dct['device'])
+        tv_out = torch.zeros(2, 1, dtype = dct['dtype'], device = dct['device'])
+
+        test_in = torch.zeros(1, 1, dtype = dct['dtype'], device = dct['device'])
+        test_out = torch.zeros(1, 1, dtype = dct['dtype'], device = dct['device'])
+
+    dct['tvsize'] = 2
+    dct['test_size'] = 1
+
+    dct['tvset'] = data.TensorDataset(tv_in, tv_out)
+
+    dct['testset'] = data.TensorDataset(test_in, test_out)
+
+    dct['classification'] = False
+    dct['input_size'] = 1
+    dct['loss_fn'] = lambda x, y: x
+
+    return create_loaders(args, dct)
+

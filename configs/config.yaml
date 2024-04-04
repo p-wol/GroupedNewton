@@ -48,6 +48,7 @@ optimizer:
         movavg: 0.    # momentum, exponential moving average of: H, g, order3
         maintain_true_lrs: True    # if False, take the momentum over clipped lrs (removed negative values)
         ridge: 0    # ridge regularization term to make H invertible: H <- H + ridge * Id
+        nologs: False    # if True, do not store logs
         nesterov:    # use Nesterov's cubic regularization to compute lrs
             use: False
             damping_int: 1.

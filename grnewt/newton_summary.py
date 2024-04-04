@@ -133,6 +133,8 @@ class NewtonSummary(torch.optim.Optimizer):
 
             if self.diagonal:
                 H = H.diag().diag()
+                #print('H.diag() =', H.diag())
+                #print('order3 =', order3)
 
             order3_ = order3.abs().pow(1/3)
             if self.dct_nesterov['mom_order3_'] != 0.:
