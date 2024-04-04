@@ -158,7 +158,7 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
         def fn_g(x):
             #mat = (H + .5 * damping_int * x * D_squ).cpu().numpy()
             #return np.linalg.eigvalsh(mat).min()
-            return torch.linalg.eigvalsh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
+            return torch.linalg.eigvalsh(H + .5 * damping_int * x * D_squ).min().item()
     
         gx0 = 0.
         gx1 = 1.
