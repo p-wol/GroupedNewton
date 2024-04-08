@@ -35,6 +35,7 @@ optimizer:
     weight_decay: 0.
     momentum: .9
     hg: 
+        diagonal: False    # use a diagonal approximation of the summary Hessian
         batch_size: -1    # batch size used to compute H, g, order3 (if -1, then take dataset.batch_size)
         optimizer: 'SGD'    # optimizer used to propose a direction of descent, used to compute H, g
         partition: 'canonical'    # dampening of the momentum, as in the SGD
@@ -43,9 +44,11 @@ optimizer:
         momentum: .9    # momentum as in the SGD
         momentum_damp: 0    # dampening of the momentum, as in the SGD
         period_hg: 1    # period of update of H and g
-        mom_lrs: 0    # momentum, exponential moving average of the lrs
-        maintain_true_lrs: False    # if False, take the momentum over clipped lrs (removed negative values)
+        mom_lrs: 0.    # momentum, exponential moving average of the lrs
+        movavg: 0.    # momentum, exponential moving average of: H, g, order3
+        maintain_true_lrs: True    # if False, take the momentum over clipped lrs (removed negative values)
         ridge: 0    # ridge regularization term to make H invertible: H <- H + ridge * Id
+        nologs: False    # if True, do not store logs
         nesterov:    # use Nesterov's cubic regularization to compute lrs
             use: False
             damping_int: 1.
@@ -60,6 +63,7 @@ optimizer:
             median: 1    # number of past computations used to compute the median
         dmp_auto:
             use: False
+            apply_to: 'damping'    # parameter to change, must be 'damping' or 'damping_int'
             patience: 1
             cooldown: 0
             threshold: .9
@@ -71,3 +75,7 @@ optimizer:
         weight_decay: .003
         tcov: 10
         tinv: 100
+    lbfgs:
+        max_iter: 20
+        history_size: 100
+        line_search_fn: None

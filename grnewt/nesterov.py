@@ -63,7 +63,11 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
         dct_logs['found'] = False
         dct_logs['time'] = time.time() - time_beginning
         return None, dct_logs
-    val_fx0 = f(x0)
+    try:
+        val_fx0 = f(x0)
+    except:
+        x0 *= 1.001
+        val_fx0 = f(x0)
     dct_logs['x0'] = x0
     dct_logs['f(x0) > 0'] = (val_fx0 > 0)
     if val_fx0 <= 0:
@@ -103,7 +107,7 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
     dct_logs = {}
 
     # Check if H is positive definite
-    Hd = torch.linalg.eigh(H).eigenvalues
+    Hd = torch.linalg.eigvalsh(H)
     H_pd = ((Hd <= 0).sum() == 0).item()
     dct_logs['H_pd'] = H_pd
 
@@ -141,7 +145,7 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
         # Case H not PD and D not singular
         # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
 
-        lambd_min = torch.linalg.eigh(D_inv @ H @ D_inv).eigenvalues.min().item()
+        lambd_min = torch.linalg.eigvalsh(D_inv @ H @ D_inv).min().item()
         lambd_min = abs(min(0, lambd_min))
         x0 = (2/damping_int) * lambd_min
         dct_logs['found'] = True
@@ -152,12 +156,22 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
         # Function whose root should be found to compute x0
         #TODO: explain
         def fn_g(x):
-            return torch.linalg.eigh(H + .5 * damping_int * x * D_squ).eigenvalues.min().item()
+            return torch.linalg.eigvalsh(H + .5 * damping_int * x * D_squ).min().item()
     
         gx0 = 0.
         gx1 = 1.
-        while fn_g(gx1) <= 0:
+        last_g = fn_g(gx1)
+        while last_g <= 0:
             gx1 *= 3
+            curr_g = fn_g(gx1)
+            if curr_g < last_g:
+                x0 = None
+                dct_logs['found'] = False
+                dct_logs['computation'] = 'Numer_dvx1'
+                return x0, dct_logs
+            else:
+                last_g = curr_g
+
         rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
         
         if rx0.converged:
@@ -166,7 +180,6 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
             dct_logs['computation'] = 'Numer_conv'
         else:
             x0 = None
-            found = False
             dct_logs['found'] = False
             dct_logs['computation'] = 'Numer_divg'
     else:

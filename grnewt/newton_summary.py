@@ -10,9 +10,10 @@ from .hg import compute_Hg
 class NewtonSummary(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
-            period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
+            period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False):
+            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
+            diagonal = False):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -39,8 +40,10 @@ class NewtonSummary(torch.optim.Optimizer):
         self.noregul = noregul
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
+        self.movavg = movavg
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
+        self.diagonal = diagonal
         defaults = {'lr': 0, 
                     'damping': damping,
                     'momentum': momentum,
@@ -63,6 +66,11 @@ class NewtonSummary(torch.optim.Optimizer):
 
         if dct_lrs_clip is None: dct_lrs_clip = {'mode': 'none'}
         self.dct_lrs_clip = dct_lrs_clip
+
+        if self.movavg != 0:
+            self.H = None
+            self.g = None
+            self.order3 = None
 
         self.reset_logs()
 
@@ -123,6 +131,9 @@ class NewtonSummary(torch.optim.Optimizer):
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul)
 
+            if self.diagonal:
+                H = H.diag().diag()
+
             order3_ = order3.abs().pow(1/3)
             if self.dct_nesterov['mom_order3_'] != 0.:
                 if self.order3_ is None:
@@ -131,6 +142,22 @@ class NewtonSummary(torch.optim.Optimizer):
                     r = self.dct_nesterov['mom_order3_']
                     self.order3_ = r * self.order3_ + (1 - r) * order3_
                     order3_ = self.order3_
+
+            if self.movavg != 0:
+                if self.H is None:
+                    self.H = H
+                    self.g = g
+                    self.order3 = order3
+                else:
+                    r = self.movavg
+                    self.H = r * self.H + (1 - r) * H
+                    self.g = r * self.g + (1 - r) * g
+                    self.order3 = r * self.order3 + (1 - r) * order3
+
+                    H = self.H
+                    g = self.g
+                    order3 = self.order3
+                order3_ = order3_ = order3.abs().pow(1/3)
 
             # Compute lrs
             if self.noregul or not self.dct_nesterov['use']:
@@ -145,7 +172,6 @@ class NewtonSummary(torch.optim.Optimizer):
                 else:
                     median = torch.stack(self.r_median).median(0).values
                     clip_r = self.dct_lrs_clip['factor'] * median
-                    #print('clip_r =', clip_r)
 
                 lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
                         damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
@@ -166,8 +192,6 @@ class NewtonSummary(torch.optim.Optimizer):
             else:
                 # Lrs clipping
                 if self.dct_lrs_clip['mode'] == 'movavg':
-                    #print('use clipping')
-                    #lrs = lrs.relu()
                     if not hasattr(self, 'lrs_movavg'):
                         self.lrs_movavg = lrs
                     else:
@@ -178,15 +202,10 @@ class NewtonSummary(torch.optim.Optimizer):
                         if self.dct_lrs_clip['per_lr']:
                             lrs_cond = (lrs >= lrs_thres * lrs_cond).to(dtype = self.dtype)
                             lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * self.lrs_movavg
-                            #print('lrs_cond:', lrs_cond)
                         else:
                             lrs_cond_max = (lrs / lrs_cond).max()
-                            #print('lrs_cond_max:', lrs_cond_max)
-                            #print('lrs / lrs_cond:', lrs / lrs_cond)
                             if lrs_cond_max > lrs_thres:
                                 lrs.mul_(lrs_thres / lrs_cond_max)
-
-                        #print('lrs_movavg:', self.lrs_movavg)
 
                         self.lrs_movavg = lrs_mom * self.lrs_movavg + (1 - lrs_mom) * lrs
                 elif self.dct_lrs_clip['mode'] == 'median':

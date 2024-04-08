@@ -14,8 +14,8 @@ from mlxp.data_structures.contrib.artifacts import TorchModel
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
-from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP
-from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression
+from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
+from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
 from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
 
@@ -42,7 +42,7 @@ def get_dtype(dtype):
     elif dtype == 32:
         return torch.float
     else:
-        raise ValueError('Unkown dtype: {}'.format(dtype))
+        raise ValueError('Unknown dtype: {}'.format(dtype))
 
 
 class Trainer:
@@ -93,6 +93,8 @@ class Trainer:
             dct = build_CIFAR10(args, dct)
         elif args.dataset.name == 'ToyRegression':
             dct = build_toy_regression(args, dct)
+        elif args.dataset.name == 'None':
+            dct = build_None(args, dct)
         else:
             raise NotImplementedError('Unknown dataset: {}.'.format(args.dataset.name))
 
@@ -138,17 +140,33 @@ class Trainer:
             model = LeNet(layers, act_function, scaling = args.model.scaling, sigma_w = sigma_w, sigma_b = sigma_b)
         elif args.model.name == 'VGG':
             vgg_setup = [s for s in model_args.split('-')]
-            vgg_type = vgg_setup[0]
+            vgg_type = vgg_setup[0][0]
+            with_batch_norm = True if 'bn' in vgg_setup[0] else False
             fc_sizes = [int(s) for s in vgg_setup[1:]]
 
             model = VGG(vgg_type, fc_sizes = fc_sizes, image_size = self.image_size, num_classes = self.n_classes,
-                        scaling = args.model.scaling, sigma_w = sigma_w, name_act_function = args.model.act_function)
+                        scaling = args.model.scaling, sigma_w = sigma_w, name_act_function = args.model.act_function,
+                        batch_norm = with_batch_norm)
         elif args.model.name == 'AutoencoderMLP':
             layers = [int(s) for s in model_args.split('-')]
             layers = [self.input_size] + layers
             classification = False
 
             model = AutoencoderMLP(layers, act_function, scaling = args.model.scaling, sigma_w = sigma_w, sigma_b = sigma_b)
+        elif args.model.name == 'Rosenbrock':
+            lst_params = model_args.split('-')
+            d = int(lst_params[0])
+            a = float(lst_params[1])
+            b = float(lst_params[2])
+
+            model = Rosenbrock(d, a, b)
+        elif args.model.name == 'RosenbrockT':
+            lst_params = model_args.split('-')
+            d = int(lst_params[0])
+            a = float(lst_params[1])
+            b = float(lst_params[2])
+
+            model = RosenbrockT(d, a, b)
         else:
             raise NotImplementedError('Unknown model: {}.'.format(args.model.name))
 
@@ -177,8 +195,25 @@ class Trainer:
             param_groups, name_groups = build_partition.trivial(model)
         elif args_hg.partition.find('blocks') == 0:
             param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
+        elif args_hg.partition.find('alternate') == 0:
+            alternate = int(args_hg.partition[len('alternate-'):])
+            if args.model.name == 'Perceptron':
+                nlayers = len(model.layers)
+            elif args.model.name == 'VGG':
+                nlayers = len(model.features)
+            lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
+        elif args_hg.partition.find('vgg') == 0:
+            partition_args = args_hg.partition[len('vgg-'):]
+            param_groups, name_groups = model.partition(partition_args)
+        elif args_hg.partition.find('perceptron') == 0:
+            partition_args = args_hg.partition[len('perceptron-'):]
+            param_groups, name_groups = model.partition(partition_args)
         else:
             raise NotImplementedError('Unknown partition.')
+
+        print(name_groups)
 
         # Build parameters for Nesterov
         dct_nesterov = None
@@ -209,10 +244,10 @@ class Trainer:
             optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
                     damping = args_hg.damping, momentum = args_hg.momentum, 
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
-                    mom_lrs = args_hg.mom_lrs, ridge = args_hg.ridge, 
+                    mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
                     remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
-                    maintain_true_lrs = args_hg.maintain_true_lrs)
+                    maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
@@ -228,6 +263,16 @@ class Trainer:
                     weight_decay = args.optimizer.kfac.weight_decay,
                     TCov = args.optimizer.kfac.tcov,
                     TInv = args.optimizer.kfac.tinv)
+        elif args.optimizer.name == 'LBFGS':
+            if args.optimizer.lbfgs.line_search_fn == 'none':
+                line_search_fn = None
+            else:
+                line_search_fn = args.optimizer.lbfgs.line_search_fn
+
+            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr, 
+                    max_iter = args.optimizer.lbfgs.max_iter,
+                    history_size = args.optimizer.lbfgs.history_size,
+                    line_search_fn = line_search_fn)
         else:
             raise NotImplementedError('Unknown optimizer: {}.'.format(args.optimizer.name))
 
@@ -394,7 +439,7 @@ class Trainer:
             args_sch = self.args.optimizer.hg.dmp_auto
             self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
                     patience = args_sch.patience, cooldown = args_sch.cooldown,
-                    threshold = args_sch.threshold, verbose = True)
+                    threshold = args_sch.threshold, apply_to = args_sch.apply_to, verbose = True)
         self.pre_train()
 
         time_t0 = time.time()
@@ -438,6 +483,14 @@ class Trainer:
                 self.model.eval()
 
                 metrics_tr = self.test_model(self.train_loader, 'tr')
+            elif self.args.optimizer.name == 'LBFGS':
+                def closure():
+                    self.model.zero_grad()
+                    objective = self.model(0)
+                    objective.backward()
+                    return objective
+
+                metrics_tr = {'tr_loss': self.optimizer.step(closure).item()}
             else:
                 metrics_tr = self.step_train()
 
@@ -448,7 +501,8 @@ class Trainer:
             metrics_va = self.test_model(self.valid_loader, 'va')
             metrics_ts = self.test_model(self.test_loader, 'ts')
 
-            dct_time = {'epoch': self.epoch, 'time': time.time() - time_t0}
+            dct_time = {'epoch': self.epoch, 'time': time.time() - time_t0,
+                    'memory_peak': torch.cuda.max_memory_allocated(self.device)}
 
             # Logs -- metrics
             metrics = dct_time | metrics_tr | metrics_va | metrics_ts
@@ -458,7 +512,7 @@ class Trainer:
             self.logger.log_metrics(metrics, log_name = log_name)
 
             # Logs -- artifacts
-            if self.args.optimizer.name == 'NewtonSummary':
+            if self.args.optimizer.name == 'NewtonSummary' and not self.args.optimizer.hg.nologs:
                 optim_logs = self.optimizer.logs
 
                 logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
