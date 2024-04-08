@@ -75,6 +75,8 @@ class NewtonSummary(torch.optim.Optimizer):
         self.reset_logs()
 
     def reset_logs(self):
+        if hasattr(self, 'logs'):
+            del self.logs
         self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [], 'lrs_clipped': [],
                 'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
 
