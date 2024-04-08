@@ -113,15 +113,8 @@ def make_layers(cfg, cl_act_function, batch_norm = False):
         else:
             v = int(v)
             layers.append(nn.Conv2d(in_channels, v, kernel_size = 3, padding = 1))
-            if batch_norm: layers.append(nn.BatchNorm2d(v))
-            """
-            if batch_norm:
-                bn = nn.BatchNorm2d(v)
-                with torch.no_grad():
-                    bn.bias.normal_(0, 1e-3)
-                    bn.weight.normal_(1, 1e-3)
-                layers.append(bn)
-            """
+            if batch_norm: 
+                layers.append(nn.BatchNorm2d(v))
             layers.append(cl_act_function(inplace = True))
             in_channels = v
     return layers

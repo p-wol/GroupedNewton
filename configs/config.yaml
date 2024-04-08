@@ -75,3 +75,7 @@ optimizer:
         weight_decay: .003
         tcov: 10
         tinv: 100
+    lbfgs:
+        max_iter: 20
+        history_size: 100
+        line_search_fn: None

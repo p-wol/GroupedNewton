@@ -14,7 +14,7 @@ from mlxp.data_structures.contrib.artifacts import TorchModel
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
-from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock
+from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
 from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
@@ -160,6 +160,13 @@ class Trainer:
             b = float(lst_params[2])
 
             model = Rosenbrock(d, a, b)
+        elif args.model.name == 'RosenbrockT':
+            lst_params = model_args.split('-')
+            d = int(lst_params[0])
+            a = float(lst_params[1])
+            b = float(lst_params[2])
+
+            model = RosenbrockT(d, a, b)
         else:
             raise NotImplementedError('Unknown model: {}.'.format(args.model.name))
 
@@ -256,6 +263,16 @@ class Trainer:
                     weight_decay = args.optimizer.kfac.weight_decay,
                     TCov = args.optimizer.kfac.tcov,
                     TInv = args.optimizer.kfac.tinv)
+        elif args.optimizer.name == 'LBFGS':
+            if args.optimizer.lbfgs.line_search_fn == 'none':
+                line_search_fn = None
+            else:
+                line_search_fn = args.optimizer.lbfgs.line_search_fn
+
+            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr, 
+                    max_iter = args.optimizer.lbfgs.max_iter,
+                    history_size = args.optimizer.lbfgs.history_size,
+                    line_search_fn = line_search_fn)
         else:
             raise NotImplementedError('Unknown optimizer: {}.'.format(args.optimizer.name))
 
@@ -466,6 +483,14 @@ class Trainer:
                 self.model.eval()
 
                 metrics_tr = self.test_model(self.train_loader, 'tr')
+            elif self.args.optimizer.name == 'LBFGS':
+                def closure():
+                    self.model.zero_grad()
+                    objective = self.model(0)
+                    objective.backward()
+                    return objective
+
+                metrics_tr = {'tr_loss': self.optimizer.step(closure).item()}
             else:
                 metrics_tr = self.step_train()
 

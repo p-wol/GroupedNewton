@@ -133,8 +133,6 @@ class NewtonSummary(torch.optim.Optimizer):
 
             if self.diagonal:
                 H = H.diag().diag()
-                #print('H.diag() =', H.diag())
-                #print('order3 =', order3)
 
             order3_ = order3.abs().pow(1/3)
             if self.dct_nesterov['mom_order3_'] != 0.:
@@ -174,12 +172,9 @@ class NewtonSummary(torch.optim.Optimizer):
                 else:
                     median = torch.stack(self.r_median).median(0).values
                     clip_r = self.dct_lrs_clip['factor'] * median
-                    #print('clip_r =', clip_r)
 
                 lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
                         damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
-                #print('lrs = ', lrs)
-                #print('lrs_logs =', lrs_logs)
 
                 for k, v in lrs_logs.items():
                     kk = 'nesterov.' + k
@@ -191,19 +186,12 @@ class NewtonSummary(torch.optim.Optimizer):
                     perform_update = False
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
-                """
-                else:
-                    self.logs['nesterov.r'].append(torch.tensor(lrs_logs['r'], device = self.device, dtype = self.dtype))
-                    self.logs['nesterov.converged'].append(torch.tensor(lrs_logs['r_converged'], device = self.device, dtype = self.dtype))
-                """
 
             if not perform_update:
                 lrs = torch.zeros(g.size(0), dtype = self.dtype, device = self.device)
             else:
                 # Lrs clipping
                 if self.dct_lrs_clip['mode'] == 'movavg':
-                    #print('use clipping')
-                    #lrs = lrs.relu()
                     if not hasattr(self, 'lrs_movavg'):
                         self.lrs_movavg = lrs
                     else:
@@ -214,15 +202,10 @@ class NewtonSummary(torch.optim.Optimizer):
                         if self.dct_lrs_clip['per_lr']:
                             lrs_cond = (lrs >= lrs_thres * lrs_cond).to(dtype = self.dtype)
                             lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * self.lrs_movavg
-                            #print('lrs_cond:', lrs_cond)
                         else:
                             lrs_cond_max = (lrs / lrs_cond).max()
-                            #print('lrs_cond_max:', lrs_cond_max)
-                            #print('lrs / lrs_cond:', lrs / lrs_cond)
                             if lrs_cond_max > lrs_thres:
                                 lrs.mul_(lrs_thres / lrs_cond_max)
-
-                        #print('lrs_movavg:', self.lrs_movavg)
 
                         self.lrs_movavg = lrs_mom * self.lrs_movavg + (1 - lrs_mom) * lrs
                 elif self.dct_lrs_clip['mode'] == 'median':
