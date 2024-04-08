@@ -129,10 +129,10 @@ class NewtonSummary(torch.optim.Optimizer):
             # Compute H, g, order3
             H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
-                    group_indices = self.group_indices, noregul = self.noregul)
+                    group_indices = self.group_indices, noregul = self.noregul, diagonal = self.diagonal)
 
-            if self.diagonal:
-                H = H.diag().diag()
+            #if self.diagonal:
+            #    H = H.diag().diag()
 
             order3_ = order3.abs().pow(1/3)
             if self.dct_nesterov['mom_order3_'] != 0.:
