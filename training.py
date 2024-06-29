@@ -177,7 +177,8 @@ class Trainer:
         args_hg = self.args.optimizer.hg
 
         # Define useful variables
-        full_loss = lambda x, y: self.loss_fn(self.model(x), y)
+        def full_loss(x, y): 
+            return self.loss_fn(self.model(x), y)
 
         # Build data loader for Hg
         if args_hg.batch_size == -1:

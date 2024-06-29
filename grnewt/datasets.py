@@ -22,7 +22,7 @@ def build_MNIST(args, dct):
     transform = [transforms.ToTensor()]
     if not args.dataset.autoencoder:
         transform.append(transforms.Normalize((0.1307,), (0.3081,)))
-    if not args.model.name in ('LeNet', 'VGG'):
+    if args.model.name not in ('LeNet', 'VGG'):
         transform.append(transforms.Lambda(lambda x: x.view(-1)))
     transform = transforms.Compose(transform)
 
@@ -55,7 +55,7 @@ def build_CIFAR10(args, dct):
     transform = [transforms.ToTensor()]
     if not args.dataset.autoencoder:
         transform.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
-    if not args.model.name in ('LeNet', 'VGG'):
+    if args.model.name not in ('LeNet', 'VGG'):
         transform.append(transforms.Lambda(lambda x: x.view(-1)))
     transform = transforms.Compose(transform)
 

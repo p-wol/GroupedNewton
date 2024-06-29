@@ -57,14 +57,16 @@ class NewtonSummary(torch.optim.Optimizer):
         self.dtype = self.tup_params[0].dtype
         self.step_counter = 0
 
-        if dct_nesterov is None: dct_nesterov = {'use': False}
+        if dct_nesterov is None: 
+            dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
         if dct_nesterov['mom_order3_'] !=  0.:
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        if dct_lrs_clip is None: dct_lrs_clip = {'mode': 'none'}
+        if dct_lrs_clip is None: 
+            dct_lrs_clip = {'mode': 'none'}
         self.dct_lrs_clip = dct_lrs_clip
 
         if self.movavg != 0:
