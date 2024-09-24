@@ -51,7 +51,6 @@ class AdamUpdate(Optimizer):
                 if len(p_state) != 0 and not torch.is_tensor(p_state["step"]):
                     step_val = float(p_state["step"])
                     p_state["step"] = torch.tensor(step_val, dtype=torch.float64 if torch.get_default_dtype() == torch.float64 else torch.float32)
-                    )
 
     def _init_group(
         self,
@@ -64,43 +63,40 @@ class AdamUpdate(Optimizer):
         state_steps,
     ):
         for p in group["params"]:
-            if p.grad is not None:
-                params_with_grad.append(p)
-                if p.grad.is_sparse:
-                    raise RuntimeError(
-                        "Adam does not support sparse gradients, please consider SparseAdam instead"
-                    )
-                grads.append(p.grad)
+            params_with_grad.append(p)
+            if p.grad.is_sparse:
+                raise RuntimeError(
+                    "Adam does not support sparse gradients, please consider SparseAdam instead"
+                )
+            grads.append(p.grad)
 
-                state = self.state[p]
-                # Lazy state initialization
-                if len(state) == 0:
-                    state["step"] = torch.tensor(0.0, dtype=torch.float64 if torch.get_default_dtype() == torch.float64 else torch.float32)
-                    )
-                    # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(
-                        p, memory_format=torch.preserve_format
-                    )
-                    # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.zeros_like(
-                        p, memory_format=torch.preserve_format
-                    )
-                    if group["amsgrad"]:
-                        # Maintains max of all exp. moving avg. of sq. grad. values
-                        state["max_exp_avg_sq"] = torch.zeros_like(
-                            p, memory_format=torch.preserve_format
-                        )
-
-                exp_avgs.append(state["exp_avg"])
-                exp_avg_sqs.append(state["exp_avg_sq"])
-
+            state = self.state[p]
+            # Lazy state initialization
+            if len(state) == 0:
+                state["step"] = torch.tensor(0.0, dtype=torch.float64 if torch.get_default_dtype() == torch.float64 else torch.float32)
+                # Exponential moving average of gradient values
+                state["exp_avg"] = torch.zeros_like(
+                    p, memory_format=torch.preserve_format
+                )
+                # Exponential moving average of squared gradient values
+                state["exp_avg_sq"] = torch.zeros_like(
+                    p, memory_format=torch.preserve_format
+                )
                 if group["amsgrad"]:
-                    max_exp_avg_sqs.append(state["max_exp_avg_sq"])
+                    # Maintains max of all exp. moving avg. of sq. grad. values
+                    state["max_exp_avg_sq"] = torch.zeros_like(
+                        p, memory_format=torch.preserve_format
+                    )
 
-                state_steps.append(state["step"])
+            exp_avgs.append(state["exp_avg"])
+            exp_avg_sqs.append(state["exp_avg_sq"])
 
-    #@_use_grad_for_differentiable
-    def step(self, closure=None):
+            if group["amsgrad"]:
+                max_exp_avg_sqs.append(state["max_exp_avg_sq"])
+
+            state_steps.append(state["step"])
+
+    def compute_step(self, closure=None):
         """Perform a single optimization step.
 
         Args:
@@ -153,7 +149,15 @@ class AdamUpdate(Optimizer):
                 found_inf=getattr(self, "found_inf", None),
             )
 
-        return loss
+        return lst_updates
+
+    def step(self, lst_updates):
+        with torch.no_grad():
+            j = 0
+            for group in self.param_groups:
+                for i, param in enumerate(group["params"]):
+                    param.add_(lst_updates[j])
+                    j += 1
 
 
 def adam(
@@ -179,6 +183,10 @@ def adam(
     lst_updates = []
 
     for i, param in enumerate(params):
+        if param.grad is None:
+            lst_updates.append(0)
+            continue
+
         grad = grads[i] if not maximize else -grads[i]
         exp_avg = exp_avgs[i]
         exp_avg_sq = exp_avg_sqs[i]
