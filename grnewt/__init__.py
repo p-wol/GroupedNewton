@@ -7,3 +7,4 @@ from .nesterov import nesterov_lrs
 from .newton_summary import NewtonSummary
 from .newton_summary_fb import NewtonSummaryFB
 from .reduce_damping_on_plateau import ReduceDampingOnPlateau
+from .differential import diff_order_n
