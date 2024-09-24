@@ -1,6 +1,7 @@
 from . import partition
 from . import models
 from . import datasets
+from . import optimizers
 from .util import fullbatch_gradient
 from .hg import compute_Hg, compute_Hg_fullbatch
 from .nesterov import nesterov_lrs
