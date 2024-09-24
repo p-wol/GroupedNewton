@@ -16,7 +16,7 @@ def taylor_n(f, tup_params, N, lst_v, detach = True):
 
     Arguments:
         f: scalar to differentiate
-        tup_params: tuple containing the parameters according to which f should be differentiated
+        tup_params: tuple containing the parameters according to which f will be differentiated
         N: order of the derivation
         lst_v: list of vectors on which the differentials will be applied
         detach: if True, detach the output
@@ -79,7 +79,7 @@ def pearlmutter_n(f, tup_params, N, lst_v, output = 'all', detach = True):
 
     Arguments:
         f: scalar to differentiate
-        tup_params: tuple containing the parameters according to which f should be differentiated
+        tup_params: tuple containing the parameters according to which f will be differentiated
         N: order of the differentiation
         lst_v: list of vectors on which the differentials will be applied
         output: either 'all' or 'last': vectors to output (all of the last one only)
@@ -103,8 +103,7 @@ def pearlmutter_n(f, tup_params, N, lst_v, output = 'all', detach = True):
         warnings.warn(s, UserWarning)
     device, dtype = tup_params[0].device, tup_params[0].dtype
 
-    ### Convert each v in lst_v from tuple to tensor if necessary
-    # Function: option_detach
+    ### Function: option_detach
     def option_detach(t):
         if isinstance(t, tuple):
             return tuple(t_.detach() if detach else t_ for t_ in t)
@@ -140,47 +139,53 @@ def pearlmutter_n(f, tup_params, N, lst_v, output = 'all', detach = True):
     else:
         return option_detach(deriv)
 
-def feature_n(model, loss, dct_params, x_ts, y_ts, lst_xy):
+def features_n(f, tup_params, N, v, use_symmetries = True):
     """
-    lst_xy = [(x_1, y_1), (x_2, y_2), ...]
-    loss(y_estimated, y_target)
-    dct_parameters: OrderedDict(model.named_parameters())
-    (x_ts, y_ts): 'test' data point at which we will compute the N-th derivative
-    lst_xy: list of length N of data points at which we will compute the first order derivative
-        (used as input of the N-th derivative, which is a N-linear form)
+    Compute the order-N tensor summarizing the N-th differential of f in the direction of v.
 
-    batch use (batch of ts): 
-        x_ts.size() == (batch_size, ...)
-        y_ts.size() == (batch_size, ...)
-        loss: returns the sum of losses over the batch
+    Arguments:
+        f: scalar to differentiate
+        tup_params: tuple containing the parameters according to which f will be differentiated
+        N: order of the differentiation
+        v: vector on which the differentials will be applied
+        use_symmetries: if True, complete K by using its symmetries
     """
-    N = len(lst_xy)
-    model.zero_grad()
-
-    tup_params = tuple(v for k, v in dct_params.items())
+    ### Define useful variables
     if tup_params[0].dtype != torch.float64:
         warnings.warn(f'The recommended floating-point type is torch.float64; found {tup_params[0].dtype}. ' \
                 + 'Computations of the derivatives may be imprecise or wrong.', UserWarning)
+    device, dtype = tup_params[0].device, tup_params[0].dtype
 
     def compute_Kelem(lst_i):
-        deriv = loss(model(x_ts), y_ts)
-        jac_tr = None
+        deriv = f
+        vi = None
 
-        for i, (x_tr, y_tr) in zip(lst_i, lst_xy):
-            deriv = torch.autograd.grad(deriv, tup_params[i], jac_tr, create_graph = True)[0]
-            jac_tr = torch.autograd.grad(loss(model(x_tr), y_tr), tup_params[i],
-                                         retain_graph = True)[0].detach()
+        for i in lst_i:
+            deriv = torch.autograd.grad(deriv, tup_params[i], vi, create_graph = True)[0]
+            vi = v[i]
 
-        return (jac_tr * deriv).sum()
+        return (vi * deriv).sum()
 
-    device = tup_params[0].device
-    K = torch.empty(*[len(tup_params)] * N, device = device)
-    for tup_idx in product(*repeat(range(len(tup_params)), N)):
-        try:
-            K[tup_idx] = compute_Kelem(list(tup_idx)).detach()
-        except:
-            #print('Warning: autograd failed at {}'.format(tup_idx))
-            K[tup_idx] = 0
+    K = torch.empty(*[len(tup_params)] * N, device = device, dtype = dtype)
+    if use_symmetries:
+        for tup_idx in combinations_with_replacement(range(len(tup_params)), N):
+            try:
+                K[tup_idx] = compute_Kelem(list(tup_idx)).detach()
+            except:
+                #print('Warning: autograd failed at {}'.format(tup_idx))
+                K[tup_idx] = 0
+                
+            set_copy = set(permutations(tup_idx, N))
+            set_copy.remove(tup_idx)
+            for oth_idx in set_copy:
+                K[oth_idx] = K[tup_idx]
+    else:
+        for tup_idx in product(*repeat(range(len(tup_params)), N)):
+            try:
+                K[tup_idx] = compute_Kelem(list(tup_idx)).detach()
+            except:
+                #print('Warning: autograd failed at {}'.format(tup_idx))
+                K[tup_idx] = 0
 
     return K
 
@@ -288,7 +293,7 @@ def feat_orderN_batch_tr(N, model, loss, dct_params, x_ts, y_ts, x_tr, y_tr,
             try:
                 K[tup_idx] = compute_Kelem(list(tup_idx)).detach()
             except:
-                #print('Warning: autograd failed at {}'.format(tup_idx))
+                print('Warning: autograd failed at {}'.format(tup_idx))
                 K[tup_idx] = 0
                 
             set_copy = set(permutations(tup_idx, N))
@@ -300,7 +305,7 @@ def feat_orderN_batch_tr(N, model, loss, dct_params, x_ts, y_ts, x_tr, y_tr,
             try:
                 K[tup_idx] = compute_Kelem(list(tup_idx)).detach()
             except:
-                #print('Warning: autograd failed at {}'.format(tup_idx))
+                print('Warning: autograd failed at {}'.format(tup_idx))
                 K[tup_idx] = 0
 
     return K

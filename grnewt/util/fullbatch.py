@@ -4,10 +4,9 @@ def fullbatch_gradient(model, final_loss, tup_params, train_loader, train_size, 
         autoencoder = False):
     # Define useful variables
     p = next(iter(model.parameters()))
-    device = p.device
-    dtype = p.dtype
+    device, dtype = p.device, p.dtype
 
-    # Compute full-batch_gradient
+    # Compute full-batch gradient
     model.zero_grad()
     for x, y in train_loader:
         x = x.to(device = device, dtype = dtype)
