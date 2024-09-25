@@ -5,8 +5,6 @@ import torch
 from torch import Tensor
 from torch.optim import Optimizer
 
-__all__ = ["Adam", "adam"]
-
 
 class AdamUpdate(Optimizer):
     def __init__(

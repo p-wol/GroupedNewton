@@ -4,8 +4,6 @@ import torch
 from torch import Tensor
 from torch.optim import Optimizer
 
-__all__ = ["SGD", "sgd"]
-
 
 class SGDUpdate(Optimizer):
     def __init__(
