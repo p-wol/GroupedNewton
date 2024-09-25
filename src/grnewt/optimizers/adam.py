@@ -147,14 +147,14 @@ class AdamUpdate(Optimizer):
                 found_inf=getattr(self, "found_inf", None),
             )
 
-        return lst_updates
+        return tuple(lst_updates)
 
-    def step(self, lst_updates):
+    def step(self, tup_updates):
         with torch.no_grad():
             j = 0
             for group in self.param_groups:
                 for i, param in enumerate(group["params"]):
-                    param.add_(lst_updates[j])
+                    param.add_(tup_updates[j])
                     j += 1
 
 
