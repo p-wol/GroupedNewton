@@ -1,7 +1,6 @@
 import warnings
 from itertools import product, repeat, permutations, combinations, combinations_with_replacement
 import torch
-from .folding import tensor_fold, tensor_unfold
 
 # TODO: add a function to check the precision of the computation of the derivatives
 #       e.g.: compute all the elements of K independently, then compare the elements which should theoretically be identical
