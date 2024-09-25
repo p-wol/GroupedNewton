@@ -59,6 +59,7 @@ class AdamUpdate(Optimizer):
         exp_avg_sqs,
         max_exp_avg_sqs,
         state_steps,
+        updates,
     ):
         for p in group["params"]:
             params_with_grad.append(p)
@@ -85,9 +86,13 @@ class AdamUpdate(Optimizer):
                     state["max_exp_avg_sq"] = torch.zeros_like(
                         p, memory_format=torch.preserve_format
                     )
+                state["update"] = torch.zeros_like(
+                    p, memory_format=torch.preserve_format
+                )
 
             exp_avgs.append(state["exp_avg"])
             exp_avg_sqs.append(state["exp_avg_sq"])
+            updates.append(state["update"])
 
             if group["amsgrad"]:
                 max_exp_avg_sqs.append(state["max_exp_avg_sq"])
@@ -109,7 +114,6 @@ class AdamUpdate(Optimizer):
                 loss = closure()
 
         lst_updates = []
-
         for group in self.param_groups:
             params_with_grad: List[Tensor] = []
             grads: List[Tensor] = []
@@ -118,6 +122,7 @@ class AdamUpdate(Optimizer):
             max_exp_avg_sqs: List[Tensor] = []
             state_steps: List[Tensor] = []
             beta1, beta2 = group["betas"]
+            updates: List[Tensor] = []
 
             self._init_group(
                 group,
@@ -127,15 +132,17 @@ class AdamUpdate(Optimizer):
                 exp_avg_sqs,
                 max_exp_avg_sqs,
                 state_steps,
+                updates,
             )
 
-            lst_updates += adam(
+            adam(
                 params_with_grad,
                 grads,
                 exp_avgs,
                 exp_avg_sqs,
                 max_exp_avg_sqs,
                 state_steps,
+                updates,
                 amsgrad=group["amsgrad"],
                 beta1=beta1,
                 beta2=beta2,
@@ -146,6 +153,8 @@ class AdamUpdate(Optimizer):
                 grad_scale=getattr(self, "grad_scale", None),
                 found_inf=getattr(self, "found_inf", None),
             )
+
+            lst_updates += updates
 
         return tuple(lst_updates)
 
@@ -165,6 +174,7 @@ def adam(
     exp_avg_sqs: List[Tensor],
     max_exp_avg_sqs: List[Tensor],
     state_steps: List[Tensor],
+    updates: List[Tensor],
     grad_scale: Optional[Tensor],
     found_inf: Optional[Tensor],
     *,
@@ -178,11 +188,9 @@ def adam(
 ):
     assert grad_scale is None and found_inf is None
 
-    lst_updates = []
-
     for i, param in enumerate(params):
         if param.grad is None:
-            lst_updates.append(0)
+            updates[i].zero_()
             continue
 
         grad = grads[i] if not maximize else -grads[i]
@@ -218,6 +226,4 @@ def adam(
         else:
             denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
 
-        lst_updates.append(-step_size * (exp_avg / denom))
-
-    return lst_updates
+        updates[i].zero_().addcdiv_(exp_avg, denom, value = -step_size)

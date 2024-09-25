@@ -42,19 +42,22 @@ class SGDUpdate(Optimizer):
             group.setdefault("nesterov", False)
             group.setdefault("maximize", False)
 
-    def _init_group(self, group, params, grads, momentum_buffer_list):
+    def _init_group(self, group, params, grads, momentum_buffer_list, updates):
         has_sparse_grad = False
 
         for p in group["params"]:
-            if p.grad is not None:
-                params.append(p)
-                grads.append(p.grad)
-                if p.grad.is_sparse:
-                    has_sparse_grad = True
+            params.append(p)
+            grads.append(p.grad)
+            if p.grad.is_sparse:
+                has_sparse_grad = True
 
-                if group["momentum"] != 0:
-                    state = self.state[p]
-                    momentum_buffer_list.append(state.get("momentum_buffer"))
+            state = self.state[p]
+            if group["momentum"] != 0:
+                momentum_buffer_list.append(state.get("momentum_buffer"))
+            state["update"] = torch.zeros_like(
+                p, memory_format=torch.preserve_format
+            )
+            updates.append(state["update"])
 
         return has_sparse_grad
 
@@ -75,15 +78,17 @@ class SGDUpdate(Optimizer):
             params: List[Tensor] = []
             grads: List[Tensor] = []
             momentum_buffer_list: List[Optional[Tensor]] = []
+            updates: List[Tensor] = []
 
             has_sparse_grad = self._init_group(
-                group, params, grads, momentum_buffer_list
+                group, params, grads, momentum_buffer_list, updates
             )
 
-            lst_updates += sgd(
+            sgd(
                 params,
                 grads,
                 momentum_buffer_list,
+                updates,
                 weight_decay=group["weight_decay"],
                 momentum=group["momentum"],
                 lr=group["lr"],
@@ -101,6 +106,8 @@ class SGDUpdate(Optimizer):
                     state = self.state[p]
                     state["momentum_buffer"] = momentum_buffer
 
+            lst_updates += updates
+
         return tuple(lst_updates)
         
     def step(self, tup_updates):
@@ -116,6 +123,7 @@ def sgd(
     params: List[Tensor],
     d_p_list: List[Tensor],
     momentum_buffer_list: List[Optional[Tensor]],
+    updates: List[Tensor],
     # kwonly args with defaults are not supported by functions compiled with torchscript issue #70627
     # setting this as kwarg for now as functional API is compiled by torch/distributed/optim
     has_sparse_grad: bool = False,
@@ -136,7 +144,6 @@ def sgd(
 
     assert grad_scale is None and found_inf is None
 
-    lst_updates = []
     for i, param in enumerate(params):
         grad = d_p_list[i] if not maximize else -d_p_list[i]
 
@@ -157,6 +164,4 @@ def sgd(
             else:
                 grad = buf
 
-        lst_updates.append(-lr * grad)
-        
-    return lst_updates
+        updates[i].zero_().add_(grad, alpha=-lr)
