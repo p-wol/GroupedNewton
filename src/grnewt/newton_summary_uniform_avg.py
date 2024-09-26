@@ -7,11 +7,11 @@ from torch.utils.data import DataLoader
 from .nesterov import nesterov_lrs
 from .hg import compute_Hg
 
-class NewtonSummaryUniformMean(torch.optim.Optimizer):
+class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False, dct_uniform_mean = None):
+            remove_negative: bool = False, dct_uniform_avg = None):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -26,7 +26,7 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
         dct_nesterov: args for Nesterov's cubic regularization procedure
             'use': True or False
             'damping_int': float; internal damping: the larger, the stronger the cubic regul.
-        dct_uniform_mean: args for uniform mean
+        dct_uniform_avg: args for uniform average
             Idea: 
                 update H, g, D in the following way:
                     X_{t+1} = (t/(t+1))*X_t + (1/(t+1))*x_t
@@ -71,15 +71,15 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        # Init dct_uniform_mean
-        if dct_uniform_mean is None:
-            dct_uniform_mean = {"use": False}
-        self.with_uniform_mean = dct_uniform_mean["use"]
+        # Init dct_uniform_avg
+        if dct_uniform_avg is None:
+            dct_uniform_avg = {"use": False}
+        self.with_uniform_avg = dct_uniform_avg["use"]
 
-        if self.with_uniform_mean:
-            self.warmup = dct_uniform_mean["warmup"]
-            self.unif_mean_period = dct_uniform_mean["period"]
-            self.dct_HgD_means = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
+        if self.with_uniform_avg:
+            self.warmup = dct_uniform_avg["warmup"]
+            self.unif_avg_period = dct_uniform_avg["period"]
+            self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
 
         self.reset_logs()
 
@@ -108,7 +108,7 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
 
         # Compute H, g
         perform_update = True
-        if self.with_uniform_mean and self.step_counter // self.period_hg < self.warmup:
+        if self.with_uniform_avg and self.step_counter // self.period_hg < self.warmup:
             perform_update = False
         if self.step_counter % self.period_hg == 0:
             # Prepare data
@@ -124,35 +124,35 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
 
-            if self.with_uniform_mean:
-                t = (self.step_counter // self.period_hg) % self.unif_mean_period
+            if self.with_uniform_avg:
+                t = (self.step_counter // self.period_hg) % self.unif_avg_period
                 if t == 0:
                     if self.step_counter == 0:
-                        self.dct_HgD_means["H_up"] = H
-                        self.dct_HgD_means["g_up"] = g
-                        self.dct_HgD_means["D_up"] = order3
-                    self.dct_HgD_means["H_use"] = self.dct_HgD_means["H_up"]
-                    self.dct_HgD_means["H_up"] = H
-                    self.dct_HgD_means["g_use"] = self.dct_HgD_means["g_up"]
-                    self.dct_HgD_means["g_up"] = g
-                    self.dct_HgD_means["D_use"] = self.dct_HgD_means["D_up"]
-                    self.dct_HgD_means["D_up"] = order3
-                if self.step_counter // self.period_hg < self.unif_mean_period:
+                        self.dct_HgD_avgs["H_up"] = H
+                        self.dct_HgD_avgs["g_up"] = g
+                        self.dct_HgD_avgs["D_up"] = order3
+                    self.dct_HgD_avgs["H_use"] = self.dct_HgD_avgs["H_up"]
+                    self.dct_HgD_avgs["H_up"] = H
+                    self.dct_HgD_avgs["g_use"] = self.dct_HgD_avgs["g_up"]
+                    self.dct_HgD_avgs["g_up"] = g
+                    self.dct_HgD_avgs["D_use"] = self.dct_HgD_avgs["D_up"]
+                    self.dct_HgD_avgs["D_up"] = order3
+                if self.step_counter // self.period_hg < self.unif_avg_period:
                     tt = t
                 else:
-                    tt = self.unif_mean_period + t
+                    tt = self.unif_avg_period + t
                 tt_use = tt + 1
                 tt_up = t + 1
-                self.dct_HgD_means["H_use"] = (tt / tt_use) * self.dct_HgD_means["H_use"] + (1 / tt_use) * H
-                self.dct_HgD_means["H_up"] = (t / tt_up) * self.dct_HgD_means["H_up"] + (1 / tt_up) * H
-                self.dct_HgD_means["g_use"] = (tt / tt_use) * self.dct_HgD_means["g_use"] + (1 / tt_use) * g
-                self.dct_HgD_means["g_up"] = (t / tt_up) * self.dct_HgD_means["g_up"] + (1 / tt_up) * g
-                self.dct_HgD_means["D_use"] = (tt / tt_use) * self.dct_HgD_means["D_use"] + (1 / tt_use) * order3
-                self.dct_HgD_means["D_up"] = (t / tt_up) * self.dct_HgD_means["D_up"] + (1 / tt_up) * order3
+                self.dct_HgD_avgs["H_use"] = (tt / tt_use) * self.dct_HgD_avgs["H_use"] + (1 / tt_use) * H
+                self.dct_HgD_avgs["H_up"] = (t / tt_up) * self.dct_HgD_avgs["H_up"] + (1 / tt_up) * H
+                self.dct_HgD_avgs["g_use"] = (tt / tt_use) * self.dct_HgD_avgs["g_use"] + (1 / tt_use) * g
+                self.dct_HgD_avgs["g_up"] = (t / tt_up) * self.dct_HgD_avgs["g_up"] + (1 / tt_up) * g
+                self.dct_HgD_avgs["D_use"] = (tt / tt_use) * self.dct_HgD_avgs["D_use"] + (1 / tt_use) * order3
+                self.dct_HgD_avgs["D_up"] = (t / tt_up) * self.dct_HgD_avgs["D_up"] + (1 / tt_up) * order3
 
-                H = self.dct_HgD_means["H_use"]
-                g = self.dct_HgD_means["g_use"]
-                order3 = self.dct_HgD_means["D_use"]
+                H = self.dct_HgD_avgs["H_use"]
+                g = self.dct_HgD_avgs["g_use"]
+                order3 = self.dct_HgD_avgs["D_use"]
 
             order3_ = order3.abs().pow(1/3)
 

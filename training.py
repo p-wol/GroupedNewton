@@ -18,6 +18,7 @@ from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, Ro
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
 from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
+from grnewt import optimizers
 
 
 def assign_device(device):
@@ -224,6 +225,14 @@ class Trainer:
                             'mom_order3_': args_hg.nesterov.mom_order3_}
         self.dct_nesterov = dct_nesterov
 
+        # Build parameters for uniform average
+        dct_uniform_avg = None
+        if args_hg.uniform_avg.use:
+            dct_uniform_avg = {'use': args_hg.uniform_avg.use,
+                               'period': args_hg.uniform_avg.period,
+                               'warmup': args_hg.uniform_avg.warmup}
+        self.dct_uniform_avg = dct_uniform_avg
+
         # Build parameters for lrs clipping
         dct_lrs_clip = None
         if args_hg.lrs_clip.mode != 'none':
@@ -254,6 +263,12 @@ class Trainer:
                     self.hg_loader, self.train_size,
                     damping = args_hg.damping, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder)
+        elif args.optimizer.name == "NewtonSummaryUniformAvg":
+            updater = optimizers.SGDUpdate(model.parameters(), momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
+            optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
+                         damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
+                         dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
+                         dct_uniform_avg = dct_uniform_avg)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
                     lr = args.optimizer.lr,

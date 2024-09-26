@@ -20,7 +20,7 @@ scheduler:
     ]
     shell_config_cmd: source ~/.bashrc
     shell_path: /bin/bash
-    env_cmd: module load pytorch-gpu/py3/2.1.1
+    env_cmd: module load pytorch-gpu/py3/2.3.0
 version_manager:
     name: GitVM
     parent_work_dir: ./.workdir
