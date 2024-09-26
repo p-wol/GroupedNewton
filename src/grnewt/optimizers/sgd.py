@@ -164,4 +164,4 @@ def sgd(
             else:
                 grad = buf
 
-        updates[i].zero_().add_(grad, alpha=-lr)
+        updates[i].zero_().add_(grad, alpha=lr)

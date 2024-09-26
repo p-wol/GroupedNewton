@@ -9,9 +9,9 @@ from .hg import compute_Hg
 
 class NewtonSummaryUniformMean(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
+            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
-            remove_negative: bool = False):
+            remove_negative: bool = False, dct_uniform_mean = None):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
@@ -26,6 +26,19 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
         dct_nesterov: args for Nesterov's cubic regularization procedure
             'use': True or False
             'damping_int': float; internal damping: the larger, the stronger the cubic regul.
+        dct_uniform_mean: args for uniform mean
+            Idea: 
+                update H, g, D in the following way:
+                    X_{t+1} = (t/(t+1))*X_t + (1/(t+1))*x_t
+                for each variable to maintain, update two elements:
+                    X^a and X^b:
+                    beginning: X^a is well-defined, X^b = x_0
+                    for T steps, update and use X^a, and update X^b
+                    at the end: X_a <- X_b; X_b <- x_T
+                    and repeat.
+            'use': True or False
+            'period': int; number of Hg update steps between each change of X^a, X^b.
+            'warmup': int; number of Hg update steps during which H, g, D are updated, but the NN is *not trained*
         """
         self.fn_data_loader = create_infinite_data_loader(data_loader)
         self.dl_iter = iter(self.fn_data_loader())
@@ -37,7 +50,6 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
         self.noregul = noregul
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
-        self.movavg = movavg
         self.curr_lrs = 0
         defaults = {'lr': 0, 
                     'damping': damping}
@@ -50,6 +62,7 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
         self.dtype = self.tup_params[0].dtype
         self.step_counter = 0
 
+        # Init dct_nesterov
         if dct_nesterov is None: 
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
@@ -58,10 +71,15 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        if self.movavg != 0:
-            self.H = None
-            self.g = None
-            self.order3 = None
+        # Init dct_uniform_mean
+        if dct_uniform_mean is None:
+            dct_uniform_mean = {"use": False}
+        self.with_uniform_mean = dct_uniform_mean["use"]
+
+        if self.with_uniform_mean:
+            self.warmup = dct_uniform_mean["warmup"]
+            self.unif_mean_period = dct_uniform_mean["period"]
+            self.dct_HgD_means = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
 
         self.reset_logs()
 
@@ -90,6 +108,8 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
 
         # Compute H, g
         perform_update = True
+        if self.with_uniform_mean and self.step_counter // self.period_hg < self.warmup:
+            perform_update = False
         if self.step_counter % self.period_hg == 0:
             # Prepare data
             x, y_target = next(self.dl_iter)
@@ -104,14 +124,37 @@ class NewtonSummaryUniformMean(torch.optim.Optimizer):
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
 
-            order3_ = order3.abs().pow(1/3)
-            if self.dct_nesterov['mom_order3_'] != 0.:
-                if self.order3_ is None:
-                    self.order3_ = order3_
+            if self.with_uniform_mean:
+                t = (self.step_counter // self.period_hg) % self.unif_mean_period
+                if t == 0:
+                    if self.step_counter == 0:
+                        self.dct_HgD_means["H_up"] = H
+                        self.dct_HgD_means["g_up"] = g
+                        self.dct_HgD_means["D_up"] = order3
+                    self.dct_HgD_means["H_use"] = self.dct_HgD_means["H_up"]
+                    self.dct_HgD_means["H_up"] = H
+                    self.dct_HgD_means["g_use"] = self.dct_HgD_means["g_up"]
+                    self.dct_HgD_means["g_up"] = g
+                    self.dct_HgD_means["D_use"] = self.dct_HgD_means["D_up"]
+                    self.dct_HgD_means["D_up"] = order3
+                if self.step_counter // self.period_hg < self.unif_mean_period:
+                    tt = t
                 else:
-                    r = self.dct_nesterov['mom_order3_']
-                    self.order3_ = r * self.order3_ + (1 - r) * order3_
-                    order3_ = self.order3_
+                    tt = self.unif_mean_period + t
+                tt_use = tt + 1
+                tt_up = t + 1
+                self.dct_HgD_means["H_use"] = (tt / tt_use) * self.dct_HgD_means["H_use"] + (1 / tt_use) * H
+                self.dct_HgD_means["H_up"] = (t / tt_up) * self.dct_HgD_means["H_up"] + (1 / tt_up) * H
+                self.dct_HgD_means["g_use"] = (tt / tt_use) * self.dct_HgD_means["g_use"] + (1 / tt_use) * g
+                self.dct_HgD_means["g_up"] = (t / tt_up) * self.dct_HgD_means["g_up"] + (1 / tt_up) * g
+                self.dct_HgD_means["D_use"] = (tt / tt_use) * self.dct_HgD_means["D_use"] + (1 / tt_use) * order3
+                self.dct_HgD_means["D_up"] = (t / tt_up) * self.dct_HgD_means["D_up"] + (1 / tt_up) * order3
+
+                H = self.dct_HgD_means["H_use"]
+                g = self.dct_HgD_means["g_use"]
+                order3 = self.dct_HgD_means["D_use"]
+
+            order3_ = order3.abs().pow(1/3)
 
             # Compute lrs
             if self.noregul or not self.dct_nesterov['use']:
