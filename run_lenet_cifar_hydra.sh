@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='./data/outputs'
-expe_series='MLP_MNIST_Hydra_debug_01'
+expe_series='LeNet_CIFAR_Hydra_debug_01'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
@@ -12,15 +12,15 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
 				system.dtype=32\
-				model.name='Perceptron'\
-				model.args='1024-200-100-10'\
+        		model.name='LeNet'\
+	        	model.args='6-16-120-84-10'\
 				model.act_function='tanh'\
 				model.scaling=False\
 				model.init.sigma_w=1.\
 				model.init.sigma_b=0.\
-				dataset.name='MNIST'\
+				dataset.name='CIFAR10'\
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
-				dataset.valid_size=6000\
+				dataset.valid_size=5000\
 				dataset.batch_size=100\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
@@ -43,8 +43,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.nesterov.damping_int=1.\
 				optimizer.hg.remove_negative=True\
         		optimizer.hg.uniform_avg.use=True\
-        		optimizer.hg.uniform_avg.period=50\
-        		optimizer.hg.uniform_avg.warmup=50\
+        		optimizer.hg.uniform_avg.period=20\
+        		optimizer.hg.uniform_avg.warmup=20\
 				optimizer.hg.dmp_auto.use=True\
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\

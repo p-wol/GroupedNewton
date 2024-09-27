@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils import data
 #from kfac.optimizers import KFACOptimizer
-from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
+from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
