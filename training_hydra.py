@@ -1,5 +1,6 @@
 import time
 import copy
+import os
 from collections import OrderedDict
 import itertools
 import numpy as np
@@ -9,8 +10,6 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils import data
-import mlxp
-from mlxp.data_structures.contrib.artifacts import TorchModel
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
 from grnewt import partition as build_partition
@@ -47,16 +46,22 @@ def get_dtype(dtype):
 
 
 class Trainer:
-    def __init__(self, config):
+    def __init__(self, config, hydra_path):
         self.args = config
 
         self.device = assign_device(self.args.system.device)
         self.dtype = get_dtype(self.args.system.dtype)
 
-        print(self.args)
-        print("DONE")
+        self.path_metrics = f"{hydra_path}/metrics"
+        if not os.path.isdir(self.path_metrics):
+            os.makedirs(self.path_metrics)
+        open(f"{self.path_metrics}/metrics.json", 'w').close()
 
-        #self.build_trainer()    
+        self.path_artifacts = f"{hydra_path}/artifacts"
+        if not os.path.isdir(self.path_artifacts):
+            os.makedirs(self.path_artifacts)
+
+        print(self.args)
 
     def build_datasets(self):
         """
@@ -467,7 +472,7 @@ class Trainer:
                 print('    ', p.size())
 
         # Store the param names - param_groups correspondence
-        self.logger.log_artifact(TorchModel(self.name_groups, ext = '.pkl'), 'ParamNameGroups')
+        torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
 
         # Prepare damping schedule
         damp_sch = self.args.optimizer.hg.damping_schedule
@@ -489,8 +494,7 @@ class Trainer:
                         raise NotImplementedError('Test float/double to implement.')
                 else:
                     logs = self.compute_logs()
-                    self.logger.log_artifact(TorchModel(logs, ext = '.pkl'), 
-                            'Hg_logs_ext.{:05}'.format(self.epoch))
+                    torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
 
             # Training step
             if self.args.optimizer.name == 'NewtonSummaryFB':
@@ -525,7 +529,8 @@ class Trainer:
             print(metrics)
 
             #self.logger.log_checkpoint(self, log_name = ckpt_name)
-            self.logger.log_metrics(metrics, log_name = log_name)
+            with open(f"{self.path_metrics}/metrics.json", "a") as f:
+                f.write(metrics.__repr__() + "\n")
 
             # Logs -- artifacts
             if self.args.optimizer.name == 'NewtonSummary' and not self.args.optimizer.hg.nologs:
@@ -538,19 +543,14 @@ class Trainer:
                 if False:
                     logs_total['H'] = optim_logs['H']
 
-                self.logger.log_artifact(TorchModel(logs_last, ext = '.pkl'),
-                            'Hg_logs_last.{:05}'.format(self.epoch))
-                self.logger.log_artifact(TorchModel(logs_mean, ext = '.pkl'),
-                            'Hg_logs_mean.{:05}'.format(self.epoch))
-                self.logger.log_artifact(TorchModel(logs_total, ext = '.pkl'),
-                            'Hg_logs_total.{:05}'.format(self.epoch))
-                self.logger.log_artifact(TorchModel(self.logs_nlls, ext = '.pkl'),
-                            'nlls_logs_total.{:05}'.format(self.epoch))
+                torch.save(logs_last, f"{self.path_artifacts}/Hg_logs_last.{self.epoch:05}.pkl")
+                torch.save(logs_mean, f"{self.path_artifacts}/Hg_logs_mean.{self.epoch:05}.pkl")
+                torch.save(logs_total, f"{self.path_artifacts}/Hg_logs_total.{self.epoch:05}.pkl")
+                torch.save(self.logs_nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.pkl")
 
                 self.optimizer.reset_logs() 
             elif self.args.optimizer.name == 'NewtonSummaryFB':
-                self.logger.log_artifact(TorchModel(self.optimizer.logs, ext = '.pkl'),
-                            'Hg_logs_hgfb.{:05}'.format(self.epoch))
+                torch.save(self.optimizer.logs, f"{self.path_artifacts}/Hg_logs_hgfb.{self.epoch:05}.pkl")
 
             # Update damping schedule
             if damp_sch != 'None' and self.epoch <= damp_sch_epoch:
