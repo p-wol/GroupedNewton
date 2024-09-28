@@ -8,6 +8,9 @@ module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
+				hydra.launcher.timeout_min=120\
+        		hydra.launcher.partition='gpu_p13'\
+        		hydra.launcher.qos='qos_gpu-dev'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=70478166\
@@ -33,7 +36,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.batch_size=200\
 				optimizer.hg.optimizer='SGD'\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.3\
+				optimizer.hg.damping=.1\
 				optimizer.hg.damping_schedule='None'\
 				optimizer.hg.momentum=.9\
 				optimizer.hg.momentum_damp=.9\
