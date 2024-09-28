@@ -8,9 +8,9 @@ module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-                seed=1\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
+                seed=1\
 				system.dtype=32\
         		model.name='LeNet'\
 	        	model.args='6-16-120-84-10'\

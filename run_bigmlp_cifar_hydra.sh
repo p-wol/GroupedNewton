@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='./data/outputs'
-expe_series='VGG_CIFAR_Hydra_debug_01'
+expe_series='BigMLP_CIFAR_Hydra_debug_01'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
@@ -12,15 +12,15 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				expe_series="${expe_series}"\
                 seed=70478166\
 				system.dtype=32\
-	        	model.name='VGG'\
-		        model.args='A'\
+				model.name='Perceptron'\
+				model.args='20*1024'\
 				model.act_function='elu'\
 				model.scaling=False\
 				model.init.sigma_w=1.4142\
 				model.init.sigma_b=0.\
 				dataset.name='CIFAR10'\
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
-				dataset.valid_size=5000\
+				dataset.valid_size=6000\
 				dataset.batch_size=100\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
@@ -55,3 +55,4 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.kfac.weight_decay=.003\
 				optimizer.kfac.tcov=10\
 				optimizer.kfac.tinv=100\
+
