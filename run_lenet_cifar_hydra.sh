@@ -8,9 +8,12 @@ module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
+				hydra.launcher.timeout_min=120\
+        		hydra.launcher.partition='gpu_p13'\
+        		hydra.launcher.qos='qos_gpu-dev'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
-                seed=1\
+                seed=571677914\
 				system.dtype=32\
         		model.name='LeNet'\
 	        	model.args='6-16-120-84-10'\
@@ -38,13 +41,13 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.momentum=.9\
 				optimizer.hg.momentum_damp=.9\
 				optimizer.hg.mom_lrs=0.\
-				optimizer.hg.period_hg=5\
+				optimizer.hg.period_hg=10\
 				optimizer.hg.nesterov.use=True\
-				optimizer.hg.nesterov.damping_int=1.\
+				optimizer.hg.nesterov.damping_int=.03\
 				optimizer.hg.remove_negative=True\
         		optimizer.hg.uniform_avg.use=True\
-        		optimizer.hg.uniform_avg.period=5\
-        		optimizer.hg.uniform_avg.warmup=5\
+        		optimizer.hg.uniform_avg.period=10\
+        		optimizer.hg.uniform_avg.warmup=10\
 				optimizer.hg.dmp_auto.use=True\
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\

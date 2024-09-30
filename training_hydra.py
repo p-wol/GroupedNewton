@@ -1,3 +1,4 @@
+import random
 import time
 import copy
 import os
@@ -19,6 +20,14 @@ from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
 from grnewt import optimizers
 
+def set_seeds(seed):    
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 def assign_device(device):
     device = int(device)
@@ -48,6 +57,8 @@ def get_dtype(dtype):
 class Trainer:
     def __init__(self, config, hydra_path):
         self.args = config
+
+        set_seeds(self.args.seed)
 
         self.device = assign_device(self.args.system.device)
         self.dtype = get_dtype(self.args.system.dtype)

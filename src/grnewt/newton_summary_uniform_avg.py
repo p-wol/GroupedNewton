@@ -125,30 +125,29 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
 
             if self.with_uniform_avg:
+                dct_HgD = {"H": H, "g": g, "D": order3}
+
                 t = (self.step_counter // self.period_hg) % self.unif_avg_period
                 if t == 0:
+                    # Time to replace the current moving average
                     if self.step_counter == 0:
-                        self.dct_HgD_avgs["H_up"] = H
-                        self.dct_HgD_avgs["g_up"] = g
-                        self.dct_HgD_avgs["D_up"] = order3
-                    self.dct_HgD_avgs["H_use"] = self.dct_HgD_avgs["H_up"]
-                    self.dct_HgD_avgs["H_up"] = H
-                    self.dct_HgD_avgs["g_use"] = self.dct_HgD_avgs["g_up"]
-                    self.dct_HgD_avgs["g_up"] = g
-                    self.dct_HgD_avgs["D_use"] = self.dct_HgD_avgs["D_up"]
-                    self.dct_HgD_avgs["D_up"] = order3
-                if self.step_counter // self.period_hg < self.unif_avg_period:
-                    tt = t
-                else:
-                    tt = self.unif_avg_period + t
-                tt_use = tt + 1
+                        # At init, set the moving averages to zero
+                        for key, curr in dct_HgD.items():
+                            self.dct_HgD_avgs[f"{key}_up"] = curr
+
+                    # Replace the current moving average by the next one and set the other to zero
+                    for key, curr in dct_HgD.items():
+                        self.dct_HgD_avgs[f"{key}_use"] = self.dct_HgD_avgs[f"{key}_up"]
+                        self.dct_HgD_avgs[f"{key}_up"] = curr
+
+                offset_use = 0 if self.step_counter // self.period_hg < self.unif_avg_period else self.unif_avg_period
+                tt_use = offset_use + t + 1
                 tt_up = t + 1
-                self.dct_HgD_avgs["H_use"] = (tt / tt_use) * self.dct_HgD_avgs["H_use"] + (1 / tt_use) * H
-                self.dct_HgD_avgs["H_up"] = (t / tt_up) * self.dct_HgD_avgs["H_up"] + (1 / tt_up) * H
-                self.dct_HgD_avgs["g_use"] = (tt / tt_use) * self.dct_HgD_avgs["g_use"] + (1 / tt_use) * g
-                self.dct_HgD_avgs["g_up"] = (t / tt_up) * self.dct_HgD_avgs["g_up"] + (1 / tt_up) * g
-                self.dct_HgD_avgs["D_use"] = (tt / tt_use) * self.dct_HgD_avgs["D_use"] + (1 / tt_use) * order3
-                self.dct_HgD_avgs["D_up"] = (t / tt_up) * self.dct_HgD_avgs["D_up"] + (1 / tt_up) * order3
+
+                for key1, curr in dct_HgD.items():
+                    for key2, n in zip(["use", "up"], [tt_use, tt_up]):
+                        key = f"{key1}_{key2}"
+                        self.dct_HgD_avgs[key].mul_((n - 1)/n).add_((1/n) * curr)
 
                 H = self.dct_HgD_avgs["H_use"]
                 g = self.dct_HgD_avgs["g_use"]

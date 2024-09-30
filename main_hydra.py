@@ -8,15 +8,6 @@ from omegaconf import DictConfig, OmegaConf
 from training_hydra import Trainer
 
 
-def set_seeds(seed):    
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-
 @hydra.main(version_base=None, config_path="./configs", config_name="config_hydra")
 def main(cfg):
     """
