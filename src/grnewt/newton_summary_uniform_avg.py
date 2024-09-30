@@ -125,7 +125,13 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
 
             if self.with_uniform_avg:
+                """
+                H2 = H.pow(2)
+                g2 = g.pow(2)
+                D2 = order3.pow(2)
+                """
                 dct_HgD = {"H": H, "g": g, "D": order3}
+                #        "H2": H2, "g2": g2, "D2": D2}
 
                 t = (self.step_counter // self.period_hg) % self.unif_avg_period
                 if t == 0:
@@ -140,14 +146,27 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                         self.dct_HgD_avgs[f"{key}_use"] = self.dct_HgD_avgs[f"{key}_up"]
                         self.dct_HgD_avgs[f"{key}_up"] = curr
 
+                # During the first period, both averages "use" and "up" are updated with the same coefficient
                 offset_use = 0 if self.step_counter // self.period_hg < self.unif_avg_period else self.unif_avg_period
+                
+                # Set up the time coefficients
                 tt_use = offset_use + t + 1
                 tt_up = t + 1
 
+                # Update the moving averages
                 for key1, curr in dct_HgD.items():
                     for key2, n in zip(["use", "up"], [tt_use, tt_up]):
                         key = f"{key1}_{key2}"
                         self.dct_HgD_avgs[key].mul_((n - 1)/n).add_((1/n) * curr)
+
+                """
+                print(f"Step counter = {self.step_counter // self.period_hg}")
+                for key in ["H", "g", "D"]:
+                    res = self.dct_HgD_avgs[f"{key}2_use"] - self.dct_HgD_avgs[f"{key}_use"].pow(2)
+                    mean = self.dct_HgD_avgs[f"{key}_use"]
+                    signal2noise = (mean / res.sqrt()).abs().mean()
+                    print(f"Var({key}) = {res.mean().item():.4e} ; signal/noise = {signal2noise:.4f}")
+                """
 
                 H = self.dct_HgD_avgs["H_use"]
                 g = self.dct_HgD_avgs["g_use"]
@@ -156,7 +175,9 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             order3_ = order3.abs().pow(1/3)
 
             # Compute lrs
-            if self.noregul or not self.dct_nesterov['use']:
+            if not perform_update:
+                pass
+            elif self.noregul or not self.dct_nesterov['use']:
                 if self.noregul:
                     regul_H = 0
                 else:
@@ -176,25 +197,20 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                     print('Nesterov did not converge: lr not updated during this step.')
                     #TODO: throw warning?
 
-            if not perform_update:
-                lrs = torch.zeros(g.size(0), dtype = self.dtype, device = self.device)
-            else:
-                # Lrs clipping
-                pass
+            if perform_update:
+                # To execute even when update_lrs = False? Block #1
+                r = self.mom_lrs if self.step_counter > 0 else 0
+                self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+                lrs = self.curr_lrs
+                if self.remove_negative:
+                    lrs = lrs.relu()
 
-            # To execute even when update_lrs = False? Block #1
-            r = self.mom_lrs if self.step_counter > 0 else 0
-            self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-            lrs = self.curr_lrs
-            if self.remove_negative:
-                lrs = lrs.relu()
-
-            # To execute even when update_lrs = False? Block #2
-            # Assign lrs
-            self.logs['lrs_clipped'].append(lrs)
-            self.logs['curr_lrs'].append(self.curr_lrs)
-            for group, lr in zip(self.param_groups, lrs):
-                group['lr'] = group['damping'] * lr.item()
+                # To execute even when update_lrs = False? Block #2
+                # Assign lrs
+                self.logs['lrs_clipped'].append(lrs)
+                self.logs['curr_lrs'].append(self.curr_lrs)
+                for group, lr in zip(self.param_groups, lrs):
+                    group['lr'] = group['damping'] * lr.item()
 
             # Store logs
             self.logs['H'].append(H)
