@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='BigMLP_MNIST_UnifAvg_01_final'
+expe_series='BigMLP_MNIST_UnifAvg_03_final_damping-0_1'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
@@ -46,8 +46,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.nesterov.damping_int=1.\
 				optimizer.hg.remove_negative=True\
         		optimizer.hg.uniform_avg.use=True\
-        		optimizer.hg.uniform_avg.period=10\
-        		optimizer.hg.uniform_avg.warmup=10\
+        		optimizer.hg.uniform_avg.period=5\
+        		optimizer.hg.uniform_avg.warmup=5\
 				optimizer.hg.dmp_auto.use=True\
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\

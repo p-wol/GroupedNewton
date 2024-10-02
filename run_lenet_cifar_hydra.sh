@@ -1,7 +1,7 @@
 #!/bin/bash
 
-parent_dir='./data/outputs'
-expe_series='LeNet_CIFAR_Hydra_debug_01'
+parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
+expe_series='LeNet_CIFAR_UnifAvg_01_grid'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
@@ -10,7 +10,7 @@ module load pytorch-gpu/py3/2.3.0
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
 				hydra.launcher.timeout_min=120\
         		hydra.launcher.partition='gpu_p13'\
-        		hydra.launcher.qos='qos_gpu-dev'\
+        		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
@@ -36,14 +36,14 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.batch_size=200\
 				optimizer.hg.optimizer='SGD'\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.3\
+				optimizer.hg.damping=1.,.3,.1,.03\
 				optimizer.hg.damping_schedule='None'\
 				optimizer.hg.momentum=.9\
 				optimizer.hg.momentum_damp=.9\
 				optimizer.hg.mom_lrs=0.\
 				optimizer.hg.period_hg=10\
 				optimizer.hg.nesterov.use=True\
-				optimizer.hg.nesterov.damping_int=.03\
+				optimizer.hg.nesterov.damping_int=3.,1.,.3,.1\
 				optimizer.hg.remove_negative=True\
         		optimizer.hg.uniform_avg.use=True\
         		optimizer.hg.uniform_avg.period=10\
