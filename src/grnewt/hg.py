@@ -13,7 +13,7 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
     grad = torch.autograd.grad(loss, tup_params, create_graph = True)
 
     # Reduce gradient
-    g_intermediate = [(g1 * g2).sum() for g1, g2 in zip(grad, direction)]
+    g_intermediate = [torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(grad, direction)]
     g_tup = tuple(sum(g_intermediate[i1:i2]) for i1, i2 in zip(group_indices[:-1], group_indices[1:]))
     g = torch.stack(g_tup).detach()
 
@@ -26,7 +26,7 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
             H_i = torch.autograd.grad(g_i, tup_params_i, retain_graph = True)
 
             i_direction = group_indices[i]
-            H_i = torch.tensor([(g1 * g2).sum() for g1, g2 in zip(H_i, direction[i_direction:])],
+            H_i = torch.tensor([torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(H_i, direction[i_direction:])],
                     device = device, dtype = dtype)   # reduce the result to get elems of H
             H_i_split = H_i.split(group_sizes[i:])
             H_i = torch.tensor([h.sum() for h in H_i_split], device = device, dtype = dtype)
@@ -35,7 +35,7 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
             H[i:,i] = H_i
         else:
             H_i = torch.autograd.grad(g_i, param_groups[i]['params'], create_graph = True, materialize_grads = True)
-            H_i = sum((g1 * g2).sum() for g1, g2 in zip(H_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+            H_i = sum(torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(H_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
             H[i,i] = H_i.item()
 
         # Computation of order3 (only the diagonal of the order-3 reduced derivative)
@@ -45,7 +45,7 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
 
         if not diagonal:
             deriv_i = torch.autograd.grad(g_i, param_groups[i]['params'], create_graph = True, materialize_grads = True)
-            deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+            deriv_i = sum(torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
         else:
             deriv_i = H_i
 
@@ -56,7 +56,7 @@ def compute_Hg(tup_params, full_loss, x, y_target, direction, *,
             deriv_i = torch.autograd.grad(deriv_i, param_groups[i]['params'], retain_graph = True, materialize_grads = True)
             #deriv_i = tuple(p if p is not None else torch.tensor(0, dtype = dtype, device = device) for p in deriv_i)
 
-            deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+            deriv_i = sum(torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
 
         # Add to the final result
         order3[i] += deriv_i
@@ -90,7 +90,7 @@ def compute_Hg_fullbatch(tup_params, full_loss, data_loader, dataset_size, direc
         gx = torch.autograd.grad(curr_loss, tup_params, create_graph = True)
 
         # Reduce gradient
-        gx_intermediate = [(g1 * g2).sum() for g1, g2 in zip(gx, direction)]
+        gx_intermediate = [torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(gx, direction)]
         gx_tup = tuple(sum(gx_intermediate[i1:i2]) for i1, i2 in zip(group_indices[:-1], group_indices[1:]))
         g += torch.stack(gx_tup).detach()
 
@@ -100,7 +100,7 @@ def compute_Hg_fullbatch(tup_params, full_loss, data_loader, dataset_size, direc
             Hx_i = torch.autograd.grad(gx_i, tup_params_i, retain_graph = True)
 
             i0 = group_indices[i]
-            Hx_i = torch.tensor([(g1 * g2).sum() for g1, g2 in zip(Hx_i, direction[i0:])],
+            Hx_i = torch.tensor([torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(Hx_i, direction[i0:])],
                     device = device, dtype = dtype)   # reduce the result to get elems of H
             Hx_i = tuple(sum(Hx_i[i1-i0:i2-i0]) for i1, i2 in zip(group_indices[i:-1], group_indices[i+1:]))
 
@@ -110,11 +110,11 @@ def compute_Hg_fullbatch(tup_params, full_loss, data_loader, dataset_size, direc
                 # Computation of order3 (only the diagonal of the order-3 reduced derivative)
                 # 2nd-order diff: differentiate g[i] w.r.t. tup_params[i]
                 deriv_i = torch.autograd.grad(gx_i, param_groups[i]['params'], create_graph = True)
-                deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+                deriv_i = sum(torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
 
                 # 3rd-order diff
                 deriv_i = torch.autograd.grad(deriv_i, param_groups[i]['params'], retain_graph = True)
-                deriv_i = sum((g1 * g2).sum() for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
+                deriv_i = sum(torch.dot(g1.view(-1), g2.view(-1)) for g1, g2 in zip(deriv_i, direction[group_indices[i]:group_indices[i+1]]))   # reduce
 
                 # Add to the final result
                 order3[i] += deriv_i
