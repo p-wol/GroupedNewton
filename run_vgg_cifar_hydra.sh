@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='VGG_CIFAR_ICLR25_01_test'
+expe_series='VGG_CIFAR_ICLR25_03_grid_Adam'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
@@ -25,12 +25,13 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
 				dataset.valid_size=5000\
 				dataset.batch_size=100\
+				dataset.data_augm=True\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
 				logs_hg.test_float=False\
-				optimizer.epochs=100\
-				optimizer.name='NewtonSummary'\
-				optimizer.lr=.003\
+				optimizer.epochs=50\
+				optimizer.name='Adam'\
+				optimizer.lr=.001,.0001,.00001,.000001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=200\
