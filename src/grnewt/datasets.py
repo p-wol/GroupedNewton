@@ -19,18 +19,26 @@ def create_loaders(args, dct):
     return dct
 
 def build_MNIST(args, dct):
-    transform = [transforms.ToTensor()]
-    if not args.dataset.autoencoder:
-        transform.append(transforms.Normalize((0.1307,), (0.3081,)))
-    if args.model.name not in ('LeNet', 'VGG'):
-        transform.append(transforms.Lambda(lambda x: x.view(-1)))
-    transform = transforms.Compose(transform)
+    data_augm = args.dataset.data_augm
 
+    transform_train = [transforms.ToTensor()]
+    transform_test = [transforms.ToTensor()]
+    if not args.dataset.autoencoder:
+        transform_train.append(transforms.Normalize((0.1307,), (0.3081,)))
+        transform_test.append(transforms.Normalize((0.1307,), (0.3081,)))
+    if args.model.name not in ('LeNet', 'VGG'):
+        transform_train.append(transforms.Lambda(lambda x: x.view(-1)))
+        transform_test.append(transforms.Lambda(lambda x: x.view(-1)))
+    if data_augm:
+        transform_train = [transforms.RandomCrop(28, padding = 3)] + transform_train
+    transform_train = transforms.Compose(transform_train)
+    transform_test = transforms.Compose(transform_test)
+    
     dct['tvset'] = torchvision.datasets.MNIST(root = args.dataset.path, train = True,
-            download = False, transform = transform)
+            download = False, transform = transform_train)
 
     dct['testset'] = torchvision.datasets.MNIST(root = args.dataset.path, train = False,
-            download = False, transform = transform)
+            download = False, transform = transform_test)
 
     dct['test_size'] = 10000
     dct['tvsize'] = 60000
@@ -52,18 +60,28 @@ def build_MNIST(args, dct):
     return create_loaders(args, dct)
 
 def build_CIFAR10(args, dct):
-    transform = [transforms.ToTensor()]
+    data_augm = args.dataset.data_augm
+
+    transform_train = [transforms.ToTensor()]
+    transform_test = [transforms.ToTensor()]
     if not args.dataset.autoencoder:
-        transform.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
+        transform_train.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
+        transform_test.append(transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
     if args.model.name not in ('LeNet', 'VGG'):
-        transform.append(transforms.Lambda(lambda x: x.view(-1)))
-    transform = transforms.Compose(transform)
+        transform_train.append(transforms.Lambda(lambda x: x.view(-1)))
+        transform_test.append(transforms.Lambda(lambda x: x.view(-1)))
+    if data_augm:
+        transform_train = [transforms.RandomCrop(32, padding = 4),
+                           transforms.RandomHorizontalFlip()] \
+                          + transform_train
+    transform_train = transforms.Compose(transform_train)
+    transform_test = transforms.Compose(transform_test)
 
     dct['tvset'] = torchvision.datasets.CIFAR10(root = args.dataset.path, train = True,
-            download = False, transform = transform)
+            download = False, transform = transform_train)
 
     dct['testset'] = torchvision.datasets.CIFAR10(root = args.dataset.path, train = False,
-            download = False, transform = transform)
+            download = False, transform = transform_test)
 
     dct['test_size'] = 10000
     dct['tvsize'] = 50000

@@ -52,6 +52,7 @@ dataset:
     test_size: -1
     batch_size: 100
     autoencoder: False
+    data_augm: False
     teacher:
         args: '1-1'
         act_function: 'identity'

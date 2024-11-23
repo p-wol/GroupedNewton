@@ -25,6 +25,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
 				dataset.valid_size=5000\
 				dataset.batch_size=100\
+				dataset.data_augm=True\
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
 				logs_hg.test_float=False\
