@@ -26,8 +26,17 @@ dataset:
         sigma_b: .01
 logs_hg:
     use: False    # Use or not the logs of hg
-    batch_size: 1000    # batch size when updating H and g
+    batch_size: 2000    # batch size when updating H and g
     test_float: False    # if True, compute the logs with float32 and with float64
+logs_diff:
+    use: False
+    order: 2
+    partition: 'trivial'
+    try_descent:
+        use: False
+        minlr: .0000001
+        maxlr: .1
+        numlr: 7
 optimizer:
     epochs: 10
     name: 'SGD'

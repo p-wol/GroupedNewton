@@ -13,6 +13,7 @@ import torchvision.transforms as transforms
 from torch.utils import data
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg
+from grnewt import ParamGroups, diff_n, diff_n_fullbatch
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
@@ -500,12 +501,12 @@ class Trainer:
 
             # If args.logs_hg.use, then compute H, g and order3 with full-batch
             if self.args.logs_hg.use:
-                if self.args.logs_hg.test_float:
-                    for name_dtype, dtype in (('32', torch.float), ('64', torch.double)):
-                        raise NotImplementedError('Test float/double to implement.')
-                else:
-                    logs = self.compute_logs()
-                    torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
+                logs = self.compute_logs_hg()
+                torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
+
+            if self.args.logs_diff.use:
+                logs = self.compute_logs_diff()
+                torch.save(logs, f"{self.path_artifacts}/Hg_logs_diff.{self.epoch:05}.pkl")
 
             # Training step
             if self.args.optimizer.name == 'NewtonSummaryFB':
@@ -574,12 +575,12 @@ class Trainer:
         self.logger.log_metrics(metrics, log_name=log_name)
         """
 
-    def compute_logs(self):
+    def compute_logs_hg(self):
         logs = {}
 
-        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.hg_loader, self.train_size)
+        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.train_loader_logs_hg, self.train_size)
 
-        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.hg_loader, self.train_size, direction, 
+        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
                 param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices, 
                 autoencoder = self.args.dataset.autoencoder)
 
@@ -597,6 +598,30 @@ class Trainer:
         logs['g'] = g
         logs['order3'] = order3
         logs['lrs'] = lrs
+
+        return logs
+
+    def compute_logs_diff(self):
+        logs = {}
+
+        if self.args.logs_diff.partition == 'canonical':
+            pgroups, name_groups = build_partition.canonical(model)
+        elif self.args.logs_diff.partition == 'wb':
+            pgroups, name_groups = build_partition.wb(model)
+        elif self.args.logs_diff.partition == 'trivial':
+            pgroups, name_groups = build_partition.trivial(model)
+        else:
+            raise NotImplementedError("Not implemented: self.args.logs_diff.partition = {}".format(self.args.logs_diff.partition))
+
+        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.train_loader_logs_hg, self.train_size)
+
+        param_groups = ParamGroups(pgroups)
+        lst_diff_n = diff_n_fullbatch(param_groups, self.args.log_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction)
+
+        logs["lst_diff_n"] = lst_diff_n
+
+        if self.args.logs_diff.try_descent.use:
+            pass
 
         return logs
 
