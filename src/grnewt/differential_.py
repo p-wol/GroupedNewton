@@ -16,15 +16,17 @@ def diff_n(param_groups, order, full_loss, x, y_target, direction):
     deriv = full_loss(x, y_target)
     lst_results[0] = {tuple(): deriv.detach()}
 
-    deriv = param_groups.dercon(deriv, direction, 0, None, detach = False)
-    lst_results[1] = {tuple(): deriv.detach()}
+    deriv = {tuple(): param_groups.dercon(deriv, direction, 0, None, detach = False)}
+    lst_results[1] = {k: v.detach() for k, v in deriv.items()}
 
     for d in range(2, order + 1):
         new_deriv = {}
         set_idx = [tuple(sorted(idx)) for idx in combinations_with_replacement(range(nb_groups), d - 1)]
         for idx in set_idx:
-            new_deriv[idx] = param_groups.dercon(deriv[idx], direction, idx[-1], None, detach = False)
-        lst_results[d] = [k: v.detach() for k, v in new_deriv.items()]
+            init, last = idx[:-1], idx[-1]
+            imax = last if len(init) == 0 else last - init[-1]
+            new_deriv[idx] = param_groups.dercon(deriv[init][imax], direction, last, None, detach = False)
+        lst_results[d] = {k: v.detach() for k, v in new_deriv.items()}
         deriv = new_deriv
 
     return lst_results
