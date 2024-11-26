@@ -39,8 +39,8 @@ def diff_n_fullbatch(param_groups, order, full_loss, data_loader, dataset_size, 
     nb_groups = param_groups.nb_groups
 
     # Initialize tensors
-    lst_results = [None] * (order+1)
-    for d in range(1, order+1):
+    lst_results = [None] * (order + 1)
+    for d in range(1, order + 1):
         lst_results[d] = torch.zeros(*([nb_groups] * d), device = device, dtype = dtype)
     lst_results[0] = torch.tensor(0., device = device, dtype = dtype)
 
@@ -55,7 +55,7 @@ def diff_n_fullbatch(param_groups, order, full_loss, data_loader, dataset_size, 
         loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
         lst_results_ = diff_n(param_groups, order, loss_x, x, y_target, direction)
 
-        for d in range(order):
+        for d in range(order + 1):
             lst_results[d] += lst_results_[d]
 
     return lst_results
