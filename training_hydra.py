@@ -605,18 +605,18 @@ class Trainer:
         logs = {}
 
         if self.args.logs_diff.partition == 'canonical':
-            pgroups, name_groups = build_partition.canonical(model)
+            pgroups, name_groups = build_partition.canonical(self.model)
         elif self.args.logs_diff.partition == 'wb':
-            pgroups, name_groups = build_partition.wb(model)
+            pgroups, name_groups = build_partition.wb(self.model)
         elif self.args.logs_diff.partition == 'trivial':
-            pgroups, name_groups = build_partition.trivial(model)
+            pgroups, name_groups = build_partition.trivial(self.model)
         else:
             raise NotImplementedError("Not implemented: self.args.logs_diff.partition = {}".format(self.args.logs_diff.partition))
 
         direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.train_loader_logs_hg, self.train_size)
 
         param_groups = ParamGroups(pgroups)
-        lst_diff_n = diff_n_fullbatch(param_groups, self.args.log_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction)
+        lst_diff_n = diff_n_fullbatch(param_groups, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction)
 
         logs["lst_diff_n"] = lst_diff_n
 
