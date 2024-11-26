@@ -1,3 +1,4 @@
+import copy
 from itertools import product, repeat, permutations, combinations, combinations_with_replacement
 import torch
 from .util import ParamGroups
@@ -10,24 +11,21 @@ def diff_n(param_groups, order, full_loss, x, y_target, direction):
 
     # Initialize tensors
     lst_results = [None] * (order+1)
-    for d in range(1, order+1):
-        lst_results[d] = torch.zeros(*([nb_groups] * d), device = device, dtype = dtype)
 
     # Compute gradient
-    loss = full_loss(x, y_target)
-    lst_results[0] = loss.detach()
+    deriv = full_loss(x, y_target)
+    lst_results[0] = {tuple(): deriv.detach()}
 
-    deriv = param_groups.dercon(loss, direction, 0, None, detach = False)
-    lst_results[1] = deriv.detach()
+    deriv = param_groups.dercon(deriv, direction, 0, None, detach = False)
+    lst_results[1] = {tuple(): deriv.detach()}
 
     for d in range(2, order + 1):
-        new_result = torch.zeros(*([nb_groups] * d), device = device, dtype = dtype)
-        set_idx = [sorted(idx) for idx in combinations_with_replacement(range(nb_groups), d-1)]
+        new_deriv = {}
+        set_idx = [tuple(sorted(idx)) for idx in combinations_with_replacement(range(nb_groups), d - 1)]
         for idx in set_idx:
-            new_der = param_groups.dercon(deriv[*idx], direction, idx[-1], None, detach = False)
-            new_result[*idx, idx[-1]:] = new_der
-        lst_results[d] = new_result.detach()
-        deriv = new_result
+            new_deriv[idx] = param_groups.dercon(deriv[idx], direction, idx[-1], None, detach = False)
+        lst_results[d] = [k: v.detach() for k, v in new_deriv.items()]
+        deriv = new_deriv
 
     return lst_results
 
@@ -39,10 +37,7 @@ def diff_n_fullbatch(param_groups, order, full_loss, data_loader, dataset_size, 
     nb_groups = param_groups.nb_groups
 
     # Initialize tensors
-    lst_results = [None] * (order + 1)
-    for d in range(1, order + 1):
-        lst_results[d] = torch.zeros(*([nb_groups] * d), device = device, dtype = dtype)
-    lst_results[0] = torch.tensor(0., device = device, dtype = dtype)
+    lst_results = None
 
     for x, y_target in data_loader:
         # Load samples
@@ -55,7 +50,11 @@ def diff_n_fullbatch(param_groups, order, full_loss, data_loader, dataset_size, 
         loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
         lst_results_ = diff_n(param_groups, order, loss_x, x, y_target, direction)
 
-        for d in range(order + 1):
-            lst_results[d] += lst_results_[d]
+        if lst_results is None:
+            lst_results = copy.deepcopy(lst_results_)
+        else:
+            for d in range(order + 1):
+                for k, v in lst_results_[d].items():
+                    lst_results[d][k].add_(lst_results_[d][k])
 
     return lst_results
