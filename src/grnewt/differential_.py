@@ -41,7 +41,10 @@ def diff_n_fullbatch(param_groups, order, full_loss, data_loader, dataset_size, 
     # Initialize tensors
     lst_results = None
 
+    ii = 0
     for x, y_target in data_loader:
+        print(f"epoch log = {ii}")
+        ii += 1
         # Load samples
         x = x.to(device = device, dtype = dtype)
         if autoencoder:

@@ -1,20 +1,20 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='VGG_CIFAR_ICLR25_03_grid_Adam'
+expe_series='VGG_CIFAR_ICLR25_06_logs_order2'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-				hydra.launcher.timeout_min=240\
+				hydra.launcher.timeout_min=800\
         		hydra.launcher.partition='gpu_p13'\
         		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
-				system.dtype=32\
+				system.dtype=64\
 	        	model.name='VGG'\
 		        model.args='A'\
 				model.act_function='elu'\
@@ -25,13 +25,16 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				dataset.path='/gpfswork/rech/tza/uki35ex/dataset'\
 				dataset.valid_size=5000\
 				dataset.batch_size=100\
-				dataset.data_augm=True\
+				dataset.data_augm=False\
 				logs_hg.use=False\
-				logs_hg.batch_size=1000\
+				logs_hg.batch_size=100\
 				logs_hg.test_float=False\
+				logs_diff.use=True\
+				logs_diff.order=2\
+				logs_diff.partition="canonical"\
 				optimizer.epochs=50\
 				optimizer.name='Adam'\
-				optimizer.lr=.001,.0001,.00001,.000001\
+				optimizer.lr=.00001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=200\

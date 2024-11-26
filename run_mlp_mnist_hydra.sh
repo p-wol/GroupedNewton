@@ -30,7 +30,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_hg.test_float=False\
 				logs_diff.use=True\
 				logs_diff.order=3\
-				logs_diff.partition="trivial"\
+				logs_diff.partition="canonical"\
 				optimizer.epochs=100\
 				optimizer.name='SGD'\
 				optimizer.lr=.001\
