@@ -5,6 +5,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 # XXX: to test
+# XXX: check if every variable V requires grad when used in autograd.grad(V, ...)
 
 
 class ParamGroups:

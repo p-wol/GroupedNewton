@@ -226,4 +226,4 @@ def adam(
         else:
             denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
 
-        updates[i].zero_().addcdiv_(exp_avg, denom, value = step_size)
+        updates[i].zero_().addcdiv_(exp_avg, denom, value = -step_size)

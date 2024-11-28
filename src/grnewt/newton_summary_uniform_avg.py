@@ -9,8 +9,9 @@ from .hg import compute_Hg
 
 class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
+            loader_pre_hook,
             damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
+            dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False, dct_uniform_avg = None):
         """
         param_groups: param_groups of the model

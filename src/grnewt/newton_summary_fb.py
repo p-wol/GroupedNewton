@@ -9,9 +9,9 @@ from .hg import compute_Hg, compute_Hg_fullbatch
 from .util import fullbatch_gradient
 
 class NewtonSummaryFB(torch.optim.Optimizer):
-    def __init__(self, params, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, 
-            damping: float = 1, ridge: float = 0, 
-            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
+    def __init__(self, params, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, *,
+            loader_pre_hook, damping: float = 1, ridge: float = 0, 
+            dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False):
         """
         params: params of the model

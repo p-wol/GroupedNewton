@@ -48,7 +48,7 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
     return H, g, order3
 
 def compute_Hg_fullbatch(param_groups, full_loss, data_loader, dataset_size, direction, *,
-        noregul = False, diagonal = False, loader_pre_hook):
+        loader_pre_hook, noregul = False, diagonal = False):
     # Define useful variables
     device = param_groups.device
     dtype = param_groups.dtype

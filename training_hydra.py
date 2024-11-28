@@ -612,10 +612,12 @@ class Trainer:
         else:
             raise NotImplementedError("Not implemented: self.args.logs_diff.partition = {}".format(self.args.logs_diff.partition))
 
-        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.train_loader_logs_hg, self.train_size)
+        direction = fullbatch_gradient(self.param_groups, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
+                loader_pre_hook = self.loader_pre_hook)
 
         param_groups = ParamGroups(pgroups)
-        lst_diff_n = diff_n_fullbatch(param_groups, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction)
+        lst_diff_n = diff_n_fullbatch(param_groups, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction,
+                loader_pre_hook = self.loader_pre_hook)
 
         logs["lst_diff_n"] = lst_diff_n
 

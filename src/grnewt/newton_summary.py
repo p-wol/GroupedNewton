@@ -9,9 +9,10 @@ from .hg import compute_Hg
 
 class NewtonSummary(torch.optim.Optimizer):
     def __init__(self, pgroups, full_loss, data_loader: DataLoader, *,
+            loader_pre_hook,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
+            dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
             diagonal = False):
         """

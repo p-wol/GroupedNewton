@@ -1,7 +1,6 @@
 import copy
 import pytest
 import torch
-from torch import nn
 import grnewt
 from grnewt.optimizers import AdamUpdate, SGDUpdate
 from torch.optim import Adam, SGD
@@ -13,7 +12,7 @@ class Perceptron(torch.nn.Module):
         if act_name == 'identity':
             act_name = 'linear'
     
-        gain = nn.init.calculate_gain(act_name)
+        gain = torch.nn.init.calculate_gain(act_name)
         
         self.layers = torch.nn.ModuleList()
         for l_in, l_out in zip(layers[:-1], layers[1:]):
@@ -91,13 +90,13 @@ def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
         # Second model
         model2.zero_grad()
         f2 = loss_mean(model2(x), y)
+        print(f1.item(), f2.item())
         f2.backward()
 
         optimizer.step()
 
         # Final test
         e &= check_equal(model1, model2)
-
     return e
 
 def test_adam(model, dataset):
