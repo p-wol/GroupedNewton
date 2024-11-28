@@ -11,7 +11,7 @@ from .util import fullbatch_gradient
 class NewtonSummaryFB(torch.optim.Optimizer):
     def __init__(self, params, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, 
             damping: float = 1, ridge: float = 0, 
-            dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
+            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
             remove_negative: bool = False):
         """
         params: params of the model
@@ -32,7 +32,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         self.dataset_size = dataset_size
         self.full_loss = full_loss
         self.ridge = ridge
-        self.autoencoder = autoencoder
+        self.loader_pre_hook = loader_pre_hook
         self.noregul = noregul
         self.remove_negative = remove_negative
         defaults = {'lr': 0, 
@@ -75,7 +75,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
 
         # Compute lrs when using the fullbatch gradient direction
         direction = fullbatch_gradient(self.model, self.final_loss, self.tup_params, self.data_loader, self.dataset_size, 
-                autoencoder = self.autoencoder)
+                loader_pre_hook = self.loader_pre_hook)
 
         lrs = self.compute_lrs(direction, nesterov_damping = self.dct_nesterov['damping_int'], 
                 noregul = self.noregul)
@@ -103,7 +103,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.data_loader,
                 self.dataset_size, direction, param_groups = self.param_groups, 
                 group_sizes = self.group_sizes, group_indices = self.group_indices,
-                noregul = self.noregul, autoencoder = self.autoencoder)
+                noregul = self.noregul, loader_pre_hook = self.loader_pre_hook)
 
         # Use Nesterov cubic regularization (if necessary)
         if noregul:

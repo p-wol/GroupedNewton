@@ -11,11 +11,11 @@ class ParamGroups:
     def __init__(self, pgroups):
         self.pgroups = pgroups
         self.nb_groups = len(self.pgroups)
-        self.params = tuple(p for group in self.pgroups for p in group['params'])
+        self.tup_params = tuple(p for group in self.pgroups for p in group['params'])
         self.group_sizes = [len(dct['params']) for dct in self.pgroups]
         self.group_indices = [0] + list(np.cumsum(self.group_sizes))
-        self.device = self.params[0].device
-        self.dtype = self.params[0].dtype
+        self.device = self.tup_params[0].device
+        self.dtype = self.tup_params[0].dtype
 
     def select_params(self, end = None, src = None, *, start):
         if end is None:

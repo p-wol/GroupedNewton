@@ -10,15 +10,15 @@ from .hg import compute_Hg
 class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
+            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
             remove_negative: bool = False, dct_uniform_avg = None):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
+        full_loss: full_loss(x, y) = l(m(x), y), where: 
             l: final loss (NLL, MSE...)
             m: model
             x: input
-            y_target: target
+            y: target
         data_loader: generate the data point for computing H and g
         damping: "damping" as in Newton's method (can be seen as a correction of the lr)
         period_hg: number of training steps between each update of (H, g)
@@ -46,7 +46,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         self.updater = updater
         self.period_hg = period_hg
         self.ridge = ridge
-        self.autoencoder = autoencoder
+        self.loader_pre_hook = loader_pre_hook
         self.noregul = noregul
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
@@ -112,15 +112,11 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             perform_update = False
         if self.step_counter % self.period_hg == 0:
             # Prepare data
-            x, y_target = next(self.dl_iter)
-            x = x.to(device = self.device, dtype = self.dtype)
-            if not self.autoencoder:
-                y_target = y_target.to(device = self.device)   # XXX: dtype: this conversion has to be explicit for the user
-            else:
-                y_target = x
+            x, y = next(self.dl_iter)
+            x, y = loader_pre_hook(x, y)
 
             # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
+            H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y, direction,
                     param_groups = self.param_groups, group_sizes = self.group_sizes, 
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
 

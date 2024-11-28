@@ -2,7 +2,7 @@ import torch
 from .util import ParamGroups
 
 
-def compute_Hg(param_groups, full_loss, x, y_target, direction, *,
+def compute_Hg(param_groups, full_loss, x, y, direction, *,
         noregul = False, diagonal = False, semiH = False):
     # Define useful variables
     device = param_groups.device
@@ -10,7 +10,7 @@ def compute_Hg(param_groups, full_loss, x, y_target, direction, *,
     nb_groups = param_groups.nb_groups
 
     # Compute gradient
-    loss = full_loss(x, y_target)
+    loss = full_loss(x, y)
 
     g_tup = param_groups.dercon(loss, direction, 0, None, detach = False)
     g = g_tup.detach()
@@ -48,7 +48,7 @@ def compute_Hg(param_groups, full_loss, x, y_target, direction, *,
     return H, g, order3
 
 def compute_Hg_fullbatch(param_groups, full_loss, data_loader, dataset_size, direction, *,
-        autoencoder = False, noregul = False, diagonal = False):
+        noregul = False, diagonal = False, loader_pre_hook):
     # Define useful variables
     device = param_groups.device
     dtype = param_groups.dtype
@@ -59,16 +59,12 @@ def compute_Hg_fullbatch(param_groups, full_loss, data_loader, dataset_size, dir
     g = torch.zeros(nb_groups, device = device, dtype = dtype)
     order3 = torch.zeros(nb_groups, device = device, dtype = dtype)
 
-    for x, y_target in data_loader:
+    for x, y in data_loader:
         # Load samples
-        x = x.to(device = device, dtype = dtype)
-        if autoencoder:
-            y_target = x
-        else:
-            y_target = y_target.to(device = device)
+        x, y = loader_pre_hook(x, y)
 
         loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
-        H_, g_, order3_ = compute_Hg(param_groups, loss_x, x, y_target, direction,
+        H_, g_, order3_ = compute_Hg(param_groups, loss_x, x, y, direction,
                 noregul = noregul, diagonal = diagonal, semiH = True)
 
         H += H_

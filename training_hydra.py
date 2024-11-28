@@ -19,7 +19,7 @@ from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, Ro
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
 from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
-from grnewt import optimizers
+from grnewt import optimizers, loader_pre_hooks
 
 def set_seeds(seed):    
     torch.backends.cudnn.deterministic = True
@@ -207,13 +207,13 @@ class Trainer:
 
         # Build partition
         if args_hg.partition == 'canonical':
-            param_groups, name_groups = build_partition.canonical(model)
+            pgroups, name_groups = build_partition.canonical(model)
         elif args_hg.partition == 'wb':
-            param_groups, name_groups = build_partition.wb(model)
+            pgroups, name_groups = build_partition.wb(model)
         elif args_hg.partition == 'trivial':
-            param_groups, name_groups = build_partition.trivial(model)
+            pgroups, name_groups = build_partition.trivial(model)
         elif args_hg.partition.find('blocks') == 0:
-            param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
+            pgroups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
         elif args_hg.partition.find('alternate') == 0:
             alternate = int(args_hg.partition[len('alternate-'):])
             if args.model.name == 'Perceptron':
@@ -222,15 +222,16 @@ class Trainer:
                 nlayers = len(model.features)
             lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
             lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
-            param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
+            pgroups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
         elif args_hg.partition.find('vgg') == 0:
             partition_args = args_hg.partition[len('vgg-'):]
-            param_groups, name_groups = model.partition(partition_args)
+            pgroups, name_groups = model.partition(partition_args)
         elif args_hg.partition.find('perceptron') == 0:
             partition_args = args_hg.partition[len('perceptron-'):]
-            param_groups, name_groups = model.partition(partition_args)
+            pgroups, name_groups = model.partition(partition_args)
         else:
             raise NotImplementedError('Unknown partition.')
+        param_groups = ParamGroups(pgroups)
 
         print(name_groups)
 
@@ -263,29 +264,29 @@ class Trainer:
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
-            optimizer = optim.SGD(param_groups, lr = args.optimizer.lr, 
+            optimizer = optim.SGD(pgroups, lr = args.optimizer.lr, 
                     momentum = args.optimizer.momentum, weight_decay = args.optimizer.weight_decay)
         elif args.optimizer.name == 'Adam':
-            optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
+            optimizer = optim.Adam(pgroups, lr = args.optimizer.lr)
         elif args.optimizer.name == 'NewtonSummary':
             optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
                     damping = args_hg.damping, momentum = args_hg.momentum, 
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
                     mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge, 
-                    dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
+                    dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook, 
                     remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
                     maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
                     damping = args_hg.damping, ridge = args_hg.ridge, 
-                    dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder)
+                    dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook)
         elif args.optimizer.name == "NewtonSummaryUniformAvg":
             updater = optimizers.SGDUpdate(model.parameters(), momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
             optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
-                         dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
-                         dct_uniform_avg = dct_uniform_avg)
+                         dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook,
+                         remove_negative = args_hg.remove_negative, dct_uniform_avg = dct_uniform_avg)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
                     lr = args.optimizer.lr,
@@ -302,7 +303,7 @@ class Trainer:
             else:
                 line_search_fn = args.optimizer.lbfgs.line_search_fn
 
-            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr, 
+            optimizer = optim.LBFGS(pgroups, lr = args.optimizer.lr, 
                     max_iter = args.optimizer.lbfgs.max_iter,
                     history_size = args.optimizer.lbfgs.history_size,
                     line_search_fn = line_search_fn)
@@ -311,9 +312,10 @@ class Trainer:
 
         # Store grouping data
         self.name_groups = name_groups
+        self.pgroups = pgroups
         self.param_groups = param_groups
-        self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
-        self.group_sizes = [len(dct['params']) for dct in self.param_groups]
+        self.tup_params = tuple(p for group in self.pgroups for p in group['params'])
+        self.group_sizes = [len(dct['params']) for dct in self.pgroups]
         self.group_indices = [0] + list(np.cumsum(self.group_sizes))
 
         self.full_loss = full_loss
@@ -330,11 +332,7 @@ class Trainer:
                 correct = [torch.tensor([0], dtype = self.dtype, device = self.device) for i in range(len(self.topk_acc))]
             for i, (images, labels) in enumerate(loader):
                 # Convert torch tensor to Variable
-                images = images.to(device = self.device, dtype = self.dtype)
-                if not self.args.dataset.autoencoder:
-                    labels = labels.to(device = self.device)
-                else:
-                    labels = images
+                images, labels = self.loader_pre_hook(images, labels)
 
                 # Forward
                 outputs = self.model(images)
@@ -390,11 +388,7 @@ class Trainer:
         self.logs_nlls = []
         for i, (images, labels) in enumerate(self.train_loader):
             # Convert torch tensor to Variable
-            images = images.to(device = self.device, dtype = self.dtype)
-            if not self.args.dataset.autoencoder:
-                labels = labels.to(device = self.device)
-            else:
-                labels = images
+            images, labels = self.loader_pre_hook(images, labels)
 
             # Forward + Backward + Optimize
             self.optimizer.zero_grad()    # zero the gradient buffer
@@ -460,6 +454,11 @@ class Trainer:
         self.tup_params = tuple(p for n, p in self.model.named_parameters())
         self.tup_names = tuple(n for n, p in self.model.named_parameters())
 
+        if self.args.dataset.autoencoder:
+            self.loader_pre_hook = lambda x, y: loader_pre_hooks.regression(x, y, self.device, self.dtype)
+        else:
+            self.loader_pre_hook = lambda x, y: loader_pre_hooks.classification(x, y, self.device, self.dtype)
+
     def train(self, ckpt_name = 'last_ckpt', log_name = 'metrics'):
         self.build_datasets()
         self.train_loader_logs_hg = data.DataLoader(self.trainset, self.args.logs_hg.batch_size)
@@ -483,7 +482,7 @@ class Trainer:
             for p in self.tup_params:
                 print('    ', p.size())
 
-        # Store the param names - param_groups correspondence
+        # Store the param names - pgroups correspondence
         torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
 
         # Prepare damping schedule
@@ -578,11 +577,11 @@ class Trainer:
     def compute_logs_hg(self):
         logs = {}
 
-        direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.train_loader_logs_hg, self.train_size)
+        direction = fullbatch_gradient(self.param_groups, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
+                loader_pre_hook = self.loader_pre_hook)
 
-        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
-                param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices, 
-                autoencoder = self.args.dataset.autoencoder)
+        H, g, order3 = compute_Hg_fullbatch(self.param_groups, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
+                loader_pre_hook = self.loader_pre_hook)
 
         # Compute lrs
         if not self.dct_nesterov['use']:

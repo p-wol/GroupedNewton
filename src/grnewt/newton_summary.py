@@ -8,19 +8,19 @@ from .nesterov import nesterov_lrs
 from .hg import compute_Hg
 
 class NewtonSummary(torch.optim.Optimizer):
-    def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
+    def __init__(self, pgroups, full_loss, data_loader: DataLoader, *,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
+            dct_nesterov: dict = None, loader_pre_hook, noregul: bool = False,
             remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
             diagonal = False):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
+        full_loss: full_loss(x, y) = l(m(x), y), where: 
             l: final loss (NLL, MSE...)
             m: model
             x: input
-            y_target: target
+            y: target
         data_loader: generate the data point for computing H and g
         damping: "damping" as in Newton's method (can be seen as a correction of the lr)
         momentum: "momentum" as in SGD
@@ -36,7 +36,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.full_loss = full_loss
         self.period_hg = period_hg
         self.ridge = ridge
-        self.autoencoder = autoencoder
+        self.loader_pre_hook = loader_pre_hook
         self.noregul = noregul
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
@@ -50,18 +50,18 @@ class NewtonSummary(torch.optim.Optimizer):
                     'momentum_damp': momentum_damp}
         super().__init__(param_groups, defaults)
 
-        self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
-        self.group_sizes = [len(dct['params']) for dct in self.param_groups]
-        self.group_indices = [0] + list(np.cumsum(self.group_sizes))
-        self.device = self.tup_params[0].device
-        self.dtype = self.tup_params[0].dtype
+        self.pgroups = pgroups
+        self.param_groups = ParamGroups(pgroups)
+        self.device = pgroups[0][0].device
+        self.dtype = pgroups[0][0].dtype
+
         self.step_counter = 0
 
         if dct_nesterov is None: 
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
-        if dct_nesterov['mom_order3_'] !=  0.:
+        if dct_nesterov['mom_order3_'] != 0.:
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
@@ -83,7 +83,7 @@ class NewtonSummary(torch.optim.Optimizer):
                 'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
 
     def damping_mul(self, factor):
-        for group in self.param_groups:
+        for group in self.pgroups:
             group['damping'] *= factor
             group['lr'] *= factor
 
@@ -102,7 +102,7 @@ class NewtonSummary(torch.optim.Optimizer):
 
     def step(self):
         # Update momentum buffers
-        for group in self.param_groups:
+        for group in self.pgroups:
             params_with_grad = []
             d_p_list = []
             momentum_buffer_list = []
@@ -122,18 +122,13 @@ class NewtonSummary(torch.optim.Optimizer):
         perform_update = True
         if self.step_counter % self.period_hg == 0:
             # Prepare data
-            x, y_target = next(self.dl_iter)
-            x = x.to(device = self.device, dtype = self.dtype)
-            if not self.autoencoder:
-                y_target = y_target.to(device = self.device)   # XXX: dtype: this conversion has to be explicit for the user
-            else:
-                y_target = x
-            direction = tuple(self.state[p]['momentum_buffer'] for group in self.param_groups for p in group['params'])
+            x, y = next(self.dl_iter)
+            x, y = self.loader_pre_hook(x, y)
+            direction = tuple(self.state[p]['momentum_buffer'] for group in self.pgroups for p in group['params'])
 
             # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
-                    param_groups = self.param_groups, group_sizes = self.group_sizes, 
-                    group_indices = self.group_indices, noregul = self.noregul, diagonal = self.diagonal)
+            H, g, order3 = compute_Hg(self.param_groups, self.full_loss, x, y, direction,
+                    noregul = self.noregul, diagonal = self.diagonal)
 
             #if self.diagonal:
             #    H = H.diag().diag()
