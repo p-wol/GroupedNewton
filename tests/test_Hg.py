@@ -27,7 +27,65 @@ def degree():
 def polynomial(degree):
     return Polynomial(degree)
 
-def test_Hg_polynomial(polynomial, degree):
+def _compute_Hg_pytorch(full_loss, x, y, tup_params):
+    D = len(tup_params)
+
+    # Order 1
+    loss = full_loss(x, y)
+    g2_tup = torch.autograd.grad(loss, tup_params, create_graph = True, materialize_grads = True)
+    g2 = torch.stack([g.detach() for g in g2_tup])
+
+    # Order 2
+    H2 = torch.zeros(D, D)
+    deriv_i = [None] * D
+    for i, g in enumerate(g2_tup):
+        if not g.requires_grad:
+            h = tuple(torch.tensor(0.) for j in range(D))
+        else:
+            h = torch.autograd.grad(g, tup_params, create_graph = True, materialize_grads = True)
+
+        for j in range(D):
+            H2[i,j] = h[j].detach()
+            H2[j,i] = h[j].detach()
+        deriv_i[i] = h[i]
+
+    # Order 3
+    order32 = [None] * D
+    for i, der in enumerate(deriv_i):
+        if not der.requires_grad:
+            der_ = tuple(torch.tensor(0.) for j in range(D))
+        else:
+            der_ = torch.autograd.grad(der, tup_params, create_graph = True, materialize_grads = True)
+
+        order32[i] = der_[i].detach()
+
+    order32 = torch.stack(order32)
+
+    return H2, g2, order32
+
+def test_Hg_polynomial_canonical(polynomial, degree):
+    batch_size = 10
+    x = torch.randn(batch_size, degree + 1)
+    y = torch.randn(batch_size, 1)
+
+    pgroups, name_groups = build_partition.canonical(polynomial)
+    param_groups = ParamGroups(pgroups)
+
+    def full_loss(x_, y_): 
+        return polynomial(x_).sum()
+
+    # Compute the derivatives with the custom functions of grnewt
+    direction = tuple([torch.tensor(1.)] * (degree + 1))
+    H1, g1, order31 = compute_Hg(param_groups, full_loss, x, y, direction)
+
+    # Compute the derivatives with pytorch
+    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_groups.tup_params)
+
+    assert torch.allclose(g1, g2)
+    assert torch.allclose(H1, H2)
+    assert torch.allclose(order31, order32)
+
+def test_Hg_polynomial_canonical_with_loss(polynomial, degree):
     batch_size = 10
     x = torch.randn(batch_size, degree + 1)
     y = torch.randn(batch_size, 1)
@@ -39,40 +97,69 @@ def test_Hg_polynomial(polynomial, degree):
         return (polynomial(x_) - y_).pow(2).mean()
 
     # Compute the derivatives with the custom functions of grnewt
-    direction = torch.ones(degree + 1)
+    direction = tuple([torch.tensor(1.)] * (degree + 1))
     H1, g1, order31 = compute_Hg(param_groups, full_loss, x, y, direction)
 
     # Compute the derivatives with pytorch
-    # Order 1
-    loss = full_loss(x, y)
-    g2_tup = torch.autograd.grad(loss, param_groups.tup_params, create_graph = True, materialize_grads = True)
-    g2 = torch.stack([g.detach() for g in g2_tup])
+    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_groups.tup_params)
 
-    # Order 2
-    H2 = torch.zeros(degree+1, degree+1)
-    deriv_i = [None] * (degree+1)
-    for i, g in enumerate(g2_tup):
-        if not g.requires_grad:
-            h = tuple(torch.tensor(0.) for j in range(degree+1))
-        else:
-            h = torch.autograd.grad(g, param_groups.tup_params, create_graph = True, materialize_grads = True)
+    assert torch.allclose(g1, g2)
+    assert torch.allclose(H1, H2)
+    assert torch.allclose(order31, order32)
 
-        for j in range(degree+1):
-            H2[i,j] = h[j].detach()
-            H2[j,i] = h[j].detach()
-        deriv_i[i] = h[i]
+def test_Hg_polynomial_trivial(polynomial, degree):
+    batch_size = 10
+    x = torch.randn(batch_size, degree + 1)
+    y = torch.randn(batch_size, 1)
 
-    # Order 3
-    order32 = [None] * (degree+1)
-    for i, der in enumerate(deriv_i):
-        if not der.requires_grad:
-            der_ = tuple(torch.tensor(0.) for j in range(degree+1))
-        else:
-            der_ = torch.autograd.grad(der, param_groups.tup_params, create_graph = True, materialize_grads = True)
+    pgroups, name_groups = build_partition.trivial(polynomial)
+    param_groups = ParamGroups(pgroups)
 
-        order32[i] = der_[i].detach()
+    def full_loss(x_, y_): 
+        return polynomial(x_).sum()
 
-    order32 = torch.stack(order32)
+    # Compute the derivatives with the custom functions of grnewt
+    direction = tuple([torch.tensor(1.)] * (degree + 1))
+    H1, g1, order31 = compute_Hg(param_groups, full_loss, x, y, direction)
+
+    # Compute the derivatives with pytorch
+    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_groups.tup_params)
+    print(order31, order32)
+    g2 = torch.sum(g2, (0,), keepdim = True)
+    H2 = torch.sum(H2, (0, 1), keepdim = True)
+    order32 = torch.sum(order32, (0,), keepdim = True)
+
+
+    assert torch.allclose(g1, g2)
+    assert torch.allclose(H1, H2)
+    assert torch.allclose(order31, order32)
+
+def test_Hg_polynomial_trivial_with_loss(polynomial, degree):
+    batch_size = 10
+    x = torch.randn(batch_size, degree + 1)
+    y = torch.randn(batch_size, 1)
+
+    pgroups, name_groups = build_partition.trivial(polynomial)
+    param_groups = ParamGroups(pgroups)
+
+    def full_loss(x_, y_): 
+        return (polynomial(x_) - y_).pow(2).sum()
+
+    # Compute the derivatives with the custom functions of grnewt
+    direction = tuple([torch.tensor(1.)] * (degree + 1))
+    print("==========")
+    H1, g1, order31 = compute_Hg(param_groups, full_loss, x, y, direction)
+    print("==========")
+    
+    H1p, g1p, order31p = compute_Hg(ParamGroups(build_partition.canonical(polynomial)[0]), full_loss, x, y, direction)
+    print("raw Hg: ", order31p)
+
+    # Compute the derivatives with pytorch
+    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_groups.tup_params)
+    print(order31, order32)
+    g2 = torch.sum(g2, (0,), keepdim = True)
+    H2 = torch.sum(H2, (0, 1), keepdim = True)
+    order32 = torch.sum(order32, (0,), keepdim = True)
 
     assert torch.allclose(g1, g2)
     assert torch.allclose(H1, H2)

@@ -19,8 +19,7 @@ class ParamGroups:
         self.dtype = self.tup_params[0].dtype
 
     def select_params(self, end = None, src = None, *, start):
-        if end is None:
-            end = len(self.pgroups)
+        end = end if end is not None else self.nb_groups
 
         if src is None:
             return tuple(p for group in self.pgroups[start:end] for p in group['params'])
@@ -30,8 +29,7 @@ class ParamGroups:
             return src[p_start:p_end]
 
     def dot(self, x1, x2, *, dst_type = "tensor", start = 0, end = None):
-        if end is None:
-            end = len(self.pgroups)
+        end = end if end is not None else self.nb_groups
 
         i0 = self.group_indices[start]
         pdot = [(p1 * p2).sum() for p1, p2 in zip(x1, x2)]
@@ -47,6 +45,11 @@ class ParamGroups:
             raise NotImplementedError(f"Unknown dct_type: {dst_type}.")
 
     def dercon(self, gpar, gdir, start, end, *, detach):
+        # Returns zero tensors if gpar does not require grad
+        if not gpar.requires_grad:
+            end = end if end is not None else self.nb_groups
+            return torch.zeros(end - start, device = self.device, dtype = self.dtype)
+
         # Derivation + contraction
         if detach:
             kwargs = {"retain_graph": True, "materialize_grads": True}
@@ -55,6 +58,7 @@ class ParamGroups:
 
         tup_params = self.select_params(start = start, end = end)
         deriv = torch.autograd.grad(gpar, tup_params, **kwargs)
+        print("dercon deriv:", deriv)
 
         direction = self.select_params(src = gdir, start = start, end = end)
         return self.dot(deriv, direction, start = start, end = end)

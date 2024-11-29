@@ -14,11 +14,13 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
 
     g_tup = param_groups.dercon(loss, direction, 0, None, detach = False)
     g = g_tup.detach()
+    print("g_tup = ", g_tup)
 
     # Compute Hessian
     H = torch.zeros(nb_groups, nb_groups, device = device, dtype = dtype)
     order3 = torch.zeros(nb_groups, device = device, dtype = dtype)
     for i, g_i in enumerate(g_tup):
+        print("g_i = ", g_i)
         if diagonal:
             H_i = param_groups.dercon(g_i, direction, i, i + 1, detach = True)
             H[i,i] = H_i.item()
@@ -35,11 +37,9 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
 
         deriv_i = param_groups.dercon(g_i, direction, i, i + 1, detach = False)
 
+        print("NOW")
         # 3rd-order diff
-        if not deriv_i.requires_grad:
-            deriv_i.zero_()
-        else:
-            deriv_i = param_groups.dercon(deriv_i, direction, i, i + 1, detach = True)
+        deriv_i = param_groups.dercon(deriv_i, direction, i, i + 1, detach = True)
 
         # Store the result
         order3[i] = deriv_i.item()
