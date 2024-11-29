@@ -38,6 +38,8 @@ def _compute_Hg_pytorch(full_loss, x, y, tup_params):
     # Order 2
     H2 = torch.zeros(D, D)
     deriv_i = [None] * D
+    # Order 3
+    order32 = torch.zeros(D, D, D)
     for i, g in enumerate(g2_tup):
         if not g.requires_grad:
             h = tuple(torch.tensor(0.) for j in range(D))
@@ -45,11 +47,23 @@ def _compute_Hg_pytorch(full_loss, x, y, tup_params):
             h = torch.autograd.grad(g, tup_params, create_graph = True, materialize_grads = True)
 
         for j in range(D):
-            H2[i,j] = h[j].detach()
-            H2[j,i] = h[j].detach()
-        deriv_i[i] = h[i]
+            H2[i,j] = h[j].sum().detach()
+            H2[j,i] = h[j].sum().detach()
+            if not h[j].requires_grad:
+                # XXX PB: le code atterrit tout le temps ici
+                k = 0.
+            else:
+                k = torch.autograd.grad(h[j], tup_params, retain_graph = True, materialize_grads = True)
+                k = torch.stack(k).detach()
+            order32[i,j,:] = k
+            order32[j,i,:] = k
+            order32[i,:,j] = k
+            order32[j,:,i] = k
+            order32[:,i,j] = k
+            order32[:,j,i] = k
+        #deriv_i[i] = h[i]
 
-    # Order 3
+    """
     order32 = [None] * D
     for i, der in enumerate(deriv_i):
         if not der.requires_grad:
@@ -60,6 +74,7 @@ def _compute_Hg_pytorch(full_loss, x, y, tup_params):
         order32[i] = der_[i].detach()
 
     order32 = torch.stack(order32)
+    """
 
     return H2, g2, order32
 
@@ -124,7 +139,6 @@ def test_Hg_polynomial_trivial(polynomial, degree):
 
     # Compute the derivatives with pytorch
     H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_groups.tup_params)
-    print(order31, order32)
     g2 = torch.sum(g2, (0,), keepdim = True)
     H2 = torch.sum(H2, (0, 1), keepdim = True)
     order32 = torch.sum(order32, (0,), keepdim = True)
