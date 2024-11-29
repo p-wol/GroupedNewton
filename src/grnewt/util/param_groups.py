@@ -58,7 +58,6 @@ class ParamGroups:
 
         tup_params = self.select_params(start = start, end = end)
         deriv = torch.autograd.grad(gpar, tup_params, **kwargs)
-        print("dercon deriv:", deriv)
 
         direction = self.select_params(src = gdir, start = start, end = end)
         return self.dot(deriv, direction, start = start, end = end)
