@@ -51,6 +51,7 @@ def _compute_Hg_pytorch(full_loss, x, y, tup_params):
     # Order 2
     H2 = torch.zeros(D, D)
     deriv_i = [None] * D
+
     # Order 3
     order32 = torch.zeros(D, D, D)
     for i, g in enumerate(g2_tup):

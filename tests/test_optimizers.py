@@ -90,7 +90,6 @@ def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
         # Second model
         model2.zero_grad()
         f2 = loss_mean(model2(x), y)
-        print(f1.item(), f2.item())
         f2.backward()
 
         optimizer.step()
