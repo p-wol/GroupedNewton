@@ -4,7 +4,7 @@ import torch
 import grnewt
 from numpy.polynomial.polynomial import Polynomial
 from grnewt import partition as build_partition
-from grnewt import ParamGroups, diff_n
+from grnewt import ParamStructure, diff_n
 
 def _apply_poly(poly, x):
     d = poly.degree()
@@ -36,11 +36,11 @@ def test_diff_n_poly_mono(poly_mono_1, point_x_1, direction_1):
     direction = direction_1
 
     # Compute with grnewt
-    param_groups = grnewt.ParamGroups([{"params": [x]}])
+    param_struct = grnewt.ParamStructure([{"params": [x]}])
     order = poly.degree() + 1
     full_loss = lambda x_, y_: _apply_poly(poly, x_)
 
-    diff_grnewt = grnewt.diff_n(param_groups, order, full_loss, x, y, direction)
+    diff_grnewt = grnewt.diff_n(param_struct, order, full_loss, x, y, direction)
     diff_grnewt = [next(iter(dct.values())).item() for dct in diff_grnewt]
     diff_grnewt = torch.tensor(diff_grnewt)
 

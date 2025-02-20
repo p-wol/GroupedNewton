@@ -2,7 +2,7 @@ import copy
 import pytest
 import torch
 import grnewt
-from grnewt import ParamGroups
+from grnewt import ParamStructure
 
 def _build_tensors_from_shapes(lst_shapes):
     return [{"params": [torch.randn(*shape) for shape in group_shapes]} for group_shapes in lst_shapes]
@@ -14,9 +14,9 @@ def _build_tensors_from_shapes(lst_shapes):
     ])
 def test_dot_full(lst_shapes):
     pgroups1 = _build_tensors_from_shapes(lst_shapes)
-    param_groups1 = ParamGroups(pgroups1)
+    param_groups1 = ParamStructure(pgroups1)
     pgroups2 = _build_tensors_from_shapes(lst_shapes)
-    param_groups2 = ParamGroups(pgroups2)
+    param_groups2 = ParamStructure(pgroups2)
 
     res_custom = param_groups1.dot(param_groups1.tup_params, param_groups2.tup_params)
     res_pytorch = torch.tensor([sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"])]) \
@@ -40,7 +40,7 @@ def test_dot_full(lst_shapes):
     ])
 def test_select(lst_shapes, start, end):
     pgroups = _build_tensors_from_shapes(lst_shapes)
-    param_groups = ParamGroups(pgroups)
+    param_groups = ParamStructure(pgroups)
 
     res_custom = param_groups.select_params(src = param_groups.tup_params, start = start, end = end)
 
@@ -65,9 +65,9 @@ def test_select(lst_shapes, start, end):
     ])
 def test_dot_partial(lst_shapes, start, end):
     pgroups1 = _build_tensors_from_shapes(lst_shapes)
-    param_groups1 = ParamGroups(pgroups1)
+    param_groups1 = ParamStructure(pgroups1)
     pgroups2 = _build_tensors_from_shapes(lst_shapes)
-    param_groups2 = ParamGroups(pgroups2)
+    param_groups2 = ParamStructure(pgroups2)
 
     res_custom = param_groups1.dot(param_groups1.select_params(start = start, end = end), 
             param_groups2.select_params(start = start, end = end), start = start, end = end)

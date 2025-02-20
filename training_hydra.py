@@ -13,7 +13,7 @@ import torchvision.transforms as transforms
 from torch.utils import data
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg
-from grnewt import ParamGroups, diff_n, diff_n_fullbatch
+from grnewt import ParamStructure, diff_n, diff_n_fullbatch
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
 from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
@@ -231,7 +231,7 @@ class Trainer:
             pgroups, name_groups = model.partition(partition_args)
         else:
             raise NotImplementedError('Unknown partition.')
-        param_groups = ParamGroups(pgroups)
+        param_groups = ParamStructure(pgroups)
 
         print(name_groups)
 
@@ -615,7 +615,7 @@ class Trainer:
         direction = fullbatch_gradient(self.param_groups, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
                 loader_pre_hook = self.loader_pre_hook)
 
-        param_groups = ParamGroups(pgroups)
+        param_groups = ParamStructure(pgroups)
         lst_diff_n = diff_n_fullbatch(param_groups, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction,
                 loader_pre_hook = self.loader_pre_hook)
 

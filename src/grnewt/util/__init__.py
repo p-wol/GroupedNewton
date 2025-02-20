@@ -1,2 +1,2 @@
 from .fullbatch import fullbatch_gradient
-from .param_groups import ParamGroups
+from .param_struct import ParamStructure

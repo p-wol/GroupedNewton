@@ -6,6 +6,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from .nesterov import nesterov_lrs
 from .hg import compute_Hg
+from .util import ParamStructure
 
 class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
@@ -56,11 +57,9 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                     'damping': damping}
         super().__init__(param_groups, defaults)
 
-        self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
-        self.group_sizes = [len(dct['params']) for dct in self.param_groups]
-        self.group_indices = [0] + list(np.cumsum(self.group_sizes))
-        self.device = self.tup_params[0].device
-        self.dtype = self.tup_params[0].dtype
+        self.param_struct = ParamStructure(param_groups)
+        self.device = self.param_struct.device
+        self.dtype = self.param_struct.dtype
         self.step_counter = 0
 
         # Init dct_nesterov
@@ -117,9 +116,8 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             x, y = loader_pre_hook(x, y)
 
             # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y, direction,
-                    param_groups = self.param_groups, group_sizes = self.group_sizes, 
-                    group_indices = self.group_indices, noregul = self.noregul, diagonal = False)
+            H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
+                    noregul = self.noregul, diagonal = False)
 
             if self.with_uniform_avg:
                 """

@@ -2,7 +2,7 @@ from . import partition
 from . import models
 from . import datasets
 from . import optimizers
-from .util import fullbatch_gradient, ParamGroups, loader_pre_hooks
+from .util import fullbatch_gradient, ParamStructure, loader_pre_hooks
 from .hg import compute_Hg, compute_Hg_fullbatch
 from .nesterov import nesterov_lrs
 from .newton_summary import NewtonSummary

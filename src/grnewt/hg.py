@@ -1,18 +1,18 @@
 import torch
-from .util import ParamGroups
+from .util import ParamStructure
 
 
-def compute_Hg(param_groups, full_loss, x, y, direction, *,
+def compute_Hg(param_struct, full_loss, x, y, direction, *,
         noregul = False, diagonal = False, semiH = False):
     # Define useful variables
-    device = param_groups.device
-    dtype = param_groups.dtype
-    nb_groups = param_groups.nb_groups
+    device = param_struct.device
+    dtype = param_struct.dtype
+    nb_groups = param_struct.nb_groups
 
     # Compute gradient
     loss = full_loss(x, y)
 
-    g_tup = param_groups.dercon(loss, direction, 0, None, detach = False)
+    g_tup = param_struct.dercon(loss, direction, 0, None, detach = False)
     g = g_tup.detach()
 
     # Compute Hessian
@@ -20,10 +20,10 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
     order3 = torch.zeros(nb_groups, device = device, dtype = dtype)
     for i, g_i in enumerate(g_tup):
         if diagonal:
-            H_i = param_groups.dercon(g_i, direction, i, i + 1, detach = True)
+            H_i = param_struct.dercon(g_i, direction, i, i + 1, detach = True)
             H[i,i] = H_i.item()
         else:
-            H_i = param_groups.dercon(g_i, direction, i, nb_groups, detach = True)
+            H_i = param_struct.dercon(g_i, direction, i, nb_groups, detach = True)
             H[i,i:] = H_i
             if not semiH:
                 H[i:,i] = H_i
@@ -33,10 +33,10 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
         if noregul:
             continue
 
-        deriv_i = param_groups.dercon(g_i, direction, i, i + 1, detach = False)
+        deriv_i = param_struct.dercon(g_i, direction, i, i + 1, detach = False)
 
         # 3rd-order diff
-        deriv_i = param_groups.dercon(deriv_i, direction, i, i + 1, detach = True)
+        deriv_i = param_struct.dercon(deriv_i, direction, i, i + 1, detach = True)
 
         # Store the result
         order3[i] = deriv_i.item()
@@ -44,12 +44,12 @@ def compute_Hg(param_groups, full_loss, x, y, direction, *,
 
     return H, g, order3
 
-def compute_Hg_fullbatch(param_groups, full_loss, data_loader, dataset_size, direction, *,
+def compute_Hg_fullbatch(param_struct, full_loss, data_loader, dataset_size, direction, *,
         loader_pre_hook, noregul = False, diagonal = False):
     # Define useful variables
-    device = param_groups.device
-    dtype = param_groups.dtype
-    nb_groups = param_groups.nb_groups
+    device = param_struct.device
+    dtype = param_struct.dtype
+    nb_groups = param_struct.nb_groups
 
     # Compute H, g, order3
     H = torch.zeros(nb_groups, nb_groups, device = device, dtype = dtype)
@@ -61,7 +61,7 @@ def compute_Hg_fullbatch(param_groups, full_loss, data_loader, dataset_size, dir
         x, y = loader_pre_hook(x, y)
 
         loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
-        H_, g_, order3_ = compute_Hg(param_groups, loss_x, x, y, direction,
+        H_, g_, order3_ = compute_Hg(param_struct, loss_x, x, y, direction,
                 noregul = noregul, diagonal = diagonal, semiH = True)
 
         H += H_

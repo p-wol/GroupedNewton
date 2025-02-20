@@ -6,15 +6,15 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from .nesterov import nesterov_lrs
 from .hg import compute_Hg, compute_Hg_fullbatch
-from .util import fullbatch_gradient
+from .util import ParamStructure, fullbatch_gradient
 
 class NewtonSummaryFB(torch.optim.Optimizer):
-    def __init__(self, params, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, *,
+    def __init__(self, param_groups, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, *,
             loader_pre_hook, damping: float = 1, ridge: float = 0, 
             dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False):
         """
-        params: params of the model
+        param_groups: param_groups of the model
         full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
             l: final loss (NLL, MSE...)
             m: model
@@ -37,13 +37,12 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         self.remove_negative = remove_negative
         defaults = {'lr': 0, 
                     'damping': damping}
-        super().__init__(params, defaults)
+        super().__init__(param_groups, defaults)
 
-        self.tup_params = tuple(p for group in self.param_groups for p in group['params'])
-        self.group_sizes = [len(dct['params']) for dct in self.param_groups]
-        self.group_indices = [0] + list(np.cumsum(self.group_sizes))
-        self.device = self.tup_params[0].device
-        self.dtype = self.tup_params[0].dtype
+        self.param_struct = ParamStructure(param_groups)
+        self.device = self.param_struct.device
+        self.dtype = self.param_struct.dtype
+
         self.step_counter = 0
 
         if dct_nesterov is None: dct_nesterov = {'use': False}
@@ -74,7 +73,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
             self._init_group(group, params_with_grad, d_p_list)
 
         # Compute lrs when using the fullbatch gradient direction
-        direction = fullbatch_gradient(self.model, self.final_loss, self.tup_params, self.data_loader, self.dataset_size, 
+        direction = fullbatch_gradient(self.param_struct, self.final_loss, self.model, self.data_loader, self.dataset_size, 
                 loader_pre_hook = self.loader_pre_hook)
 
         lrs = self.compute_lrs(direction, nesterov_damping = self.dct_nesterov['damping_int'], 
@@ -98,11 +97,8 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         self.step_counter += 1
 
     def compute_lrs(self, direction, *, nesterov_damping = None, noregul = False):
-        tup_params = self.tup_params
-
-        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.data_loader,
-                self.dataset_size, direction, param_groups = self.param_groups, 
-                group_sizes = self.group_sizes, group_indices = self.group_indices,
+        H, g, order3 = compute_Hg_fullbatch(self.param_struct, self.full_loss, 
+                self.data_loader, self.dataset_size, direction,
                 noregul = self.noregul, loader_pre_hook = self.loader_pre_hook)
 
         # Use Nesterov cubic regularization (if necessary)

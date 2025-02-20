@@ -6,9 +6,10 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from .nesterov import nesterov_lrs
 from .hg import compute_Hg
+from .util import ParamStructure
 
 class NewtonSummary(torch.optim.Optimizer):
-    def __init__(self, pgroups, full_loss, data_loader: DataLoader, *,
+    def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
             loader_pre_hook,
             damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
             period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
@@ -51,10 +52,9 @@ class NewtonSummary(torch.optim.Optimizer):
                     'momentum_damp': momentum_damp}
         super().__init__(param_groups, defaults)
 
-        self.pgroups = pgroups
-        self.param_groups = ParamGroups(pgroups)
-        self.device = pgroups[0][0].device
-        self.dtype = pgroups[0][0].dtype
+        self.param_struct = ParamStructure(param_groups)
+        self.device = self.param_struct.device
+        self.dtype = self.param_struct.dtype
 
         self.step_counter = 0
 
@@ -84,7 +84,7 @@ class NewtonSummary(torch.optim.Optimizer):
                 'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
 
     def damping_mul(self, factor):
-        for group in self.pgroups:
+        for group in self.param_groups:
             group['damping'] *= factor
             group['lr'] *= factor
 
@@ -103,7 +103,7 @@ class NewtonSummary(torch.optim.Optimizer):
 
     def step(self):
         # Update momentum buffers
-        for group in self.pgroups:
+        for group in self.param_groups:
             params_with_grad = []
             d_p_list = []
             momentum_buffer_list = []
@@ -125,10 +125,10 @@ class NewtonSummary(torch.optim.Optimizer):
             # Prepare data
             x, y = next(self.dl_iter)
             x, y = self.loader_pre_hook(x, y)
-            direction = tuple(self.state[p]['momentum_buffer'] for group in self.pgroups for p in group['params'])
+            direction = tuple(self.state[p]['momentum_buffer'] for group in self.param_groups for p in group['params'])
 
             # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.param_groups, self.full_loss, x, y, direction,
+            H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
                     noregul = self.noregul, diagonal = self.diagonal)
 
             #if self.diagonal:
