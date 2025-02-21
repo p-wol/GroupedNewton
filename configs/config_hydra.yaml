@@ -99,6 +99,7 @@ optimizer:
         remove_negative: False    # set negative lrs to zero
         uniform_avg:    # perform a uniform average over the last "period" computations over H, g, order3
             use: False
+            updater: 'SGD'
             period: 1
             warmup: 0    # perform "warmup" averages without updating the parameters
         lrs_clip:    # perform clipping on lrs that are too large

@@ -250,7 +250,8 @@ class Trainer:
         if args_hg.uniform_avg.use:
             dct_uniform_avg = {'use': args_hg.uniform_avg.use,
                                'period': args_hg.uniform_avg.period,
-                               'warmup': args_hg.uniform_avg.warmup}
+                               'warmup': args_hg.uniform_avg.warmup,
+                               'updater': args_hg.uniform_avg.updater}
         self.dct_uniform_avg = dct_uniform_avg
 
         # Build parameters for lrs clipping
@@ -284,7 +285,12 @@ class Trainer:
                     damping = args_hg.damping, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook)
         elif args.optimizer.name == "NewtonSummaryUniformAvg":
-            updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
+            if args_hg.uniform_avg.updater == "SGD":
+                updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
+            elif args_hg.uniform_avg.updater == "Adam":
+                updater = optimizers.AdamUpdate(model.parameters(), lr = 1)
+            else:
+                raise NotImplementedError(f"Unknown updater: {args_hg.uniform_avg.updater}, expected 'SGD' or 'Adam'.")
             optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                          dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook,
