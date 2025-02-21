@@ -113,7 +113,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         if self.step_counter % self.period_hg == 0:
             # Prepare data
             x, y = next(self.dl_iter)
-            x, y = loader_pre_hook(x, y)
+            x, y = self.loader_pre_hook(x, y)
 
             # Compute H, g, order3
             H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,

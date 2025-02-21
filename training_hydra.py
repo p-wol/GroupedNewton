@@ -106,8 +106,10 @@ class Trainer:
         dct = {'dtype': self.dtype, 'device': self.device}
 
         if args.dataset.name == 'MNIST':
+            self.loader_pre_hook = lambda x, y: (x.to(device = self.device, dtype = self.dtype), y.to(self.device))
             dct = build_MNIST(args, dct)
         elif args.dataset.name == 'CIFAR10':
+            self.loader_pre_hook = lambda x, y: (x.to(device = self.device, dtype = self.dtype), y.to(self.device))
             dct = build_CIFAR10(args, dct)
         elif args.dataset.name == 'ToyRegression':
             dct = build_toy_regression(args, dct)
@@ -207,13 +209,13 @@ class Trainer:
 
         # Build partition
         if args_hg.partition == 'canonical':
-            pgroups, name_groups = build_partition.canonical(model)
+            param_groups, name_groups = build_partition.canonical(model)
         elif args_hg.partition == 'wb':
-            pgroups, name_groups = build_partition.wb(model)
+            param_groups, name_groups = build_partition.wb(model)
         elif args_hg.partition == 'trivial':
-            pgroups, name_groups = build_partition.trivial(model)
+            param_groups, name_groups = build_partition.trivial(model)
         elif args_hg.partition.find('blocks') == 0:
-            pgroups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
+            param_groups, name_groups = build_partition.blocks(model, int(args_hg.partition[len('blocks-'):]))
         elif args_hg.partition.find('alternate') == 0:
             alternate = int(args_hg.partition[len('alternate-'):])
             if args.model.name == 'Perceptron':
@@ -222,16 +224,16 @@ class Trainer:
                 nlayers = len(model.features)
             lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
             lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
-            pgroups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
+            param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
         elif args_hg.partition.find('vgg') == 0:
             partition_args = args_hg.partition[len('vgg-'):]
-            pgroups, name_groups = model.partition(partition_args)
+            param_groups, name_groups = model.partition(partition_args)
         elif args_hg.partition.find('perceptron') == 0:
             partition_args = args_hg.partition[len('perceptron-'):]
-            pgroups, name_groups = model.partition(partition_args)
+            param_groups, name_groups = model.partition(partition_args)
         else:
             raise NotImplementedError('Unknown partition.')
-        param_groups = ParamStructure(pgroups)
+        #param_groups = ParamStructure(pgroups)
 
         print(name_groups)
 
@@ -264,10 +266,10 @@ class Trainer:
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
-            optimizer = optim.SGD(pgroups, lr = args.optimizer.lr, 
+            optimizer = optim.SGD(param_groups, lr = args.optimizer.lr, 
                     momentum = args.optimizer.momentum, weight_decay = args.optimizer.weight_decay)
         elif args.optimizer.name == 'Adam':
-            optimizer = optim.Adam(pgroups, lr = args.optimizer.lr)
+            optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
         elif args.optimizer.name == 'NewtonSummary':
             optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
                     damping = args_hg.damping, momentum = args_hg.momentum, 
@@ -282,7 +284,7 @@ class Trainer:
                     damping = args_hg.damping, ridge = args_hg.ridge, 
                     dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook)
         elif args.optimizer.name == "NewtonSummaryUniformAvg":
-            updater = optimizers.SGDUpdate(model.parameters(), momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
+            updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
             optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                          dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook,
@@ -303,7 +305,7 @@ class Trainer:
             else:
                 line_search_fn = args.optimizer.lbfgs.line_search_fn
 
-            optimizer = optim.LBFGS(pgroups, lr = args.optimizer.lr, 
+            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr, 
                     max_iter = args.optimizer.lbfgs.max_iter,
                     history_size = args.optimizer.lbfgs.history_size,
                     line_search_fn = line_search_fn)
@@ -312,11 +314,9 @@ class Trainer:
 
         # Store grouping data
         self.name_groups = name_groups
-        self.pgroups = pgroups
         self.param_groups = param_groups
-        self.tup_params = tuple(p for group in self.pgroups for p in group['params'])
-        self.group_sizes = [len(dct['params']) for dct in self.pgroups]
-        self.group_indices = [0] + list(np.cumsum(self.group_sizes))
+        self.param_struct = ParamStructure(self.param_groups)
+        self.tup_params = self.param_struct.tup_params
 
         self.full_loss = full_loss
 
@@ -482,7 +482,7 @@ class Trainer:
             for p in self.tup_params:
                 print('    ', p.size())
 
-        # Store the param names - pgroups correspondence
+        # Store the param names - param_groups correspondence
         torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
 
         # Prepare damping schedule
@@ -577,10 +577,10 @@ class Trainer:
     def compute_logs_hg(self):
         logs = {}
 
-        direction = fullbatch_gradient(self.param_groups, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
+        direction = fullbatch_gradient(self.param_struct, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
                 loader_pre_hook = self.loader_pre_hook)
 
-        H, g, order3 = compute_Hg_fullbatch(self.param_groups, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
+        H, g, order3 = compute_Hg_fullbatch(self.param_struct, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
                 loader_pre_hook = self.loader_pre_hook)
 
         # Compute lrs
@@ -604,19 +604,18 @@ class Trainer:
         logs = {}
 
         if self.args.logs_diff.partition == 'canonical':
-            pgroups, name_groups = build_partition.canonical(self.model)
+            param_groups, name_groups = build_partition.canonical(self.model)
         elif self.args.logs_diff.partition == 'wb':
-            pgroups, name_groups = build_partition.wb(self.model)
+            param_groups, name_groups = build_partition.wb(self.model)
         elif self.args.logs_diff.partition == 'trivial':
-            pgroups, name_groups = build_partition.trivial(self.model)
+            param_groups, name_groups = build_partition.trivial(self.model)
         else:
             raise NotImplementedError("Not implemented: self.args.logs_diff.partition = {}".format(self.args.logs_diff.partition))
 
-        direction = fullbatch_gradient(self.param_groups, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
+        direction = fullbatch_gradient(self.param_struct, self.loss_fn, self.model, self.train_loader_logs_hg, self.train_size,
                 loader_pre_hook = self.loader_pre_hook)
 
-        param_groups = ParamStructure(pgroups)
-        lst_diff_n = diff_n_fullbatch(param_groups, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction,
+        lst_diff_n = diff_n_fullbatch(self.param_struct, self.args.logs_diff.order, self.full_loss, self.train_loader_logs_hg, self.train_size, direction,
                 loader_pre_hook = self.loader_pre_hook)
 
         logs["lst_diff_n"] = lst_diff_n
