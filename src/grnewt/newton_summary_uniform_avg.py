@@ -94,6 +94,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             group['damping'] *= factor
             group['lr'] *= factor
 
+    """
     def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
             d_p_list: List[Tensor]):
         for p in group['params']:
@@ -102,6 +103,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                 d_p_list.append(p.grad)
 
                 state = self.state[p]
+    """
 
     def step(self):
         direction = self.updater.compute_step()
@@ -219,9 +221,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             i = 0
             for group in self.param_groups:
                 for p in group['params']:
-                    state = self.state[p]
                     p.add_(direction[i], alpha = -group['lr'])
-
                     i += 1
 
         self.step_counter += 1

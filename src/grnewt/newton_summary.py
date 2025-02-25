@@ -9,10 +9,9 @@ from .hg import compute_Hg
 from .util import ParamStructure
 
 class NewtonSummary(torch.optim.Optimizer):
-    def __init__(self, param_groups, full_loss, data_loader: DataLoader, *,
+    def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             loader_pre_hook,
-            damping: float = 1, momentum: float = 0, momentum_damp: float = 0,
-            period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
+            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
             diagonal = False):
@@ -47,9 +46,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.curr_lrs = 0
         self.diagonal = diagonal
         defaults = {'lr': 0, 
-                    'damping': damping,
-                    'momentum': momentum,
-                    'momentum_damp': momentum_damp}
+                    'damping': damping}
         super().__init__(param_groups, defaults)
 
         self.param_struct = ParamStructure(param_groups)
@@ -88,6 +85,7 @@ class NewtonSummary(torch.optim.Optimizer):
             group['damping'] *= factor
             group['lr'] *= factor
 
+    """
     def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
             d_p_list: List[Tensor], momentum_buffer_list: List[Optional[Tensor]]):
         for p in group['params']:
@@ -100,24 +98,10 @@ class NewtonSummary(torch.optim.Optimizer):
                     momentum_buffer_list.append(None)
                 else:
                     momentum_buffer_list.append(state['momentum_buffer'])
+    """
 
     def step(self):
-        # Update momentum buffers
-        for group in self.param_groups:
-            params_with_grad = []
-            d_p_list = []
-            momentum_buffer_list = []
-
-            self._init_group(group, params_with_grad, d_p_list, momentum_buffer_list)
-
-            # Update momentum buffers
-            update_momentum_buffers(group['params'], d_p_list, momentum_buffer_list, 
-                    momentum = group['momentum'], momentum_damp = group['momentum_damp'])
-
-            # Update momentum_buffers in state
-            for p, momentum_buffer in zip(params_with_grad, momentum_buffer_list):
-                state = self.state[p]
-                state['momentum_buffer'] = momentum_buffer
+        direction = self.updater.compute_step()
 
         # Compute H, g
         perform_update = True
@@ -125,7 +109,6 @@ class NewtonSummary(torch.optim.Optimizer):
             # Prepare data
             x, y = next(self.dl_iter)
             x, y = self.loader_pre_hook(x, y)
-            direction = tuple(self.state[p]['momentum_buffer'] for group in self.param_groups for p in group['params'])
 
             # Compute H, g, order3
             H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
@@ -268,10 +251,11 @@ class NewtonSummary(torch.optim.Optimizer):
 
         # Perform update
         with torch.no_grad():
+            i = 0
             for group in self.param_groups:
                 for p in group['params']:
-                    state = self.state[p]
-                    p.add_(state['momentum_buffer'], alpha = -group['lr'])
+                    p.add_(direction[i], alpha = -group['lr'])
+                    i += 1
 
         self.step_counter += 1
 
