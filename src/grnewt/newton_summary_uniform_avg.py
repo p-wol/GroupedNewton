@@ -73,13 +73,11 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         # Init dct_uniform_avg
         if dct_uniform_avg is None:
-            dct_uniform_avg = {"use": False}
-        self.with_uniform_avg = dct_uniform_avg["use"]
+            raise NotImplementedError("TODO: handle case of 'dct_uniform_avg is None'.")
 
-        if self.with_uniform_avg:
-            self.warmup = dct_uniform_avg["warmup"]
-            self.unif_avg_period = dct_uniform_avg["period"]
-            self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
+        self.warmup = dct_uniform_avg["warmup"]
+        self.unif_avg_period = dct_uniform_avg["period"]
+        self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
 
         self.reset_logs()
 
@@ -105,126 +103,137 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                 state = self.state[p]
     """
 
+    def update_uniform_avg(self, H, g, order3):
+        """
+        Updates the attribute dct_HgD_avgs.
+        """
+        dct_HgD = {"H": H, "g": g, "D": order3}
+
+        # Compute the time step of the method "uniform average"
+        t = (self.step_counter // self.period_hg) % self.unif_avg_period
+
+        # Time to replace the current moving average
+        if t == 0:
+            # At init, set the moving averages to zero
+            if self.step_counter == 0:
+                for key, curr in dct_HgD.items():
+                    self.dct_HgD_avgs[f"{key}_up"] = curr
+
+            # Replace the current moving average by the next one and set the other to zero
+            for key, curr in dct_HgD.items():
+                self.dct_HgD_avgs[f"{key}_use"] = self.dct_HgD_avgs[f"{key}_up"]
+                self.dct_HgD_avgs[f"{key}_up"] = curr
+
+        # During the first period, both averages "use" and "up" are updated with the same coefficient
+        offset_use = 0 if self.step_counter // self.period_hg < self.unif_avg_period else self.unif_avg_period
+        
+        # Set up the time coefficients
+        tt_use = offset_use + t + 1
+        tt_up = t + 1
+
+        # Update the moving averages
+        for key1, curr in dct_HgD.items():
+            for key2, n in zip(["use", "up"], [tt_use, tt_up]):
+                key = f"{key1}_{key2}"
+                self.dct_HgD_avgs[key].mul_((n - 1)/n).add_((1/n) * curr)
+
+        # Return the H, g, order3 to use
+        H = self.dct_HgD_avgs["H_use"]
+        g = self.dct_HgD_avgs["g_use"]
+        order3 = self.dct_HgD_avgs["D_use"]
+
+        return H, g, order3
+
     def step(self):
+        # Perform update only if warm-up phase has ended
+        perform_update = (self.step_counter // self.period_hg >= self.warmup)
+
+        # Compute the direction of descent
         direction = self.updater.compute_step()
 
-        # Compute H, g
-        perform_update = True
-        if self.with_uniform_avg and self.step_counter // self.period_hg < self.warmup:
-            perform_update = False
-        if self.step_counter % self.period_hg == 0:
-            # Prepare data
-            x, y = next(self.dl_iter)
-            x, y = self.loader_pre_hook(x, y)
+        # Function that performs an update if necessary
+        def move_forward():
+            self.step_counter += 1
 
-            # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
-                    noregul = self.noregul, diagonal = False)
-
-            if self.with_uniform_avg:
-                """
-                H2 = H.pow(2)
-                g2 = g.pow(2)
-                D2 = order3.pow(2)
-                """
-                dct_HgD = {"H": H, "g": g, "D": order3}
-                #        "H2": H2, "g2": g2, "D2": D2}
-
-                t = (self.step_counter // self.period_hg) % self.unif_avg_period
-                if t == 0:
-                    # Time to replace the current moving average
-                    if self.step_counter == 0:
-                        # At init, set the moving averages to zero
-                        for key, curr in dct_HgD.items():
-                            self.dct_HgD_avgs[f"{key}_up"] = curr
-
-                    # Replace the current moving average by the next one and set the other to zero
-                    for key, curr in dct_HgD.items():
-                        self.dct_HgD_avgs[f"{key}_use"] = self.dct_HgD_avgs[f"{key}_up"]
-                        self.dct_HgD_avgs[f"{key}_up"] = curr
-
-                # During the first period, both averages "use" and "up" are updated with the same coefficient
-                offset_use = 0 if self.step_counter // self.period_hg < self.unif_avg_period else self.unif_avg_period
-                
-                # Set up the time coefficients
-                tt_use = offset_use + t + 1
-                tt_up = t + 1
-
-                # Update the moving averages
-                for key1, curr in dct_HgD.items():
-                    for key2, n in zip(["use", "up"], [tt_use, tt_up]):
-                        key = f"{key1}_{key2}"
-                        self.dct_HgD_avgs[key].mul_((n - 1)/n).add_((1/n) * curr)
-
-                """
-                print(f"Step counter = {self.step_counter // self.period_hg}")
-                for key in ["H", "g", "D"]:
-                    res = self.dct_HgD_avgs[f"{key}2_use"] - self.dct_HgD_avgs[f"{key}_use"].pow(2)
-                    mean = self.dct_HgD_avgs[f"{key}_use"]
-                    signal2noise = (mean / res.sqrt()).abs().mean()
-                    print(f"Var({key}) = {res.mean().item():.4e} ; signal/noise = {signal2noise:.4f}")
-                """
-
-                H = self.dct_HgD_avgs["H_use"]
-                g = self.dct_HgD_avgs["g_use"]
-                order3 = self.dct_HgD_avgs["D_use"]
-
-            order3_ = order3.abs().pow(1/3)
-
-            # Compute lrs
             if not perform_update:
-                pass
-            elif self.noregul or not self.dct_nesterov['use']:
-                if self.noregul:
-                    regul_H = 0
-                else:
-                    regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
-                lrs = torch.linalg.solve(H + regul_H, g)
+                return
+            
+            with torch.no_grad():
+                i = 0
+                for group in self.param_groups:
+                    for p in group['params']:
+                        p.add_(direction[i], alpha = -group['lr'])
+                        i += 1
+
+        # If we do not update H, g, order3 and lrs: just move forward
+        if self.step_counter % self.period_hg != 0:
+            move_forward()
+            return
+
+        # Compute H, g
+        ## Prepare data
+        x, y = next(self.dl_iter)
+        x, y = self.loader_pre_hook(x, y)
+
+        ## Compute H, g, order3
+        H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
+                noregul = self.noregul, diagonal = False)
+
+        # Update the averages of H, g, order3
+        H, g, order3 = self.update_uniform_avg(H, g, order3)
+
+        order3_ = order3.abs().pow(1/3)
+
+        ## Store logs of H, g, order3
+        self.logs['H'].append(H)
+        self.logs['g'].append(g)
+        self.logs['order3'].append(order3)
+
+        # If we are still in the warm-up phase, just move forward
+        if not perform_update:
+            move_forward()
+            return
+
+        # Compute lrs
+        if self.noregul or not self.dct_nesterov['use']:
+            if self.noregul:
+                regul_H = 0
             else:
-                lrs, lrs_logs = nesterov_lrs(H, g, order3_, damping_int = self.dct_nesterov['damping_int'])
+                regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
+            lrs = torch.linalg.solve(H + regul_H, g)
+        else:
+            lrs, lrs_logs = nesterov_lrs(H, g, order3_, damping_int = self.dct_nesterov['damping_int'])
 
-                for k, v in lrs_logs.items():
-                    kk = 'nesterov.' + k
-                    if kk not in self.logs.keys():
-                        self.logs[kk] = []
-                    self.logs[kk].append(v)
+            for k, v in lrs_logs.items():
+                kk = 'nesterov.' + k
+                if kk not in self.logs.keys():
+                    self.logs[kk] = []
+                self.logs[kk].append(v)
 
-                if not lrs_logs['found']:
-                    perform_update = False
-                    print('Nesterov did not converge: lr not updated during this step.')
-                    #TODO: throw warning?
+            if not lrs_logs['found']:
+                perform_update = False
+                print('Nesterov did not converge: lr not updated during this step.')
+                #TODO: throw warning?
 
-            if perform_update:
-                # To execute even when update_lrs = False? Block #1
-                r = self.mom_lrs if self.step_counter > 0 else 0
-                self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-                lrs = self.curr_lrs
-                if self.remove_negative:
-                    lrs = lrs.relu()
+        ## Additional operations on the lrs
+        r = self.mom_lrs if self.step_counter > 0 else 0
+        self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+        lrs = self.curr_lrs
+        if self.remove_negative:
+            lrs = lrs.relu()
 
-                # To execute even when update_lrs = False? Block #2
-                # Assign lrs
-                self.logs['lrs_clipped'].append(lrs)
-                self.logs['curr_lrs'].append(self.curr_lrs)
-                for group, lr in zip(self.param_groups, lrs):
-                    group['lr'] = group['damping'] * lr.item()
+        ## Assign lrs
+        self.logs['lrs_clipped'].append(lrs)
+        self.logs['curr_lrs'].append(self.curr_lrs)
+        for group, lr in zip(self.param_groups, lrs):
+            group['lr'] = group['damping'] * lr.item()
 
-            # Store logs
-            self.logs['H'].append(H)
-            self.logs['g'].append(g)
-            self.logs['order3'].append(order3)
-            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
-                device = self.device, dtype = self.dtype))
+        # Store logs of lrs
+        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+            device = self.device, dtype = self.dtype))
 
         # Perform update
-        with torch.no_grad():
-            i = 0
-            for group in self.param_groups:
-                for p in group['params']:
-                    p.add_(direction[i], alpha = -group['lr'])
-                    i += 1
-
-        self.step_counter += 1
+        move_forward()
 
 def create_infinite_data_loader(data_loader):
     # XXX: if the batch_size does not divide the total number of samples in
@@ -234,5 +243,4 @@ def create_infinite_data_loader(data_loader):
             for minibatch in dl:
                 yield minibatch
     return f
-
 

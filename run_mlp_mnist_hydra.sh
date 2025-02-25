@@ -48,7 +48,6 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.nesterov.use=True\
 				optimizer.hg.nesterov.damping_int=1.\
-        		optimizer.hg.uniform_avg.use=True\
         		optimizer.hg.uniform_avg.period=5\
         		optimizer.hg.uniform_avg.warmup=5\
         		optimizer.hg.uniform_avg.updater='Adam'\
