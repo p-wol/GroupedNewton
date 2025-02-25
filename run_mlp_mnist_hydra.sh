@@ -14,7 +14,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
-				system.dtype=64\
+				system.dtype=32\
 				model.name='Perceptron'\
 				model.args='1024-200-100-10'\
 				model.act_function='tanh'\
