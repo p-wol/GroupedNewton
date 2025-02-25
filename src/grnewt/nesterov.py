@@ -6,8 +6,7 @@ import torch
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
-def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None, threshold_D_sing = 1e-5,
-        clip_r = None):
+def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None, threshold_D_sing = 1e-5):
     """
     Computes learning rates with "anisotropic Nesterov" cubic regularization.
     Let: D = order3_.diag()
@@ -89,11 +88,6 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
     dct_logs['r'] = r_root
     dct_logs['r_converged'] = r.converged
     dct_logs['found'] = r.converged
-    if clip_r is not None:
-        if r_root > clip_r:
-            dct_logs['found'] = False
-            dct_logs['time'] = time.time() - time_beginning
-            return None, dct_logs
 
     # Compute 'lrs' from 'r'
     lrs = torch.linalg.solve(H + .5 * damping_int * r_root * D_squ, g)

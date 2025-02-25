@@ -247,23 +247,10 @@ class Trainer:
 
         # Build parameters for uniform average
         dct_uniform_avg = None
-        if args_hg.uniform_avg.use:
-            dct_uniform_avg = {'use': args_hg.uniform_avg.use,
-                               'period': args_hg.uniform_avg.period,
-                               'warmup': args_hg.uniform_avg.warmup,
-                               'updater': args_hg.uniform_avg.updater}
+        if args.optimizer.name == "NewtonSummaryUniformAvg":
+            dct_uniform_avg = {'period': args_hg.uniform_avg.period,
+                               'warmup': args_hg.uniform_avg.warmup}
         self.dct_uniform_avg = dct_uniform_avg
-
-        # Build parameters for lrs clipping
-        dct_lrs_clip = None
-        if args_hg.lrs_clip.mode != 'none':
-            dct_lrs_clip = {'mode': args_hg.lrs_clip.mode,
-                            'per_lr': args_hg.lrs_clip.per_lr,
-                            'incremental': args_hg.lrs_clip.incremental,
-                            'momentum': args_hg.lrs_clip.momentum,
-                            'factor': args_hg.lrs_clip.factor,
-                            'median': args_hg.lrs_clip.median}
-        self.dct_lrs_clip = dct_lrs_clip
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
@@ -272,12 +259,12 @@ class Trainer:
         elif args.optimizer.name == 'Adam':
             optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
         elif "NewtonSummary" in args.optimizer.name:
-            if args_hg.uniform_avg.updater == "SGD":
-                updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
-            elif args_hg.uniform_avg.updater == "Adam":
+            if args_hg.updater.name == "SGD":
+                updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.updater.momentum, dampening = args_hg.updater.momentum_damp)
+            elif args_hg.updater.name == "Adam":
                 updater = optimizers.AdamUpdate(model.parameters(), lr = 1)
             else:
-                raise NotImplementedError(f"Unknown updater: {args_hg.uniform_avg.updater}, expected 'SGD' or 'Adam'.")
+                raise NotImplementedError(f"Unknown updater: {args_hg.updater.name}, expected 'SGD' or 'Adam'.")
 
             if args.optimizer.name == 'NewtonSummary':
                 optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, updater,
@@ -285,7 +272,7 @@ class Trainer:
                         damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs, 
                         dct_nesterov = dct_nesterov, 
                         movavg = args_hg.movavg, ridge = args_hg.ridge, 
-                        remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
+                        remove_negative = args_hg.remove_negative,
                         maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
             elif args.optimizer.name == 'NewtonSummaryFB':
                 optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,

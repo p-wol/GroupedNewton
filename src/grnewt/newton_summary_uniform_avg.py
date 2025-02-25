@@ -92,17 +92,6 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             group['damping'] *= factor
             group['lr'] *= factor
 
-    """
-    def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
-            d_p_list: List[Tensor]):
-        for p in group['params']:
-            if p.grad is not None:
-                params_with_grad.append(p)
-                d_p_list.append(p.grad)
-
-                state = self.state[p]
-    """
-
     def update_uniform_avg(self, H, g, order3):
         """
         Updates the attribute dct_HgD_avgs.

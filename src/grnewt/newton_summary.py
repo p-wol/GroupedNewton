@@ -13,7 +13,7 @@ class NewtonSummary(torch.optim.Optimizer):
             loader_pre_hook,
             damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
             dct_nesterov: dict = None, noregul: bool = False,
-            remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
+            remove_negative: bool = False, maintain_true_lrs = False,
             diagonal = False):
         """
         param_groups: param_groups of the model
@@ -35,6 +35,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.fn_data_loader = create_infinite_data_loader(data_loader)
         self.dl_iter = iter(self.fn_data_loader())
         self.full_loss = full_loss
+        self.updater = updater
         self.period_hg = period_hg
         self.ridge = ridge
         self.loader_pre_hook = loader_pre_hook
@@ -63,10 +64,6 @@ class NewtonSummary(torch.optim.Optimizer):
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        if dct_lrs_clip is None: 
-            dct_lrs_clip = {'mode': 'none'}
-        self.dct_lrs_clip = dct_lrs_clip
-
         if self.movavg != 0:
             self.H = None
             self.g = None
@@ -84,21 +81,6 @@ class NewtonSummary(torch.optim.Optimizer):
         for group in self.param_groups:
             group['damping'] *= factor
             group['lr'] *= factor
-
-    """
-    def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
-            d_p_list: List[Tensor], momentum_buffer_list: List[Optional[Tensor]]):
-        for p in group['params']:
-            if p.grad is not None:
-                params_with_grad.append(p)
-                d_p_list.append(p.grad)
-
-                state = self.state[p]
-                if 'momentum_buffer' not in state:
-                    momentum_buffer_list.append(None)
-                else:
-                    momentum_buffer_list.append(state['momentum_buffer'])
-    """
 
     def step(self):
         direction = self.updater.compute_step()
@@ -150,14 +132,7 @@ class NewtonSummary(torch.optim.Optimizer):
                     regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
-                if self.dct_lrs_clip['mode'] != 'median_r' or not hasattr(self, 'r_median'):
-                    clip_r = None
-                else:
-                    median = torch.stack(self.r_median).median(0).values
-                    clip_r = self.dct_lrs_clip['factor'] * median
-
-                lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
-                        damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
+                lrs, lrs_logs = nesterov_lrs(H, g, order3_, damping_int = self.dct_nesterov['damping_int'])
 
                 for k, v in lrs_logs.items():
                     kk = 'nesterov.' + k
@@ -172,55 +147,6 @@ class NewtonSummary(torch.optim.Optimizer):
 
             if not perform_update:
                 lrs = torch.zeros(g.size(0), dtype = self.dtype, device = self.device)
-            else:
-                # Lrs clipping
-                if self.dct_lrs_clip['mode'] == 'movavg':
-                    if not hasattr(self, 'lrs_movavg'):
-                        self.lrs_movavg = lrs
-                    else:
-                        lrs_thres = self.dct_lrs_clip['factor']
-                        lrs_mom = self.dct_lrs_clip['momentum']
-                        lrs_movavg = self.lrs_movavg.relu()
-                        lrs_cond = lrs_movavg + (lrs_movavg == 0).to(dtype = self.dtype) * 1e9
-                        if self.dct_lrs_clip['per_lr']:
-                            lrs_cond = (lrs >= lrs_thres * lrs_cond).to(dtype = self.dtype)
-                            lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * self.lrs_movavg
-                        else:
-                            lrs_cond_max = (lrs / lrs_cond).max()
-                            if lrs_cond_max > lrs_thres:
-                                lrs.mul_(lrs_thres / lrs_cond_max)
-
-                        self.lrs_movavg = lrs_mom * self.lrs_movavg + (1 - lrs_mom) * lrs
-                elif self.dct_lrs_clip['mode'] == 'median':
-                    #lrs = lrs.relu()
-                    if not hasattr(self, 'lrs_median'):
-                        self.lrs_median = [lrs]
-                    else:
-                        curr_lrs = lrs.clone().detach()
-                        median = torch.stack(self.lrs_median).median(0).values.relu()
-
-                        lrs_thres = self.dct_lrs_clip['factor']
-                        lrs_cond = (lrs >= lrs_thres * median).to(dtype = self.dtype)
-
-                        lrs = (1 - lrs_cond) * lrs + lrs_cond * lrs_thres * median
-
-                        if len(self.lrs_median) == self.dct_lrs_clip['median']:
-                            self.lrs_median.pop(0)
-                        if self.dct_lrs_clip['incremental']:
-                            self.lrs_median.append(lrs)
-                        else:
-                            self.lrs_median.append(curr_lrs)
-                elif self.dct_lrs_clip['mode'] == 'median_r':
-                    curr_r = lrs_logs['r']
-                    if not hasattr(self, 'r_median'):
-                        self.r_median = []
-                    self.r_median.append(curr_r)
-                    if len(self.r_median) > self.dct_lrs_clip['median']:
-                        self.r_median.pop(0)
-                elif self.dct_lrs_clip['mode'] == 'none':
-                    pass
-                else:
-                    NotImplementedError('Error: unknown mode for lrs_clip: {}'.format(self.dct_lrs_clip['mode']))
 
             # To execute even when update_lrs = False? Block #1
             r = self.mom_lrs if self.step_counter > 0 else 0

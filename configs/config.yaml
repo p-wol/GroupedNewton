@@ -46,7 +46,7 @@ optimizer:
     hg: 
         diagonal: False    # use a diagonal approximation of the summary Hessian
         batch_size: -1    # batch size used to compute H, g, order3 (if -1, then take dataset.batch_size)
-        optimizer: 'SGD'    # optimizer used to propose a direction of descent, used to compute H, g
+        updater: 'SGD'    # optimizer used to propose a direction of descent, used to compute H, g
         partition: 'canonical'    # dampening of the momentum, as in the SGD
         damping: 1.    # scale the lrs with the same factor 'damping'
         damping_schedule: 'None'    # schedule for the damping
