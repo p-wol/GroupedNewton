@@ -271,30 +271,33 @@ class Trainer:
                     momentum = args.optimizer.momentum, weight_decay = args.optimizer.weight_decay)
         elif args.optimizer.name == 'Adam':
             optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
-        elif args.optimizer.name == 'NewtonSummary':
-            optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
-                    damping = args_hg.damping, momentum = args_hg.momentum, 
-                    momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
-                    mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge, 
-                    dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook, 
-                    remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
-                    maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
-        elif args.optimizer.name == 'NewtonSummaryFB':
-            optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
-                    self.hg_loader, self.train_size,
-                    damping = args_hg.damping, ridge = args_hg.ridge, 
-                    dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook)
-        elif args.optimizer.name == "NewtonSummaryUniformAvg":
+        elif "NewtonSummary" in args.optimizer.name:
             if args_hg.uniform_avg.updater == "SGD":
                 updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
             elif args_hg.uniform_avg.updater == "Adam":
                 updater = optimizers.AdamUpdate(model.parameters(), lr = 1)
             else:
                 raise NotImplementedError(f"Unknown updater: {args_hg.uniform_avg.updater}, expected 'SGD' or 'Adam'.")
-            optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
-                         damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
-                         dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook,
-                         remove_negative = args_hg.remove_negative, dct_uniform_avg = dct_uniform_avg)
+
+            if args.optimizer.name == 'NewtonSummary':
+                optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, updater,
+                        loader_pre_hook = self.loader_pre_hook,
+                        damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs, 
+                        dct_nesterov = dct_nesterov, 
+                        movavg = args_hg.movavg, ridge = args_hg.ridge, 
+                        remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
+                        maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
+            elif args.optimizer.name == 'NewtonSummaryFB':
+                optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
+                        self.hg_loader, self.train_size,
+                        damping = args_hg.damping, ridge = args_hg.ridge, 
+                        dct_nesterov = dct_nesterov, loader_pre_hook = self.loader_pre_hook)
+            elif args.optimizer.name == "NewtonSummaryUniformAvg":
+                optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
+                        loader_pre_hook = self.loader_pre_hook,
+                        damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
+                        dct_nesterov = dct_nesterov, 
+                        remove_negative = args_hg.remove_negative, dct_uniform_avg = dct_uniform_avg)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
                     lr = args.optimizer.lr,
