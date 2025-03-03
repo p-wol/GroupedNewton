@@ -32,7 +32,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_diff.order=3\
 				logs_diff.partition="canonical"\
 				optimizer.epochs=10\
-				optimizer.name='NewtonSummary'\
+				optimizer.name='NewtonSummaryUniformAvg'\
 				optimizer.lr=.0001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
@@ -44,8 +44,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.updater.name='SGD'\
-				optimizer.hg.updater.momentum=.9\
-				optimizer.hg.updater.momentum_damp=.9\
+				optimizer.hg.updater.momentum=.0\
+				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
 				optimizer.hg.nesterov.damping_int=1.\
         		optimizer.hg.uniform_avg.period=5\

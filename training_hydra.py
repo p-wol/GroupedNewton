@@ -540,7 +540,7 @@ class Trainer:
                 f.write(metrics.__repr__() + "\n")
 
             # Logs -- artifacts
-            if self.args.optimizer.name == 'NewtonSummary' and not self.args.optimizer.hg.nologs:
+            if self.args.optimizer.name.find("NewtonSummary") == 0 and not self.args.optimizer.hg.nologs:
                 optim_logs = self.optimizer.logs
 
                 logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
@@ -578,16 +578,16 @@ class Trainer:
 
         H, g, order3 = compute_Hg_fullbatch(self.param_struct, self.full_loss, self.train_loader_logs_hg, self.train_size, direction, 
                 loader_pre_hook = self.loader_pre_hook)
+        order3_ = order3.abs().pow(1/3)
 
         # Compute lrs
         if not self.dct_nesterov['use']:
             regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
             lrs = torch.linalg.solve(H + regul_H, g)
         else:
-            lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
-                    damping_int = self.dct_nesterov['damping_int'])
-            logs['nesterov.r'] = torch.tensor(r_root, device = self.device, dtype = self.dtype)
-            logs['nesterov.converged'] = torch.tensor(r_converged, device = self.device, dtype = self.dtype)
+            lrs, lrs_logs = nesterov_lrs(H, g, order3_, damping_int = self.dct_nesterov['damping_int'])
+            for k, v in lrs_logs.items():
+                logs["nesterov." + k] = v
 
         logs['H'] = H
         logs['g'] = g
