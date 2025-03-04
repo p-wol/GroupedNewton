@@ -1,3 +1,4 @@
+import time
 import torch
 from .util import ParamStructure
 
@@ -20,26 +21,29 @@ def compute_Hg(param_struct, full_loss, x, y, direction, *,
     order3 = torch.zeros(nb_groups, device = device, dtype = dtype)
     for i, g_i in enumerate(g_tup):
         if diagonal:
-            H_i = param_struct.dercon(g_i, direction, i, i + 1, detach = True)
+            H_i = param_struct.dercon(g_i, direction, i, i + 1, detach = False)
             H[i,i] = H_i.item()
         else:
-            H_i = param_struct.dercon(g_i, direction, i, nb_groups, detach = True)
-            H[i,i:] = H_i
+            H_i = param_struct.dercon(g_i, direction, i, nb_groups, detach = False)
+
+            H[i,i:] = H_i.detach()
             if not semiH:
-                H[i:,i] = H_i
+                H[i:,i] = H_i.detach()
 
         # Computation of order3 (only the diagonal of the order-3 reduced derivative)
         # 2nd-order diff: differentiate g[i] w.r.t. tup_params[i]
         if noregul:
             continue
 
-        deriv_i = param_struct.dercon(g_i, direction, i, i + 1, detach = False)
+        #deriv_i = param_struct.dercon(g_i, direction, i, i + 1, detach = False)
 
         # 3rd-order diff
-        deriv_i = param_struct.dercon(deriv_i, direction, i, i + 1, detach = True)
+        deriv_i = param_struct.dercon(H_i[0], direction, i, i + 1, detach = True)
 
         # Store the result
         order3[i] = deriv_i.item()
+
+        del H_i
         del deriv_i
 
     return H, g, order3

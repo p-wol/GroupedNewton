@@ -166,10 +166,8 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         x, y = self.loader_pre_hook(x, y)
 
         ## Compute H, g, order3
-        #t0 = time.time()
         H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
                 noregul = self.noregul, diagonal = False)
-        #print(time.time() - t0)
 
         # Update the averages of H, g, order3
         H, g, order3 = self.update_uniform_avg(H, g, order3)
