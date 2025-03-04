@@ -54,10 +54,12 @@ class SGDUpdate(Optimizer):
             state = self.state[p]
             if group["momentum"] != 0:
                 momentum_buffer_list.append(state.get("momentum_buffer"))
-            state["update"] = torch.zeros_like(
-                p, memory_format=torch.preserve_format
-            )
-            updates.append(state["update"])
+
+            updates.append(state.get("update"))
+            #state["update"] = torch.zeros_like(
+            #    p, memory_format=torch.preserve_format
+            #)
+            #updates.append(state["update"])
 
         return has_sparse_grad
 
@@ -105,6 +107,10 @@ class SGDUpdate(Optimizer):
                 for p, momentum_buffer in zip(params, momentum_buffer_list):
                     state = self.state[p]
                     state["momentum_buffer"] = momentum_buffer
+
+            for p, update in zip(params, updates):
+                state = self.state[p]
+                state["update"] = update
 
             lst_updates += updates
 
@@ -163,5 +169,8 @@ def sgd(
                 grad = grad.add(buf, alpha=momentum)
             else:
                 grad = buf
+
+        if updates[i] is None:
+            updates[i] = torch.zeros_like(param, memory_format = torch.preserve_format)
 
         updates[i].zero_().add_(grad, alpha=lr)
