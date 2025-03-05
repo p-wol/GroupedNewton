@@ -1,16 +1,16 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='LeNet_CIFAR_UnifAvg_01_tests'
+expe_series='LeNet_CIFAR_UnifAvg_02_many_tests'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-				hydra.launcher.timeout_min=120\
+				hydra.launcher.timeout_min=400\
         		hydra.launcher.partition='gpu_p13'\
-        		hydra.launcher.qos='qos_gpu-dev'\
+        		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
@@ -29,10 +29,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_hg.use=False\
 				logs_hg.batch_size=1000\
 				logs_hg.test_float=False\
-				logs_diff.use=False\
-				logs_diff.order=3\
-				logs_diff.partition="canonical"\
-				optimizer.epochs=10\
+				optimizer.epochs=200\
 				optimizer.name='NewtonSummaryUniformAvg'\
 				optimizer.lr=.003\
 				optimizer.weight_decay=0.\
@@ -40,8 +37,6 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
 				optimizer.hg.damping=.1\
-				optimizer.hg.damping_schedule='None'\
-				optimizer.hg.mom_lrs=0.\
 				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.updater.name='SGD'\
