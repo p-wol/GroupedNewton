@@ -519,7 +519,24 @@ class Trainer:
 
                 metrics_tr = {'tr_loss': self.optimizer.step(closure).item()}
             else:
-                metrics_tr = self.step_train()
+                try:
+                    metrics_tr = self.step_train()
+                except:
+                    if self.args.optimizer.name.find("NewtonSummary") == 0 and not self.args.optimizer.hg.nologs:
+                        optim_logs = self.optimizer.logs
+
+                        logs_last = {k: v[-1] for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
+                        logs_mean = {k: torch.stack(v).mean(0) for k, v in optim_logs.items() if len(v) > 0 and torch.is_tensor(v[0])}
+                        logs_total = {k: v for k, v in optim_logs.items() if len(v) > 0 and k != 'H'}
+
+                        if False:
+                            logs_total['H'] = optim_logs['H']
+
+                        torch.save(logs_last, f"{self.path_artifacts}/Hg_logs_last.{self.epoch:05}.onexit.pkl")
+                        torch.save(logs_mean, f"{self.path_artifacts}/Hg_logs_mean.{self.epoch:05}.onexit.pkl")
+                        torch.save(logs_total, f"{self.path_artifacts}/Hg_logs_total.{self.epoch:05}.onexit.pkl")
+                        torch.save(self.logs_nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.onexit.pkl")
+                    raise
 
             # Use scheduler
             if self.use_scheduler and self.args.optimizer.name.find('NewtonSummary') == 0:

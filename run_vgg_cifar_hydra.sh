@@ -4,7 +4,7 @@ parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
 expe_series='VGG_CIFAR_UnifAvg_02_many_tests'
 
 module purge
-module load pytorch-gpu/py3/2.3.0
+module load pytorch-gpu/py3/2.4.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
@@ -36,18 +36,18 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.1\
-				optimizer.hg.period_hg=10\
+				optimizer.hg.damping=.3\
+				optimizer.hg.period_hg=20\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.updater.name='SGD'\
 				optimizer.hg.updater.momentum=.9\
-				optimizer.hg.updater.momentum_damp=.9\
+				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
 				optimizer.hg.nesterov.damping_int=1.\
         		optimizer.hg.uniform_avg.period=5\
         		optimizer.hg.uniform_avg.warmup=5\
-				optimizer.hg.dmp_auto.use=False\
-				optimizer.hg.dmp_auto.patience=5\
+				optimizer.hg.dmp_auto.use=True\
+				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\
 				optimizer.hg.dmp_auto.factor=.5\
 				optimizer.kfac.stat_decay=.95\

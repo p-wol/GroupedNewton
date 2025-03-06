@@ -102,6 +102,7 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
 
     # Check if H is positive definite
     Hd = torch.linalg.eigvalsh(H)
+
     H_pd = ((Hd <= 0).sum() == 0).item()
     dct_logs['H_pd'] = H_pd
 
