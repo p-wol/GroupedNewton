@@ -9,6 +9,15 @@ from .nesterov import nesterov_lrs
 from .hg import compute_Hg
 from .util import ParamStructure
 
+
+def increment_step(func):
+    def wrapper(self, *args, **kwargs):
+        ret = func(self, *args, **kwargs)
+        self.step_counter += 1
+        return ret
+    return wrapper
+
+
 class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             loader_pre_hook,
@@ -134,20 +143,13 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         return H, g, order3
 
+    @increment_step
     def step(self):
         # Perform update only if warm-up phase has ended
-        perform_update = (self.step_counter // self.period_hg >= self.warmup)
-
-        # Compute the direction of descent
-        direction = self.updater.compute_step()
+        warmup_ended = (self.step_counter // self.period_hg >= self.warmup)
 
         # Function that performs an update if necessary
-        def move_forward():
-            self.step_counter += 1
-
-            if not perform_update:
-                return
-            
+        def make_step(direction):
             with torch.no_grad():
                 i = 0
                 for group in self.param_groups:
@@ -157,8 +159,14 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         # If we do not update H, g, order3 and lrs: just move forward
         if self.step_counter % self.period_hg != 0:
-            move_forward()
+            # If warm-up phase has ended, perform update (else, do nothing)
+            if warmup_ended:
+                direction = self.updater.compute_step()
+                make_step(direction)
             return
+
+        # If we update H, g, order3 and lrs: first compute the direction
+        direction = self.updater.compute_step()
 
         # Compute H, g
         ## Prepare data
@@ -179,12 +187,12 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         self.logs['g'].append(g)
         self.logs['order3'].append(order3)
 
-        # If we are still in the warm-up phase, just move forward
-        if not perform_update:
-            move_forward()
+        # If we are still in the warm-up phase, do not compute the lrs and do not update
+        if not warmup_ended:
             return
 
         # Compute lrs
+        lrs_found = True
         if self.noregul or not self.dct_nesterov['use']:
             if self.noregul:
                 regul_H = 0
@@ -201,9 +209,12 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                 self.logs[kk].append(v)
 
             if not lrs_logs['found']:
-                perform_update = False
+                lrs_found = False
                 print('Nesterov did not converge: lr not updated during this step.')
                 #TODO: throw warning?
+
+        if not lrs_found:
+            lrs = self.curr_lrs
 
         ## Additional operations on the lrs
         r = self.mom_lrs if self.step_counter > 0 else 0
@@ -223,7 +234,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             device = self.device, dtype = self.dtype))
 
         # Perform update
-        move_forward()
+        make_step(direction)
 
 def create_infinite_data_loader(data_loader):
     # XXX: if the batch_size does not divide the total number of samples in
