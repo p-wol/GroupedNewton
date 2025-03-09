@@ -1,16 +1,16 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='MLP_MNIST_logs_01_tests'
+expe_series='MLP_MNIST_UnifAvg_04_many_tests'
 
 module purge
 module load pytorch-gpu/py3/2.3.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-				hydra.launcher.timeout_min=120\
+				hydra.launcher.timeout_min=240\
         		hydra.launcher.partition='gpu_p13'\
-        		hydra.launcher.qos='qos_gpu-dev'\
+        		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
@@ -31,26 +31,26 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_diff.use=False\
 				logs_diff.order=3\
 				logs_diff.partition="canonical"\
-				optimizer.epochs=10\
+				optimizer.epochs=200\
 				optimizer.name='NewtonSummaryUniformAvg'\
 				optimizer.lr=.0001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.1\
+				optimizer.hg.damping=.1,.03\
 				optimizer.hg.damping_schedule='None'\
 				optimizer.hg.mom_lrs=0.\
 				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.updater.name='SGD'\
-				optimizer.hg.updater.momentum=.0\
+				optimizer.hg.updater.momentum=.9\
 				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
-				optimizer.hg.nesterov.damping_int=1.\
+				optimizer.hg.nesterov.damping_int=10.,3.,1.\
         		optimizer.hg.uniform_avg.period=5\
         		optimizer.hg.uniform_avg.warmup=5\
-				optimizer.hg.dmp_auto.use=False\
+				optimizer.hg.dmp_auto.use=True\
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\
 				optimizer.hg.dmp_auto.factor=.5\

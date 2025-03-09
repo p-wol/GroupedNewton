@@ -258,7 +258,7 @@ class Trainer:
                     momentum = args.optimizer.momentum, weight_decay = args.optimizer.weight_decay)
         elif args.optimizer.name == 'Adam':
             optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
-        elif "NewtonSummary" in args.optimizer.name:
+        elif args.optimizer.name.find("NewtonSummary") == 0:
             if args_hg.updater.name == "SGD":
                 updater = optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = args_hg.updater.momentum, dampening = args_hg.updater.momentum_damp)
             elif args_hg.updater.name == "Adam":
