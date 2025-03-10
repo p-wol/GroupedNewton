@@ -102,6 +102,49 @@ def build_CIFAR10(args, dct):
 
     return create_loaders(args, dct)
 
+def build_ImageNet(args, dct):
+    data_augm = args.dataset.data_augm
+
+    transform_train = [transforms.ToTensor()]
+    transform_test = [transforms.ToTensor()]
+    if not args.dataset.autoencoder:
+        transform_train.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        transform_test.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+    if args.model.name not in ('LeNet', 'VGG', "ResNet"):
+        transform_train.append(transforms.Lambda(lambda x: x.view(-1)))
+        transform_test.append(transforms.Lambda(lambda x: x.view(-1)))
+    if data_augm:
+        transform_train = [transforms.RandomResizedCrop(224),
+                           transforms.RandomHorizontalFlip()] \
+                          + transform_train
+    transform_train = transforms.Compose(transform_train)
+    transform_test = transforms.Compose(transform_test)
+
+    dct['tvset'] = torchvision.datasets.ImageNet(root = args.dataset.path, train = True,
+            download = False, transform = transform_train)
+
+    dct['testset'] = torchvision.datasets.ImageNet(root = args.dataset.path, train = False,
+            download = False, transform = transform_test)
+
+    dct['test_size'] = 50000
+    dct['tvsize'] = 1281167
+
+    dct['n_classes'] = 100
+    dct['n_channels'] = 3
+    dct['image_size'] = 250
+    dct['channel_size'] = 250**2
+    dct['input_size'] = 3 * 250**2
+
+    if args.dataset.autoencoder:
+        dct['classification'] = False
+        dct['loss_fn'] = nn.BCELoss()
+    else:
+        dct['classification'] = True
+        dct['loss_fn'] = nn.NLLLoss()
+        dct['topk_acc'] = (1,)
+
+    return create_loaders(args, dct)
+
 def build_toy_regression(args, dct):
     if args.model.name != 'Perceptron':
         raise ValueError('Error: with dataset "ToyRegression", the model must be "Perceptron", got {}.'\

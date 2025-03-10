@@ -10,13 +10,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
+#from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 from torch.utils import data
 #from kfac.optimizers import KFACOptimizer
 from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg
 from grnewt import ParamStructure, diff_n, diff_n_fullbatch
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
-from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
+from grnewt.datasets import build_MNIST, build_CIFAR10, build_ImageNet, build_toy_regression, build_None
 from grnewt.nesterov import nesterov_lrs
 from grnewt import ReduceDampingOnPlateau
 from grnewt import optimizers, loader_pre_hooks
@@ -111,6 +112,9 @@ class Trainer:
         elif args.dataset.name == 'CIFAR10':
             self.loader_pre_hook = lambda x, y: (x.to(device = self.device, dtype = self.dtype), y.to(self.device))
             dct = build_CIFAR10(args, dct)
+        elif args.dataset.name == 'ImageNet':
+            self.loader_pre_hook = lambda x, y: (x.to(device = self.device, dtype = self.dtype), y.to(self.device))
+            dct = build_ImageNet(args, dct)
         elif args.dataset.name == 'ToyRegression':
             dct = build_toy_regression(args, dct)
         elif args.dataset.name == 'None':
@@ -167,6 +171,9 @@ class Trainer:
             model = VGG(vgg_type, fc_sizes = fc_sizes, image_size = self.image_size, num_classes = self.n_classes,
                         scaling = args.model.scaling, sigma_w = sigma_w, name_act_function = args.model.act_function,
                         batch_norm = with_batch_norm)
+        elif args.model.name == "ResNet":
+            model_name = "resnet" + model_args
+            model = torchvision.models.__dict__[model_name]
         elif args.model.name == 'AutoencoderMLP':
             layers = [int(s) for s in model_args.split('-')]
             layers = [self.input_size] + layers
