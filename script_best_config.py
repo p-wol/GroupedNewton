@@ -4,16 +4,16 @@ import yaml
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_04_many_tests/")
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_02_many_tests/")
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
+global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
 
-global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_NS_01_new_tests/")
+#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_NS_01_new_tests/")
 #global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_NS_01_new_tests/")
 #global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_iNS_01_tests/")
 
 lst_metrics = global_path.glob("*/*/metrics/metrics.json")
 
-loss_threshold = 2
-rate_instability = 3
+loss_threshold = .1
+rate_instability = 10
 only_finished_expes = False
 
 dct_expes = {}
