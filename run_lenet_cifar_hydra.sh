@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='LeNet_CIFAR_UnifAvg_04_final_stable2'
+expe_series='LeNet_CIFAR_UnifAvg_02_many_tests'
 
 module purge
 module load pytorch-gpu/py3/2.4.0
@@ -13,7 +13,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
         		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
-                seed=571677914,421146319,505702709,70478166,358472055\
+                seed=571677914\
 				system.dtype=32\
         		model.name='LeNet'\
 	        	model.args='6-16-120-84-10'\
@@ -36,7 +36,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.3\
+				optimizer.hg.damping=.5\
 				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.mom_lrs=.0\

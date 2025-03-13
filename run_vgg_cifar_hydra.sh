@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='VGG_CIFAR_UnifAvg_02_many_tests'
+expe_series='VGG_CIFAR_UnifAvg_05_final_avg3'
 
 module purge
 module load pytorch-gpu/py3/2.4.0
@@ -13,7 +13,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
         		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
-                seed=571677914\
+                seed=571677914,421146319,505702709,70478166,358472055\
 				system.dtype=32\
 	        	model.name='VGG'\
 		        model.args='A'\
@@ -39,12 +39,11 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.damping=.3\
 				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
-				optimizer.hg.mom_lrs=.0\
 				optimizer.hg.updater.name='SGD'\
 				optimizer.hg.updater.momentum=.9\
 				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
-				optimizer.hg.nesterov.damping_int=3.\
+				optimizer.hg.nesterov.damping_int=1.\
         		optimizer.hg.uniform_avg.period=3\
         		optimizer.hg.uniform_avg.warmup=3\
 				optimizer.hg.dmp_auto.use=True\

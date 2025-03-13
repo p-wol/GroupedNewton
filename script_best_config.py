@@ -1,15 +1,17 @@
 import pathlib
 import yaml
 
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_05_final_stable/")
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_03_final_stable/")
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_06_final_stable/")
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_03_final_unstable/")
+#seed=571677914,421146319,505702709,70478166,358472055\
+
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_07_final_avg3/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_04_final_stable2/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_07_final_stable_avg3/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_05_final_avg3/")
 
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_04_many_tests/")
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_02_many_tests/")
-#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")
-global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
+global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
 
 #global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_NS_01_new_tests/")
 #global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_NS_01_new_tests/")

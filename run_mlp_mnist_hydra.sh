@@ -1,10 +1,10 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='MLP_MNIST_UnifAvg_04_many_tests'
+expe_series='MLP_MNIST_UnifAvg_07_final_avg3'
 
 module purge
-module load pytorch-gpu/py3/2.3.0
+module load pytorch-gpu/py3/2.4.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
@@ -13,7 +13,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
         		hydra.launcher.qos='qos_gpu-t3'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
-                seed=571677914\
+                seed=571677914,421146319,505702709,70478166,358472055\
 				system.dtype=32\
 				model.name='Perceptron'\
 				model.args='1024-200-100-10'\
@@ -35,7 +35,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=.1\
+				optimizer.hg.damping=.03\
 				optimizer.hg.damping_schedule='None'\
 				optimizer.hg.mom_lrs=0.\
 				optimizer.hg.period_hg=10\
@@ -44,7 +44,7 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.updater.momentum=.9\
 				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
-				optimizer.hg.nesterov.damping_int=10.\
+				optimizer.hg.nesterov.damping_int=1.\
         		optimizer.hg.uniform_avg.period=3\
         		optimizer.hg.uniform_avg.warmup=3\
 				optimizer.hg.dmp_auto.use=True\
