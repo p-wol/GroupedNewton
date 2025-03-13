@@ -1,43 +1,43 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='VGG_CIFAR_UnifAvg_02_many_tests'
+expe_series='ResNet_ImageNet_UnifAvg_01_debug'
 
 module purge
 module load pytorch-gpu/py3/2.4.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-				hydra.launcher.timeout_min=400\
+				hydra.launcher.timeout_min=120\
         		hydra.launcher.partition='gpu_p13'\
-        		hydra.launcher.qos='qos_gpu-t3'\
+        		hydra.launcher.qos='qos_gpu-dev'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
 				system.dtype=32\
-	        	model.name='VGG'\
-		        model.args='A'\
+	        	model.name='ResNet'\
+		        model.args='18'\
 				model.act_function='elu'\
 				model.scaling=False\
 				model.init.sigma_w=1.4142\
 				model.init.sigma_b=0.\
-				dataset.name='CIFAR10'\
-				dataset.path='/lustre/fsmisc/dataset'\
-				dataset.valid_size=5000\
+				dataset.name='ImageNet'\
+				dataset.path='/lustre/fsmisc/dataset/imagenet'\
+				dataset.valid_size=50000\
 				dataset.batch_size=100\
 				dataset.data_augm=False\
 				logs_hg.use=False\
 				logs_hg.batch_size=100\
 				logs_hg.test_float=False\
 				optimizer.epochs=100\
-				optimizer.name='NewtonSummaryUniformAvg'\
-				optimizer.lr=.00001\
+				optimizer.name='Adam'\
+				optimizer.lr=.0001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=1.\
-				optimizer.hg.period_hg=5\
+				optimizer.hg.damping=.1\
+				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.mom_lrs=.0\
 				optimizer.hg.updater.name='SGD'\

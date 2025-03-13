@@ -1,6 +1,11 @@
 import pathlib
 import yaml
 
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_05_final_stable/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_03_final_stable/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_06_final_stable/")
+#global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_03_final_unstable/")
+
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_04_many_tests/")
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_02_many_tests/")
 #global_path = pathlib.Path("../../_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")

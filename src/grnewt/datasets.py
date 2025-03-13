@@ -110,21 +110,24 @@ def build_ImageNet(args, dct):
     if not args.dataset.autoencoder:
         transform_train.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
         transform_test.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        transform_train = [transforms.Resize(256), transforms.CenterCrop(224)] + transform_train
+        transform_test = [transforms.Resize(256), transforms.CenterCrop(224)] + transform_test
     if args.model.name not in ('LeNet', 'VGG', "ResNet"):
         transform_train.append(transforms.Lambda(lambda x: x.view(-1)))
         transform_test.append(transforms.Lambda(lambda x: x.view(-1)))
     if data_augm:
+        raise NotImplementedError("Data augmentation not implemented.")
         transform_train = [transforms.RandomResizedCrop(224),
                            transforms.RandomHorizontalFlip()] \
                           + transform_train
     transform_train = transforms.Compose(transform_train)
     transform_test = transforms.Compose(transform_test)
 
-    dct['tvset'] = torchvision.datasets.ImageNet(root = args.dataset.path, train = True,
-            download = False, transform = transform_train)
+    dct['tvset'] = torchvision.datasets.ImageNet(root = args.dataset.path, split = "train",
+            transform = transform_train)
 
-    dct['testset'] = torchvision.datasets.ImageNet(root = args.dataset.path, train = False,
-            download = False, transform = transform_test)
+    dct['testset'] = torchvision.datasets.ImageNet(root = args.dataset.path, split = "val",
+            transform = transform_test)
 
     dct['test_size'] = 50000
     dct['tvsize'] = 1281167

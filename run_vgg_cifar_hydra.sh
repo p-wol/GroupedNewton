@@ -36,8 +36,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
 				optimizer.hg.partition='canonical'\
-				optimizer.hg.damping=1.\
-				optimizer.hg.period_hg=5\
+				optimizer.hg.damping=.3\
+				optimizer.hg.period_hg=10\
 				optimizer.hg.remove_negative=True\
 				optimizer.hg.mom_lrs=.0\
 				optimizer.hg.updater.name='SGD'\
@@ -45,8 +45,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.updater.momentum_damp=.0\
 				optimizer.hg.nesterov.use=True\
 				optimizer.hg.nesterov.damping_int=3.\
-        		optimizer.hg.uniform_avg.period=5\
-        		optimizer.hg.uniform_avg.warmup=5\
+        		optimizer.hg.uniform_avg.period=3\
+        		optimizer.hg.uniform_avg.warmup=3\
 				optimizer.hg.dmp_auto.use=True\
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\

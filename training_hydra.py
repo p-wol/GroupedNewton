@@ -140,7 +140,7 @@ class Trainer:
         act_function = dct_act_functions[args.model.act_function]
 
         # Create model
-        model_args = args.model.args
+        model_args = str(args.model.args)
         if '*' in model_args:
             n_layers = int(args.model.args[:args.model.args.find('*')])
             n_neurons = int(args.model.args[args.model.args.find('*') + 1:])
@@ -173,7 +173,7 @@ class Trainer:
                         batch_norm = with_batch_norm)
         elif args.model.name == "ResNet":
             model_name = "resnet" + model_args
-            model = torchvision.models.__dict__[model_name]
+            model = torchvision.models.__dict__[model_name]()
         elif args.model.name == 'AutoencoderMLP':
             layers = [int(s) for s in model_args.split('-')]
             layers = [self.input_size] + layers
