@@ -1,16 +1,16 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='MLP_MNIST_Adam_01_grid'
+expe_series='MLP_MNIST_Sto_01_debug'
 
 module purge
 module load pytorch-gpu/py3/2.4.0
 
 
 HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=submitit_slurm\
-				hydra.launcher.timeout_min=240\
+				hydra.launcher.timeout_min=120\
         		hydra.launcher.partition='gpu_p13'\
-        		hydra.launcher.qos='qos_gpu-t3'\
+        		hydra.launcher.qos='qos_gpu-dev'\
 				parent_dir="${parent_dir}"\
 				expe_series="${expe_series}"\
                 seed=571677914\
@@ -30,8 +30,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_hg.batch_size=2000\
 				logs_hg.test_float=False\
 				optimizer.epochs=200\
-				optimizer.name='Adam'\
-				optimizer.lr=.0003,.0001,00003\
+				optimizer.name='NewtonStochasticHv'\
+				optimizer.lr=.01\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
@@ -50,6 +50,9 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\
 				optimizer.hg.dmp_auto.factor=.5\
+				optimizer.newtonsto.lr_param=.01\
+				optimizer.newtonsto.lr_direction=.01\
+				optimizer.newtonsto.ridge=.00001\
 				optimizer.kfac.stat_decay=.95\
 				optimizer.kfac.damping=.03\
 				optimizer.kfac.kl_clip=.01\

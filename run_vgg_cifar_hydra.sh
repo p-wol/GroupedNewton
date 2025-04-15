@@ -1,7 +1,7 @@
 #!/bin/bash
 
 parent_dir='/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results'
-expe_series='VGG_CIFAR_Adam_01_grid'
+expe_series='VGG_CIFAR_Sto_01_tests'
 
 module purge
 module load pytorch-gpu/py3/2.4.0
@@ -30,8 +30,8 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				logs_hg.batch_size=100\
 				logs_hg.test_float=False\
 				optimizer.epochs=100\
-				optimizer.name='Adam'\
-				optimizer.lr=.00001,.000003,.000001\
+				optimizer.name='NewtonStochasticHv'\
+				optimizer.lr=.001\
 				optimizer.weight_decay=0.\
 				optimizer.momentum=.9\
 				optimizer.hg.batch_size=100\
@@ -50,6 +50,9 @@ HYDRA_FULL_ERROR=1 OC_CAUSE=1 python main_hydra.py --multirun hydra/launcher=sub
 				optimizer.hg.dmp_auto.patience=2\
 				optimizer.hg.dmp_auto.threshold=.0001\
 				optimizer.hg.dmp_auto.factor=.5\
+				optimizer.newtonsto.lr_param=.00001\
+				optimizer.newtonsto.lr_direction=.000001\
+				optimizer.newtonsto.ridge=.00001\
 				optimizer.kfac.stat_decay=.95\
 				optimizer.kfac.damping=.03\
 				optimizer.kfac.kl_clip=.01\

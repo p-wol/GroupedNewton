@@ -6,6 +6,7 @@ from .util import fullbatch_gradient, ParamStructure, loader_pre_hooks
 from .hg import compute_Hg, compute_Hg_fullbatch
 from .nesterov import nesterov_lrs
 from .newton_summary import NewtonSummary
+from .newton_summary_fb import NewtonSummaryFB
 from .newton_summary_vanilla import NewtonSummaryVanilla
 from .newton_summary_uniform_avg import NewtonSummaryUniformAvg
 from .newton_stochastic_hv import NewtonStochasticHv

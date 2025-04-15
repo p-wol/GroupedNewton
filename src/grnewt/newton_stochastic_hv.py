@@ -27,7 +27,8 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             'use': True or False
             'damping_int': float; internal damping: the larger, the stronger the cubic regul.
         """
-        self.dl_iter = iter(create_infinite_data_loader(data_loader))
+        fn_data_loader = create_infinite_data_loader(data_loader)
+        self.dl_iter = iter(fn_data_loader())
         self.model = model
         self.final_loss = final_loss
         self.tup_params = tuple(model.parameters())
@@ -36,8 +37,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         self.ridge = ridge
         self.loader_pre_hook = loader_pre_hook
         self.curr_direction = None
-        defaults = {'lr': 0, 
-                    'damping': damping}
+        defaults = {'lr': 0}
         super().__init__(param_groups, defaults)
 
         self.param_struct = ParamStructure(param_groups)
@@ -83,7 +83,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             return self.final_loss(output, y)
 
         # Compute Hessian-vector product
-        vhp = torch.autograd.functional.vhp(full_loss, self.tup_params, v = self.curr_direction)
+        _, vhp = torch.autograd.functional.vhp(full_loss, self.tup_params, v = self.curr_direction)
 
         # Update direction: d_{t+1} = d_t - lr_direction * (H d_t - grad)
         with torch.no_grad():
