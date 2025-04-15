@@ -9,12 +9,9 @@ from .hg import compute_Hg
 from .util import ParamStructure
 
 class NewtonStochasticHv(torch.optim.Optimizer):
-    def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
-            loader_pre_hook,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
-            dct_nesterov: dict = None, noregul: bool = False,
-            remove_negative: bool = False, maintain_true_lrs = False,
-            diagonal = False):
+    def __init__(self, param_groups, model, final_loss, data_loader: DataLoader, *,
+            loader_pre_hook, lr_param: float, lr_direction: float,
+            ridge: float = 0, dct_nesterov: dict = None):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y) = l(m(x), y), where: 
@@ -23,29 +20,22 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             x: input
             y: target
         data_loader: generate the data point for computing H and g
-        damping: "damping" as in Newton's method (can be seen as a correction of the lr)
-        momentum: "momentum" as in SGD
-        momentum_damp: "dampening" of the momentum as in SGD
+        lr_param: lr used in the param update
+        lr_direction: lr used in the direction of descent update
         period_hg: number of training steps between each update of (H, g)
-        mom_lrs: momentum for the updates of lrs
         dct_nesterov: args for Nesterov's cubic regularization procedure
             'use': True or False
             'damping_int': float; internal damping: the larger, the stronger the cubic regul.
         """
-        self.fn_data_loader = create_infinite_data_loader(data_loader)
-        self.dl_iter = iter(self.fn_data_loader())
-        self.full_loss = full_loss
-        self.updater = updater
-        self.period_hg = period_hg
+        self.dl_iter = iter(create_infinite_data_loader(data_loader))
+        self.model = model
+        self.final_loss = final_loss
+        self.tup_params = tuple(model.parameters())
+        self.lr_param = lr_param
+        self.lr_direction = lr_direction
         self.ridge = ridge
         self.loader_pre_hook = loader_pre_hook
-        self.noregul = noregul
-        self.remove_negative = remove_negative
-        self.mom_lrs = mom_lrs
-        self.movavg = movavg
-        self.maintain_true_lrs = maintain_true_lrs
-        self.curr_lrs = 0
-        self.diagonal = diagonal
+        self.curr_direction = None
         defaults = {'lr': 0, 
                     'damping': damping}
         super().__init__(param_groups, defaults)
@@ -64,11 +54,6 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        if self.movavg != 0:
-            self.H = None
-            self.g = None
-            self.order3 = None
-
         self.reset_logs()
 
     def reset_logs(self):
@@ -83,34 +68,44 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             group['lr'] *= factor
 
     def step(self):
-        direction = self.updater.compute_step()
+        # Compute the gradient
+        grad = tuple(p.grad for p in self.tup_params)
+        if self.curr_direction is None:
+            self.curr_direction = grad
 
-        # Compute H, g
-        perform_update = True
-        if self.step_counter % self.period_hg == 0:
-            # Prepare data
-            x, y = next(self.dl_iter)
-            x, y = self.loader_pre_hook(x, y)
+        # Prepare data
+        x, y = next(self.dl_iter)
+        x, y = self.loader_pre_hook(x, y)
 
-            # TODO: step
+        # Full loss function w.r.t. the parameters
+        def full_loss(*params):
+            output = torch.func.functional_call(self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params)}, x)
+            return self.final_loss(output, y)
 
-            #if self.diagonal:
-            #    H = H.diag().diag()
+        # Compute Hessian-vector product
+        vhp = torch.autograd.functional.vhp(full_loss, self.tup_params, v = self.curr_direction)
 
+        # Update direction: d_{t+1} = d_t - lr_direction * (H d_t - grad)
+        with torch.no_grad():
+            for d, g, v in zip(self.curr_direction, grad, vhp):
+                if self.ridge == 0:
+                    d.add_(v - g, alpha = -self.lr_direction)
+                else:
+                    d.add_(v - g + self.ridge * d, alpha = -self.lr_direction)
 
-            # Nesterov cubic regul?
+        # Update params
+        with torch.no_grad():
+            for p, d in zip(self.tup_params, self.curr_direction):
+                p.add_(d, alpha = -self.lr_param)
 
-
-            # Assign lrs
-
-            # Store logs
-            """
-            self.logs['H'].append(H)
-            self.logs['g'].append(g)
-            self.logs['order3'].append(order3)
-            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
-                device = self.device, dtype = self.dtype))
-            """
+        # Store logs
+        """
+        self.logs['H'].append(H)
+        self.logs['g'].append(g)
+        self.logs['order3'].append(order3)
+        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+            device = self.device, dtype = self.dtype))
+        """
 
         # Perform update
         """

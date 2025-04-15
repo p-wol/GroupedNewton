@@ -13,7 +13,8 @@ import torchvision.transforms as transforms
 #from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 from torch.utils import data
 #from kfac.optimizers import KFACOptimizer
-from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg
+from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient
+from grnewt import NewtonSummary, NewtonSummaryFB, NewtonSummaryUniformAvg, NewtonStochasticHv
 from grnewt import ParamStructure, diff_n, diff_n_fullbatch
 from grnewt import partition as build_partition
 from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
@@ -292,6 +293,11 @@ class Trainer:
                         damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                         dct_nesterov = dct_nesterov, 
                         remove_negative = args_hg.remove_negative, dct_uniform_avg = dct_uniform_avg)
+        elif args.optimizer.name == "NewtonStochasticHv":
+            args_nsto = args.optimizer.newtonsto
+            optimizer = NewtonStochasticHv(param_groups, self.model, self.loss_fn, self.hg_loader, 
+                    loader_pre_hook = self.loader_pre_hook, lr_param = args_nsto.lr_param, lr_direction = args_nsto.lr_direction,
+                    dct_nesterov = None, ridge = args_nsto.ridge)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
                     lr = args.optimizer.lr,

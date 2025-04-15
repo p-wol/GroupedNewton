@@ -8,6 +8,6 @@ from .nesterov import nesterov_lrs
 from .newton_summary import NewtonSummary
 from .newton_summary_vanilla import NewtonSummaryVanilla
 from .newton_summary_uniform_avg import NewtonSummaryUniformAvg
-from .newton_summary_fb import NewtonSummaryFB
+from .newton_stochastic_hv import NewtonStochasticHv
 from .reduce_damping_on_plateau import ReduceDampingOnPlateau
 from .differential import diff_n, diff_n_fullbatch

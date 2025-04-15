@@ -108,6 +108,10 @@ optimizer:
             cooldown: 0
             threshold: .9
             factor: .9
+    newtonsto:
+        lr_param: .01    # lr for the parameters of the model
+        lr_direction: .01    # lr for the direction of Newton's method
+        ridge: 0.    # ridge parameter
     kfac:
         stat_decay: .95
         damping: .001

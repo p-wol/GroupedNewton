@@ -269,6 +269,11 @@ class Trainer:
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                          dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
                          dct_uniform_avg = dct_uniform_avg)
+        elif args.optimizer.name == "NewtonStochasticHv":
+            optimizer = NewtonStochasticHv(param_groups, self.model, self.loss_fn, self.hg_loader, 
+                         damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
+                         dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
+                         dct_uniform_avg = dct_uniform_avg)
         elif args.optimizer.name == 'KFAC':
             optimizer = KFACOptimizer(self.model,
                     lr = args.optimizer.lr,
