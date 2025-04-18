@@ -78,7 +78,7 @@ def compute_Hg_fullbatch(param_struct, full_loss, data_loader, dataset_size, dir
 
     return H, g, order3
 
-def compute_Hg_vhp(param_struct, full_loss, x, y, direction, *,
+def compute_Hg_vmap(param_struct, full_loss, x, y, direction, *,
         noregul = False, diagonal = False, semiH = False):
     # Define useful variables
     device = param_struct.device
