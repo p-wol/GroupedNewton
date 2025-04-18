@@ -44,6 +44,21 @@ class ParamStructure:
         else:
             raise NotImplementedError(f"Unknown dct_type: {dst_type}.")
 
+    def regroup(self, x, *, dst_type = "tensor", start = 0, end = None):
+        end = end if end is not None else self.nb_groups
+
+        i0 = self.group_indices[start]
+        pdot = [x_.sum() for x_ in x]
+        res = [sum(pdot[i1-i0:i2-i0]) for i1, i2 in zip(self.group_indices[start:end], self.group_indices[start+1:end+1])]
+        if dst_type == "list":
+            return res
+        elif dst_type == "tuple":
+            return tuple(res)
+        elif dst_type == "tensor":
+            return torch.stack(res)
+        else:
+            raise NotImplementedError(f"Unknown dct_type: {dst_type}.")
+
     def dercon(self, gpar, gdir, start, end, *, detach):
         # Returns zero tensors if gpar does not require grad
         if not gpar.requires_grad:
@@ -61,3 +76,13 @@ class ParamStructure:
 
         direction = self.select_params(src = gdir, start = start, end = end)
         return self.dot(deriv, direction, start = start, end = end)
+
+    def vhpcon(self, func, direction, start, end, *, detach):
+        # Derivation + contraction
+        tup_params = self.select_params(start = start, end = end)
+        direction = self.select_params(src = direction, start = start, end = end)
+
+        _, vhp = torch.autograd.functional.vhp(func, tup_params, v = direction, create_graph = not detach)
+
+        return self.regroup(vhp, start = start, end = end)
+
