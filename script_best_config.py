@@ -1,4 +1,5 @@
 import pathlib
+
 import yaml
 
 #seed=571677914,421146319,505702709,70478166,358472055\
@@ -92,7 +93,7 @@ for expe_name, dct_expe in dct_expes.items():
         continue
 
     # Store the final loss and the config
-    lst_results.append({"expe_name": expe_name, 
+    lst_results.append({"expe_name": expe_name,
         "expe_id": dct_expe["expe_id"],
         "epoch": lst_metrics[-1]["epoch"],
         "loss": lst_metrics[-1]["tr_nll"],

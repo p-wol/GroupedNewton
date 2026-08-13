@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 import torch
 from torch import Tensor
@@ -82,10 +82,10 @@ class SGDUpdate(Optimizer):
 
         lst_updates = []
         for group in self.param_groups:
-            params: List[Tensor] = []
-            grads: List[Tensor] = []
-            momentum_buffer_list: List[Optional[Tensor]] = []
-            updates: List[Tensor] = []
+            params: list[Tensor] = []
+            grads: list[Tensor] = []
+            momentum_buffer_list: list[Optional[Tensor]] = []
+            updates: list[Tensor] = []
 
             has_sparse_grad = self._init_group(
                 group, params, grads, momentum_buffer_list, updates
@@ -120,7 +120,7 @@ class SGDUpdate(Optimizer):
             lst_updates += updates
 
         return tuple(lst_updates)
-        
+
     def step(self, tup_updates):
         """Apply an update returned by `compute_step`.
 
@@ -131,16 +131,16 @@ class SGDUpdate(Optimizer):
         with torch.no_grad():
             j = 0
             for group in self.param_groups:
-                for i, param in enumerate(group["params"]):
+                for _i, param in enumerate(group["params"]):
                     param.sub_(tup_updates[j])
                     j += 1
 
 
 def sgd(
-    params: List[Tensor],
-    d_p_list: List[Tensor],
-    momentum_buffer_list: List[Optional[Tensor]],
-    updates: List[Tensor],
+    params: list[Tensor],
+    d_p_list: list[Tensor],
+    momentum_buffer_list: list[Optional[Tensor]],
+    updates: list[Tensor],
     # kwonly args with defaults are not supported by functions compiled with torchscript issue #70627
     # setting this as kwarg for now as functional API is compiled by torch/distributed/optim
     has_sparse_grad: bool = False,

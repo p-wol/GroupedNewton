@@ -85,3 +85,11 @@ select = [
   "UP",            # pyupgrade
   "NPY", "PD",
 ]
+ignore = [
+  "E501",          # line too long
+  "E741",          # 'l' is an ambiguous variable name (looks like "1")
+]
+extend-safe-fixes = [
+  "UP006",         # List -> list
+  "W291",          # trailing whitespaces
+]

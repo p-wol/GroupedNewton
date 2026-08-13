@@ -21,10 +21,9 @@ Tunable: chunk_size trades memory for launch efficiency. Peak second-order
 graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
 """
 
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
-
 
 # ---------------------------------------------------------------------------
 # optional fused contraction: out[k, s] = sum_{n in group s} R[k, n] * u[n]
@@ -92,7 +91,7 @@ def compute_Hg_batched(
     diagonal: bool = False,
     semiH: bool = False,
     chunk_size: Optional[int] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     device, dtype = param_struct.device, param_struct.dtype
     S = param_struct.nb_groups
     chunk_size = chunk_size or S

@@ -1,12 +1,10 @@
-from typing import List, Dict, Any, Optional
 import itertools
-import numpy as np
+
 import torch
-from torch import Tensor
 from torch.utils.data import DataLoader
-from .nesterov import nesterov_lrs
-from .hg import compute_Hg
+
 from .util import ParamStructure
+
 
 class NewtonStochasticHv(torch.optim.Optimizer):
     def __init__(self, param_groups, model, final_loss, data_loader: DataLoader, *,
@@ -14,7 +12,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
             ridge: float = 0, dct_nesterov: dict = None):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y) = l(m(x), y), where: 
+        full_loss: full_loss(x, y) = l(m(x), y), where:
             l: final loss (NLL, MSE...)
             m: model
             x: input
@@ -46,7 +44,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
 
         self.step_counter = 0
 
-        if dct_nesterov is None: 
+        if dct_nesterov is None:
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
@@ -103,7 +101,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         self.logs['H'].append(H)
         self.logs['g'].append(g)
         self.logs['order3'].append(order3)
-        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups],
             device = self.device, dtype = self.dtype))
         """
 

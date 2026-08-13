@@ -1,8 +1,8 @@
-import warnings
 import time
-import numpy as np
+
 import scipy
 import torch
+
 
 #TODO: * put threshold_D_sing in args
 #      * add warning when not converged
@@ -24,7 +24,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
      * g: summary of the gradient (in R^S)
      * order3_: vector such that D = order3_.diag()
      * damping_int: internal damping, also called lambda_int
-     * force_numerical_x0: when H is not positive definite, r must be searched 
+     * force_numerical_x0: when H is not positive definite, r must be searched
        in [x0, infinity], where x0 is to be computed:
         1) if D is not singular, x0 can be computed with a formula,
         2) if D is singular (or has a close-to-zero diagonal value), a numerical
@@ -34,7 +34,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
        D is considered as singular and option 2 is chosen to compute x0.
     """
     time_beginning = time.time()
-    
+
     device = H.device
     dtype = H.dtype
     dct_logs = {}
@@ -91,7 +91,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
     # Compute 'lrs' from 'r'
     lrs = torch.linalg.solve(H + .5 * damping_int * r_root * D_squ, g)
     dct_logs['lrs'] = lrs
-    
+
     dct_logs['time'] = time.time() - time_beginning
     return lrs.to(device = device, dtype = dtype), dct_logs
 
@@ -117,7 +117,7 @@ def compute_x0(H, order3_, D_squ, damping_int, \
         else:
             # Check if D is singular
             D_sing = ((order3_ <= threshold_D_sing).sum() > 0).item()
-            dct_logs['D_sing'] = '{}'.format(D_sing)
+            dct_logs['D_sing'] = f'{D_sing}'
 
             if not D_sing:      # H not PD and D not singular
                 x0_computation = 'Analytical'
@@ -127,7 +127,7 @@ def compute_x0(H, order3_, D_squ, damping_int, \
         if force_x0_computation in ['Direct_Hpd', 'Analytical', 'Numerical']:
             x0_computation = force_x0_computation
         else:
-            raise ValueError('Error: unknown value for "force_x0_computation", found {}.'.format(force_x0_computation))
+            raise ValueError(f'Error: unknown value for "force_x0_computation", found {force_x0_computation}.')
 
     # Compute x0
     dct_logs['computation'] = x0_computation
@@ -152,7 +152,7 @@ def compute_x0(H, order3_, D_squ, damping_int, \
         #TODO: explain
         def fn_g(x):
             return torch.linalg.eigvalsh(H + .5 * damping_int * x * D_squ).min().item()
-    
+
         gx0 = 0.
         gx1 = 1.
         last_g = fn_g(gx1)
@@ -168,7 +168,7 @@ def compute_x0(H, order3_, D_squ, damping_int, \
                 last_g = curr_g
 
         rx0 = scipy.optimize.root_scalar(fn_g, bracket = [gx0, gx1], maxiter = 200)
-        
+
         if rx0.converged:
             x0 = rx0.root
             dct_logs['found'] = True
@@ -178,6 +178,6 @@ def compute_x0(H, order3_, D_squ, damping_int, \
             dct_logs['found'] = False
             dct_logs['computation'] = 'Numer_divg'
     else:
-        raise NotImplementedError('Unsupported case x0_computation == {}.'.format(x0_computation))
+        raise NotImplementedError(f'Unsupported case x0_computation == {x0_computation}.')
 
     return x0, dct_logs

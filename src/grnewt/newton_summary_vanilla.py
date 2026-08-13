@@ -1,21 +1,24 @@
-from typing import List, Dict, Any, Optional
 import itertools
+from typing import Any
+
 import numpy as np
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
-from .nesterov import nesterov_lrs
+
 from .hg import compute_Hg
+from .nesterov import nesterov_lrs
+
 
 class NewtonSummaryVanilla(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
+            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0,
             dct_nesterov: dict = None, autoencoder: bool = False, noregul: bool = False,
             remove_negative: bool = False, dct_lrs_clip = None, maintain_true_lrs = False,
             diagonal = False):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
+        full_loss: full_loss(x, y_target) = l(m(x), y_target), where:
             l: final loss (NLL, MSE...)
             m: model
             x: input
@@ -42,7 +45,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
         self.diagonal = diagonal
-        defaults = {'lr': 0, 
+        defaults = {'lr': 0,
                     'damping': damping}
         super().__init__(param_groups, defaults)
 
@@ -53,7 +56,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
         self.dtype = self.tup_params[0].dtype
         self.step_counter = 0
 
-        if dct_nesterov is None: 
+        if dct_nesterov is None:
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
@@ -61,7 +64,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
-        if dct_lrs_clip is None: 
+        if dct_lrs_clip is None:
             dct_lrs_clip = {'mode': 'none'}
         self.dct_lrs_clip = dct_lrs_clip
 
@@ -83,8 +86,8 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
             group['damping'] *= factor
             group['lr'] *= factor
 
-    def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
-            d_p_list: List[Tensor]):
+    def _init_group(self, group: dict[str, Any], params_with_grad: list[Tensor],
+            d_p_list: list[Tensor]):
         for p in group['params']:
             if p.grad is not None:
                 params_with_grad.append(p)
@@ -108,7 +111,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
 
             # Compute H, g, order3
             H, g, order3 = compute_Hg(self.tup_params, self.full_loss, x, y_target, direction,
-                    param_groups = self.param_groups, group_sizes = self.group_sizes, 
+                    param_groups = self.param_groups, group_sizes = self.group_sizes,
                     group_indices = self.group_indices, noregul = self.noregul, diagonal = self.diagonal)
 
             order3_ = order3.abs().pow(1/3)
@@ -150,7 +153,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
                     median = torch.stack(self.r_median).median(0).values
                     clip_r = self.dct_lrs_clip['factor'] * median
 
-                lrs, lrs_logs = nesterov_lrs(H, g, order3_, 
+                lrs, lrs_logs = nesterov_lrs(H, g, order3_,
                         damping_int = self.dct_nesterov['damping_int'], clip_r = clip_r)
 
                 for k, v in lrs_logs.items():
@@ -240,7 +243,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
             self.logs['H'].append(H)
             self.logs['g'].append(g)
             self.logs['order3'].append(order3)
-            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups],
                 device = self.device, dtype = self.dtype))
 
         # Perform update

@@ -1,18 +1,18 @@
-import copy
 import pytest
 import torch
-import grnewt
+
+from grnewt import ParamStructure, compute_Hg
 from grnewt import partition as build_partition
-from grnewt import compute_Hg, compute_Hg_fullbatch, ParamStructure
+
 
 class Polynomial(torch.nn.Module):
     def __init__(self, degree):
-        super(Polynomial, self).__init__()
-        
+        super().__init__()
+
         self.coeffs = torch.nn.ParameterList()
-        for d in range(degree + 1):
+        for _d in range(degree + 1):
             self.coeffs.append(torch.nn.Parameter(torch.tensor(0.).normal_()))
-        
+
     def forward(self, x):
         s = 0
         for d, coeff in enumerate(self.coeffs):
@@ -50,7 +50,7 @@ def _compute_Hg_pytorch(full_loss, x, y, tup_params):
 
     # Order 2
     H2 = torch.zeros(D, D)
-    deriv_i = [None] * D
+    #deriv_i = [None] * D
 
     # Order 3
     order32 = torch.zeros(D, D, D)
@@ -86,7 +86,7 @@ def test_Hg_polynomial_canonical(polynomial, degree):
     pgroups, name_groups = build_partition.canonical(polynomial)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return polynomial(x_).sum()
 
     # Compute the derivatives with the custom functions of grnewt
@@ -111,7 +111,7 @@ def test_Hg_polynomial_canonical_with_loss(polynomial, degree):
     pgroups, name_groups = build_partition.canonical(polynomial)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return (polynomial(x_) - y_).pow(2).mean()
 
     # Compute the derivatives with the custom functions of grnewt
@@ -136,7 +136,7 @@ def test_Hg_polynomial_trivial(polynomial, degree):
     pgroups, name_groups = build_partition.trivial(polynomial)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return polynomial(x_).sum()
 
     # Compute the derivatives with the custom functions of grnewt
@@ -161,13 +161,13 @@ def test_Hg_polynomial_trivial_with_loss(polynomial, degree):
     pgroups, name_groups = build_partition.trivial(polynomial)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return (polynomial(x_) - y_).pow(2).sum()
 
     # Compute the derivatives with the custom functions of grnewt
     direction = tuple([torch.tensor(1.)] * (degree + 1))
     H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
-    
+
     H1p, g1p, order31p = compute_Hg(ParamStructure(build_partition.canonical(polynomial)[0]), full_loss, x, y, direction)
 
     # Compute the derivatives with pytorch
@@ -188,7 +188,7 @@ def test_Hg_linear_canonical(linear, fan_in, fan_out):
     pgroups, name_groups = build_partition.canonical(linear)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return (linear(x_).sin() - y_).pow(2).sum()
 
     # Compute the derivatives with the custom functions of grnewt
@@ -213,7 +213,7 @@ def test_Hg_linear_trivial(linear, fan_in, fan_out):
     pgroups, name_groups = build_partition.trivial(linear)
     param_struct = ParamStructure(pgroups)
 
-    def full_loss(x_, y_): 
+    def full_loss(x_, y_):
         return (linear(x_).sin() - y_).pow(2).sum()
 
     # Compute the derivatives with the custom functions of grnewt

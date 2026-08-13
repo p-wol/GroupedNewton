@@ -1,8 +1,8 @@
-import copy
 import pytest
 import torch
-import grnewt
+
 from grnewt import ParamStructure
+
 
 def _build_tensors_from_shapes(lst_shapes):
     return [{"params": [torch.randn(*shape) for shape in group_shapes]} for group_shapes in lst_shapes]
@@ -69,7 +69,7 @@ def test_dot_partial(lst_shapes, start, end):
     pgroups2 = _build_tensors_from_shapes(lst_shapes)
     param_groups2 = ParamStructure(pgroups2)
 
-    res_custom = param_groups1.dot(param_groups1.select_params(start = start, end = end), 
+    res_custom = param_groups1.dot(param_groups1.select_params(start = start, end = end),
             param_groups2.select_params(start = start, end = end), start = start, end = end)
 
     end2 = end if end is not None else len(lst_shapes)

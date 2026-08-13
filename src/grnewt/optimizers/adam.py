@@ -1,5 +1,5 @@
 # mypy: allow-untyped-defs
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import torch
 from torch import Tensor
@@ -11,7 +11,7 @@ class AdamUpdate(Optimizer):
         self,
         params,
         lr: Union[float, Tensor] = 1e-3,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-8,
         weight_decay: float = 0,
         amsgrad: bool = False,
@@ -115,14 +115,14 @@ class AdamUpdate(Optimizer):
 
         lst_updates = []
         for group in self.param_groups:
-            params_with_grad: List[Tensor] = []
-            grads: List[Tensor] = []
-            exp_avgs: List[Tensor] = []
-            exp_avg_sqs: List[Tensor] = []
-            max_exp_avg_sqs: List[Tensor] = []
-            state_steps: List[Tensor] = []
+            params_with_grad: list[Tensor] = []
+            grads: list[Tensor] = []
+            exp_avgs: list[Tensor] = []
+            exp_avg_sqs: list[Tensor] = []
+            max_exp_avg_sqs: list[Tensor] = []
+            state_steps: list[Tensor] = []
             beta1, beta2 = group["betas"]
-            updates: List[Tensor] = []
+            updates: list[Tensor] = []
 
             self._init_group(
                 group,
@@ -168,13 +168,13 @@ class AdamUpdate(Optimizer):
 
 
 def adam(
-    params: List[Tensor],
-    grads: List[Tensor],
-    exp_avgs: List[Tensor],
-    exp_avg_sqs: List[Tensor],
-    max_exp_avg_sqs: List[Tensor],
-    state_steps: List[Tensor],
-    updates: List[Tensor],
+    params: list[Tensor],
+    grads: list[Tensor],
+    exp_avgs: list[Tensor],
+    exp_avg_sqs: list[Tensor],
+    max_exp_avg_sqs: list[Tensor],
+    state_steps: list[Tensor],
+    updates: list[Tensor],
     grad_scale: Optional[Tensor],
     found_inf: Optional[Tensor],
     *,

@@ -1,23 +1,25 @@
-from typing import List, Dict, Any, Optional
 import itertools
-import numpy as np
+from typing import Optional
+
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
-from .nesterov import nesterov_lrs
+
 from .hg import compute_Hg
+from .nesterov import nesterov_lrs
 from .util import ParamStructure
+
 
 class NewtonSummary(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             loader_pre_hook,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0, 
+            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0,
             dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False, maintain_true_lrs = False,
             diagonal = False):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y) = l(m(x), y), where: 
+        full_loss: full_loss(x, y) = l(m(x), y), where:
             l: final loss (NLL, MSE...)
             m: model
             x: input
@@ -46,7 +48,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
         self.diagonal = diagonal
-        defaults = {'lr': 0, 
+        defaults = {'lr': 0,
                     'damping': damping}
         super().__init__(param_groups, defaults)
 
@@ -56,7 +58,7 @@ class NewtonSummary(torch.optim.Optimizer):
 
         self.step_counter = 0
 
-        if dct_nesterov is None: 
+        if dct_nesterov is None:
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
@@ -172,7 +174,7 @@ class NewtonSummary(torch.optim.Optimizer):
             self.logs['H'].append(H)
             self.logs['g'].append(g)
             self.logs['order3'].append(order3)
-            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups],
                 device = self.device, dtype = self.dtype))
 
         # Perform update
@@ -194,11 +196,11 @@ def create_infinite_data_loader(data_loader):
                 yield minibatch
     return f
 
-def update_momentum_buffers(params: List[Tensor], d_p_list: List[Tensor], 
-        momentum_buffer_list: List[Optional[Tensor]], 
+def update_momentum_buffers(params: list[Tensor], d_p_list: list[Tensor],
+        momentum_buffer_list: list[Optional[Tensor]],
         *,
         momentum: float, momentum_damp: float):
-    for i, param in enumerate(params):
+    for i, _param in enumerate(params):
         d_p = d_p_list[i]
 
         buf = momentum_buffer_list[i]

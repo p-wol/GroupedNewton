@@ -1,27 +1,28 @@
-from typing import List, Dict, Any, Optional
-import itertools
-import numpy as np
+from typing import Any
+
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
+
+from .hg import compute_Hg_fullbatch
 from .nesterov import nesterov_lrs
-from .hg import compute_Hg, compute_Hg_fullbatch
 from .util import ParamStructure, fullbatch_gradient
+
 
 class NewtonSummaryFB(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, model, final_loss, data_loader: DataLoader, dataset_size: int, *,
-            loader_pre_hook, damping: float = 1, ridge: float = 0, 
+            loader_pre_hook, damping: float = 1, ridge: float = 0,
             dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y_target) = l(m(x), y_target), where: 
+        full_loss: full_loss(x, y_target) = l(m(x), y_target), where:
             l: final loss (NLL, MSE...)
             m: model
             x: input
             y_target: target
         model: model to train
-        final_loss: final loss (NLL, MSE...)   
+        final_loss: final loss (NLL, MSE...)
         data_loader: generate the data point for computing H and g
         damping: "damping" as in Newton's method (can be seen as a correction of the lr)
         """
@@ -35,7 +36,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         self.loader_pre_hook = loader_pre_hook
         self.noregul = noregul
         self.remove_negative = remove_negative
-        defaults = {'lr': 0, 
+        defaults = {'lr': 0,
                     'damping': damping}
         super().__init__(param_groups, defaults)
 
@@ -57,8 +58,8 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         for group in self.param_groups:
             group['damping'] *= factor
 
-    def _init_group(self, group: Dict[str, Any], params_with_grad: List[Tensor], 
-            d_p_list: List[Tensor]):
+    def _init_group(self, group: dict[str, Any], params_with_grad: list[Tensor],
+            d_p_list: list[Tensor]):
         for p in group['params']:
             if p.grad is not None:
                 params_with_grad.append(p)
@@ -73,10 +74,10 @@ class NewtonSummaryFB(torch.optim.Optimizer):
             self._init_group(group, params_with_grad, d_p_list)
 
         # Compute lrs when using the fullbatch gradient direction
-        direction = fullbatch_gradient(self.param_struct, self.final_loss, self.model, self.data_loader, self.dataset_size, 
+        direction = fullbatch_gradient(self.param_struct, self.final_loss, self.model, self.data_loader, self.dataset_size,
                 loader_pre_hook = self.loader_pre_hook)
 
-        lrs = self.compute_lrs(direction, nesterov_damping = self.dct_nesterov['damping_int'], 
+        lrs = self.compute_lrs(direction, nesterov_damping = self.dct_nesterov['damping_int'],
                 noregul = self.noregul)
 
         # Assign lrs
@@ -97,7 +98,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         self.step_counter += 1
 
     def compute_lrs(self, direction, *, nesterov_damping = None, noregul = False):
-        H, g, order3 = compute_Hg_fullbatch(self.param_struct, self.full_loss, 
+        H, g, order3 = compute_Hg_fullbatch(self.param_struct, self.full_loss,
                 self.data_loader, self.dataset_size, direction,
                 noregul = self.noregul, loader_pre_hook = self.loader_pre_hook)
 
@@ -106,16 +107,16 @@ class NewtonSummaryFB(torch.optim.Optimizer):
             lrs = torch.linalg.solve(H, g)
             self.logs['H'] = H
             self.logs['g'] = g
-            self.logs['lrs'] = torch.tensor([group['lr'] for group in self.param_groups], 
+            self.logs['lrs'] = torch.tensor([group['lr'] for group in self.param_groups],
                 device = self.device, dtype = self.dtype)
         else:
-            lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
+            lrs, r_root, r_converged = nesterov_lrs(H, g, order3,
                     damping_int = nesterov_damping)
 
             # Store logs
             self.logs['H'] = H
             self.logs['g'] = g
-            self.logs['lrs'] = torch.tensor([group['lr'] for group in self.param_groups], 
+            self.logs['lrs'] = torch.tensor([group['lr'] for group in self.param_groups],
                 device = self.device, dtype = self.dtype)
             self.logs['order3'] = order3
             self.logs['nesterov.r'] = torch.tensor(r_root, device = self.device, dtype = self.dtype)

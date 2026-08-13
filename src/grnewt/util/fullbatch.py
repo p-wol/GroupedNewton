@@ -1,4 +1,3 @@
-import torch
 
 def fullbatch_gradient(param_struct, loss_fn, model, train_loader, train_size, *,
         loader_pre_hook):
@@ -10,7 +9,7 @@ def fullbatch_gradient(param_struct, loss_fn, model, train_loader, train_size, *
         y_hat = model(x)
         curr_loss = loss_fn(y_hat, y) * x.size(0) / train_size
         curr_loss.backward()
-    
+
     grad = tuple(p.grad.clone() for p in param_struct.tup_params)
     model.zero_grad()
 

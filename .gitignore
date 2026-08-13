@@ -161,3 +161,6 @@ cython_debug/
 
 AAA-out-*.txt
 AAA-err-*.txt
+
+# Swap files
+.*.swp

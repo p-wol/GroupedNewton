@@ -1,12 +1,10 @@
-from typing import List, Dict, Any, Optional
-import time
 import itertools
-import numpy as np
+
 import torch
-from torch import Tensor
 from torch.utils.data import DataLoader
-from .nesterov import nesterov_lrs
+
 from .hg import compute_Hg
+from .nesterov import nesterov_lrs
 from .util import ParamStructure
 
 
@@ -21,12 +19,12 @@ def increment_step(func):
 class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
             loader_pre_hook,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0, 
+            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, ridge: float = 0,
             dct_nesterov: dict = None, noregul: bool = False,
             remove_negative: bool = False, dct_uniform_avg = None):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y) = l(m(x), y), where: 
+        full_loss: full_loss(x, y) = l(m(x), y), where:
             l: final loss (NLL, MSE...)
             m: model
             x: input
@@ -39,7 +37,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             'use': True or False
             'damping_int': float; internal damping: the larger, the stronger the cubic regul.
         dct_uniform_avg: args for uniform average
-            Idea: 
+            Idea:
                 update H, g, D in the following way:
                     X_{t+1} = (t/(t+1))*X_t + (1/(t+1))*x_t
                 for each variable to maintain, update two elements:
@@ -63,7 +61,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         self.remove_negative = remove_negative
         self.mom_lrs = mom_lrs
         self.curr_lrs = 0
-        defaults = {'lr': 0, 
+        defaults = {'lr': 0,
                     'damping': damping}
         super().__init__(param_groups, defaults)
 
@@ -73,7 +71,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         self.step_counter = 0
 
         # Init dct_nesterov
-        if dct_nesterov is None: 
+        if dct_nesterov is None:
             dct_nesterov = {'use': False}
         if 'mom_order3_' not in dct_nesterov.keys():
             dct_nesterov['mom_order3_'] = 0.
@@ -125,7 +123,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         # During the first period, both averages "use" and "up" are updated with the same coefficient
         offset_use = 0 if self.step_counter // self.period_hg < self.unif_avg_period else self.unif_avg_period
-        
+
         # Set up the time coefficients
         tt_use = offset_use + t + 1
         tt_up = t + 1
@@ -230,7 +228,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             group['lr'] = group['damping'] * lr.item()
 
         # Store logs of lrs
-        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups], 
+        self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups],
             device = self.device, dtype = self.dtype))
 
         # Perform update

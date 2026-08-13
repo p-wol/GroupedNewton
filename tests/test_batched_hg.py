@@ -1,9 +1,8 @@
 import pytest
 import torch
-import grnewt
-from grnewt import compute_Hg, compute_Hg_batched, ParamStructure
+
+from grnewt import ParamStructure, compute_Hg, compute_Hg_batched
 from grnewt import partition as build_partition
-from conftest import f64
 
 
 @pytest.mark.parametrize("build", [build_partition.canonical, build_partition.trivial, build_partition.wb])

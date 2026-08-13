@@ -1,24 +1,24 @@
 import time
-import copy
-from collections import OrderedDict
-import itertools
+
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import torchvision
-import torchvision.transforms as transforms
-from torch.utils import data
-import mlxp
 from mlxp.data_structures.contrib.artifacts import TorchModel
+from torch.utils import data
+
 #from kfac.optimizers import KFACOptimizer
-from grnewt import compute_Hg, compute_Hg_fullbatch, fullbatch_gradient, NewtonSummary, NewtonSummaryFB
+from grnewt import (
+    NewtonSummary,
+    NewtonSummaryFB,
+    ReduceDampingOnPlateau,
+    compute_Hg_fullbatch,
+    fullbatch_gradient,
+    optimizers,
+)
 from grnewt import partition as build_partition
-from grnewt.models import Perceptron, LeNet, VGG, AutoencoderMLP, Rosenbrock, RosenbrockT
-from grnewt.datasets import build_MNIST, build_CIFAR10, build_toy_regression, build_None
+from grnewt.datasets import build_CIFAR10, build_MNIST, build_None, build_toy_regression
+from grnewt.models import VGG, AutoencoderMLP, LeNet, Perceptron, Rosenbrock, RosenbrockT
 from grnewt.nesterov import nesterov_lrs
-from grnewt import ReduceDampingOnPlateau
-from grnewt import optimizers
 
 
 def assign_device(device):
@@ -33,7 +33,7 @@ def assign_device(device):
     elif device == -2:
         device = 'cpu'
     else:
-        ValueError('Unknown device: {}'.format(device))
+        ValueError(f'Unknown device: {device}')
 
     return device
 
@@ -43,7 +43,7 @@ def get_dtype(dtype):
     elif dtype == 32:
         return torch.float
     else:
-        raise ValueError('Unknown dtype: {}'.format(dtype))
+        raise ValueError(f'Unknown dtype: {dtype}')
 
 
 class Trainer:
@@ -56,7 +56,7 @@ class Trainer:
         print(self.args)
         print("DONE")
 
-        #self.build_trainer()    
+        #self.build_trainer()
 
     def build_datasets(self):
         """
@@ -97,7 +97,7 @@ class Trainer:
         elif args.dataset.name == 'None':
             dct = build_None(args, dct)
         else:
-            raise NotImplementedError('Unknown dataset: {}.'.format(args.dataset.name))
+            raise NotImplementedError(f'Unknown dataset: {args.dataset.name}.')
 
         dct.pop('dtype')
         dct.pop('device')
@@ -109,10 +109,10 @@ class Trainer:
         args = self.args
 
         # Activation function
-        dct_act_functions = {'identity': lambda x: x, 
-                             'tanh': torch.tanh, 
-                             'relu': torch.relu, 
-                             'sigmoid': torch.sigmoid, 
+        dct_act_functions = {'identity': lambda x: x,
+                             'tanh': torch.tanh,
+                             'relu': torch.relu,
+                             'sigmoid': torch.sigmoid,
                              'elu': torch.nn.functional.elu}
         act_function = dct_act_functions[args.model.act_function]
 
@@ -121,7 +121,7 @@ class Trainer:
         if '*' in model_args:
             n_layers = int(args.model.args[:args.model.args.find('*')])
             n_neurons = int(args.model.args[args.model.args.find('*') + 1:])
-            model_args = '-'.join([str(n_neurons) for i in range(n_layers)]) + '-{}'.format(self.n_classes)
+            model_args = '-'.join([str(n_neurons) for i in range(n_layers)]) + f'-{self.n_classes}'
 
         sigma_w = args.model.init.sigma_w
         sigma_b = args.model.init.sigma_b
@@ -169,7 +169,7 @@ class Trainer:
 
             model = RosenbrockT(d, a, b)
         else:
-            raise NotImplementedError('Unknown model: {}.'.format(args.model.name))
+            raise NotImplementedError(f'Unknown model: {args.model.name}.')
 
         return model.to(device = self.device, dtype = self.dtype)
 
@@ -178,7 +178,7 @@ class Trainer:
         args_hg = self.args.optimizer.hg
 
         # Define useful variables
-        def full_loss(x, y): 
+        def full_loss(x, y):
             return self.loss_fn(self.model(x), y)
 
         # Build data loader for Hg
@@ -203,8 +203,8 @@ class Trainer:
                 nlayers = len(model.layers)
             elif args.model.name == 'VGG':
                 nlayers = len(model.features)
-            lst_names_w = [['{}.weight'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
-            lst_names_b = [['{}.bias'.format(i) for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            lst_names_w = [[f'{i}.weight' for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
+            lst_names_b = [[f'{i}.bias' for i in range(nlayers) if i % alternate == r] for r in range(alternate)]
             param_groups, name_groups = build_partition.names_by_lst(model, lst_names_w + lst_names_b)
         elif args_hg.partition.find('vgg') == 0:
             partition_args = args_hg.partition[len('vgg-'):]
@@ -246,31 +246,31 @@ class Trainer:
 
         # Build optimizer
         if args.optimizer.name == 'SGD':
-            optimizer = optim.SGD(param_groups, lr = args.optimizer.lr, 
+            optimizer = optim.SGD(param_groups, lr = args.optimizer.lr,
                     momentum = args.optimizer.momentum, weight_decay = args.optimizer.weight_decay)
         elif args.optimizer.name == 'Adam':
             optimizer = optim.Adam(param_groups, lr = args.optimizer.lr)
         elif args.optimizer.name == 'NewtonSummary':
-            optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader, 
-                    damping = args_hg.damping, momentum = args_hg.momentum, 
+            optimizer = NewtonSummary(param_groups, full_loss, self.hg_loader,
+                    damping = args_hg.damping, momentum = args_hg.momentum,
                     momentum_damp = args_hg.momentum_damp, period_hg = args_hg.period_hg,
-                    mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge, 
-                    dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder, 
+                    mom_lrs = args_hg.mom_lrs, movavg = args_hg.movavg, ridge = args_hg.ridge,
+                    dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder,
                     remove_negative = args_hg.remove_negative, dct_lrs_clip = dct_lrs_clip,
                     maintain_true_lrs = args_hg.maintain_true_lrs, diagonal = args_hg.diagonal)
         elif args.optimizer.name == 'NewtonSummaryFB':
             optimizer = NewtonSummaryFB(param_groups, full_loss, self.model, self.loss_fn,
                     self.hg_loader, self.train_size,
-                    damping = args_hg.damping, ridge = args_hg.ridge, 
+                    damping = args_hg.damping, ridge = args_hg.ridge,
                     dct_nesterov = dct_nesterov, autoencoder = args.dataset.autoencoder)
         elif args.optimizer.name == "NewtonSummaryUniformAvg":
             updater = optimizers.SGDUpdate(model.parameters(), momentum = args_hg.momentum, dampening = args_hg.momentum_damp)
-            optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater, 
+            optimizer = NewtonSummaryUniformAvg(param_groups, full_loss, self.hg_loader, updater,
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                          dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
                          dct_uniform_avg = dct_uniform_avg)
         elif args.optimizer.name == "NewtonStochasticHv":
-            optimizer = NewtonStochasticHv(param_groups, self.model, self.loss_fn, self.hg_loader, 
+            optimizer = NewtonStochasticHv(param_groups, self.model, self.loss_fn, self.hg_loader,
                          damping = args_hg.damping, period_hg = args_hg.period_hg, mom_lrs = args_hg.mom_lrs,
                          dct_nesterov = dct_nesterov, remove_negative = args_hg.remove_negative,
                          dct_uniform_avg = dct_uniform_avg)
@@ -290,12 +290,12 @@ class Trainer:
             else:
                 line_search_fn = args.optimizer.lbfgs.line_search_fn
 
-            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr, 
+            optimizer = optim.LBFGS(param_groups, lr = args.optimizer.lr,
                     max_iter = args.optimizer.lbfgs.max_iter,
                     history_size = args.optimizer.lbfgs.history_size,
                     line_search_fn = line_search_fn)
         else:
-            raise NotImplementedError('Unknown optimizer: {}.'.format(args.optimizer.name))
+            raise NotImplementedError(f'Unknown optimizer: {args.optimizer.name}.')
 
         # Store grouping data
         self.name_groups = name_groups
@@ -458,7 +458,7 @@ class Trainer:
         self.use_scheduler = self.args.optimizer.hg.dmp_auto.use
         if self.use_scheduler and self.args.optimizer.name.find('NewtonSummary') == 0:
             args_sch = self.args.optimizer.hg.dmp_auto
-            self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor, 
+            self.scheduler = ReduceDampingOnPlateau(self.optimizer, factor = args_sch.factor,
                     patience = args_sch.patience, cooldown = args_sch.cooldown,
                     threshold = args_sch.threshold, apply_to = args_sch.apply_to, verbose = True)
         self.pre_train()
@@ -485,7 +485,7 @@ class Trainer:
 
         # Full training procedure
         for self.epoch in range(self.args.optimizer.epochs):
-            print('Epoch {}'.format(self.epoch))
+            print(f'Epoch {self.epoch}')
 
             # If args.logs_hg.use, then compute H, g and order3 with full-batch
             if self.args.logs_hg.use:
@@ -494,8 +494,8 @@ class Trainer:
                         raise NotImplementedError('Test float/double to implement.')
                 else:
                     logs = self.compute_logs()
-                    self.logger.log_artifact(TorchModel(logs, ext = '.pkl'), 
-                            'Hg_logs_ext.{:05}'.format(self.epoch))
+                    self.logger.log_artifact(TorchModel(logs, ext = '.pkl'),
+                            f'Hg_logs_ext.{self.epoch:05}')
 
             # Training step
             if self.args.optimizer.name == 'NewtonSummaryFB':
@@ -544,18 +544,18 @@ class Trainer:
                     logs_total['H'] = optim_logs['H']
 
                 self.logger.log_artifact(TorchModel(logs_last, ext = '.pkl'),
-                            'Hg_logs_last.{:05}'.format(self.epoch))
+                            f'Hg_logs_last.{self.epoch:05}')
                 self.logger.log_artifact(TorchModel(logs_mean, ext = '.pkl'),
-                            'Hg_logs_mean.{:05}'.format(self.epoch))
+                            f'Hg_logs_mean.{self.epoch:05}')
                 self.logger.log_artifact(TorchModel(logs_total, ext = '.pkl'),
-                            'Hg_logs_total.{:05}'.format(self.epoch))
+                            f'Hg_logs_total.{self.epoch:05}')
                 self.logger.log_artifact(TorchModel(self.logs_nlls, ext = '.pkl'),
-                            'nlls_logs_total.{:05}'.format(self.epoch))
+                            f'nlls_logs_total.{self.epoch:05}')
 
-                self.optimizer.reset_logs() 
+                self.optimizer.reset_logs()
             elif self.args.optimizer.name == 'NewtonSummaryFB':
                 self.logger.log_artifact(TorchModel(self.optimizer.logs, ext = '.pkl'),
-                            'Hg_logs_hgfb.{:05}'.format(self.epoch))
+                            f'Hg_logs_hgfb.{self.epoch:05}')
 
             # Update damping schedule
             if damp_sch != 'None' and self.epoch <= damp_sch_epoch:
@@ -573,8 +573,8 @@ class Trainer:
 
         direction = fullbatch_gradient(self.model, self.loss_fn, self.tup_params, self.hg_loader, self.train_size)
 
-        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.hg_loader, self.train_size, direction, 
-                param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices, 
+        H, g, order3 = compute_Hg_fullbatch(self.tup_params, self.full_loss, self.hg_loader, self.train_size, direction,
+                param_groups = self.param_groups, group_sizes = self.group_sizes, group_indices = self.group_indices,
                 autoencoder = self.args.dataset.autoencoder)
 
         # Compute lrs
@@ -582,7 +582,7 @@ class Trainer:
             regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
             lrs = torch.linalg.solve(H + regul_H, g)
         else:
-            lrs, r_root, r_converged = nesterov_lrs(H, g, order3, 
+            lrs, r_root, r_converged = nesterov_lrs(H, g, order3,
                     damping_int = self.dct_nesterov['damping_int'])
             logs['nesterov.r'] = torch.tensor(r_root, device = self.device, dtype = self.dtype)
             logs['nesterov.converged'] = torch.tensor(r_converged, device = self.device, dtype = self.dtype)

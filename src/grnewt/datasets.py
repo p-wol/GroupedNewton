@@ -3,7 +3,9 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils import data
-from .models import Perceptron, LeNet, VGG
+
+from .models import Perceptron
+
 
 def create_loaders(args, dct):
     # Create training set and validation set
@@ -33,7 +35,7 @@ def build_MNIST(args, dct):
         transform_train = [transforms.RandomCrop(28, padding = 3)] + transform_train
     transform_train = transforms.Compose(transform_train)
     transform_test = transforms.Compose(transform_test)
-    
+
     dct['tvset'] = torchvision.datasets.MNIST(root = args.dataset.path, train = True,
             download = False, transform = transform_train)
 
@@ -150,8 +152,8 @@ def build_ImageNet(args, dct):
 
 def build_toy_regression(args, dct):
     if args.model.name != 'Perceptron':
-        raise ValueError('Error: with dataset "ToyRegression", the model must be "Perceptron", got {}.'\
-                .format(args.model.name))
+        raise ValueError(f'Error: with dataset "ToyRegression", the model must be "Perceptron", got {args.model.name}.'\
+                )
 
     args_teacher = args.dataset.teacher
     model_args = args_teacher.args
@@ -169,14 +171,14 @@ def build_toy_regression(args, dct):
     teacher = Perceptron(layers, act_function, scaling = False, sigma_w = sigma_w, sigma_b = sigma_b,
         classification = False)
     with torch.no_grad():
-        tv_in = torch.randn(args.dataset.train_size + args.dataset.valid_size, in_size, 
+        tv_in = torch.randn(args.dataset.train_size + args.dataset.valid_size, in_size,
                 dtype = dct['dtype'], device = dct['device'])
-        tv_out = torch.randn(args.dataset.train_size + args.dataset.valid_size, out_size, 
+        tv_out = torch.randn(args.dataset.train_size + args.dataset.valid_size, out_size,
                 dtype = dct['dtype'], device = dct['device'])
 
-        test_in = torch.randn(args.dataset.test_size, in_size, 
+        test_in = torch.randn(args.dataset.test_size, in_size,
                 dtype = dct['dtype'], device = dct['device'])
-        test_out = torch.randn(args.dataset.test_size, out_size, 
+        test_out = torch.randn(args.dataset.test_size, out_size,
                 dtype = dct['dtype'], device = dct['device'])
 
     dct['tvsize'] = args.dataset.train_size + args.dataset.valid_size

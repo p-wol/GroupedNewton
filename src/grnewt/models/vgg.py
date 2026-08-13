@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
+
 from .. import partition as build_partition
+
 
 class VGG(nn.Module):
     def __init__(self, cfg_type, fc_sizes = [4096, 4096], image_size = 224, num_classes = 1000,
@@ -12,10 +14,10 @@ class VGG(nn.Module):
         self.sigma_w = sigma_w
         fc_multiplier = image_size // 32
 
-        dct_act_functions = {'identity': nn.Identity, 
-                             'tanh': nn.Tanh, 
-                             'relu': nn.ReLU, 
-                             'sigmoid': nn.Sigmoid, 
+        dct_act_functions = {'identity': nn.Identity,
+                             'tanh': nn.Tanh,
+                             'relu': nn.ReLU,
+                             'sigmoid': nn.Sigmoid,
                              'elu': nn.ELU}
         cl_act_function = dct_act_functions[name_act_function]
 
@@ -84,22 +86,22 @@ class VGG(nn.Module):
                 pre_groups.append(gr)
                 k += bsize
 
-            lst_names_w = [['features.{}.weight'.format(k) for k in gr] for gr in pre_groups]
-            lst_names_b = [['features.{}.bias'.format(k) for k in gr] for gr in pre_groups]
+            lst_names_w = [[f'features.{k}.weight' for k in gr] for gr in pre_groups]
+            lst_names_b = [[f'features.{k}.bias' for k in gr] for gr in pre_groups]
 
             lst_names_w.append(['classifier.0.weight'])
             lst_names_b.append(['classifier.0.bias'])
             param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
         elif partition_args.find('alternate') == 0:
             n = int(partition_args[len('alternate-'):])
-            lst_names_w = [['features.{}.weight'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
-            lst_names_b = [['features.{}.bias'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_w = [[f'features.{k}.weight' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_b = [[f'features.{k}.bias' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
 
             lst_names_w.append(['classifier.0.weight'])
             lst_names_b.append(['classifier.0.bias'])
             param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
         else:
-            NotImplementedError('Error: not implemented partition_args: "{}".'.format(partition_args))
+            NotImplementedError(f'Error: not implemented partition_args: "{partition_args}".')
 
         return param_groups, name_groups
 
@@ -113,7 +115,7 @@ def make_layers(cfg, cl_act_function, batch_norm = False):
         else:
             v = int(v)
             layers.append(nn.Conv2d(in_channels, v, kernel_size = 3, padding = 1))
-            if batch_norm: 
+            if batch_norm:
                 layers.append(nn.BatchNorm2d(v))
             layers.append(cl_act_function(inplace = True))
             in_channels = v

@@ -11,11 +11,9 @@ and check algebraic invariants that hold for any correct implementation.
 import pytest
 import torch
 
+from conftest import PARTITION_BUILDERS, Quadratic
 from grnewt import ParamStructure, compute_Hg
 from grnewt import partition as build_partition
-
-from conftest import PARTITION_BUILDERS, Quadratic, f64
-
 
 # --------------------------------------------------------------------------
 # helpers
@@ -47,7 +45,9 @@ def _phi(param_struct, full_loss, x, y, v, t):
 
 def _derivs_fd(param_struct, full_loss, x, y, v, eps=1e-3):
     """Central differences of phi(t) = L(theta + t v) at t = 0, orders 1..3."""
-    f = lambda t: _phi(param_struct, full_loss, x, y, v, t)
+    def f(t):
+        return _phi(param_struct, full_loss, x, y, v, t)
+
     f0 = f(0.0)
     fp1, fm1 = f(eps), f(-eps)
     fp2, fm2 = f(2 * eps), f(-2 * eps)
@@ -114,7 +114,8 @@ def test_quadratic_oracle(f64, device):
     direction = tuple(torch.randn_like(p) for p in ps.tup_params)
 
     x = torch.zeros(1, 1, device=device, dtype=f64)
-    full_loss = lambda x_, y_: model(x_).mean()
+    def full_loss(x_, y_):
+        return model(x_).mean()
 
     H, g, order3 = compute_Hg(ps, full_loss, x, None, direction)
 

@@ -1,10 +1,11 @@
 import numpy as np
 import torch
 
+
 class AutoencoderMLP(torch.nn.Module):
     def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
             sampler_w = lambda t: t.normal_(), sampler_b = lambda t: t.normal_(), first_layer_normal = False):
-        super(AutoencoderMLP, self).__init__()
+        super().__init__()
 
         self.act_function = act_function
         self.scaling = scaling
@@ -42,7 +43,7 @@ class AutoencoderMLP(torch.nn.Module):
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
-        
+
         # Encoder with a final linear layer
         for l in self.layers_enc[:-1]:
             if self.scaling:

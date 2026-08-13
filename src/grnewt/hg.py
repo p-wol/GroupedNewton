@@ -1,6 +1,4 @@
-import time
 import torch
-from .util import ParamStructure
 
 
 def compute_Hg(param_struct, full_loss, x, y, direction, *,

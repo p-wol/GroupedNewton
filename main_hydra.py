@@ -1,10 +1,4 @@
-import os
-import time
-import random
-import numpy as np
-import torch
 import hydra
-from omegaconf import DictConfig, OmegaConf
 from training_hydra import Trainer
 
 
@@ -12,7 +6,7 @@ from training_hydra import Trainer
 def main(cfg):
     """
     try:
-        trainer = ctx.logger.load_checkpoint(log_name = 'last_ckpt') 
+        trainer = ctx.logger.load_checkpoint(log_name = 'last_ckpt')
         print("Loading from latest checkpoint")
     except:
         print("Failed to load checkpoint, Starting from scratch")

@@ -1,10 +1,11 @@
 import numpy as np
 import torch
 
+
 class LeNet(torch.nn.Module):
     def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
             sampler_w = lambda t: t.normal_(), sampler_b = lambda t: t.normal_(), first_layer_normal = False):
-        super(LeNet, self).__init__()
+        super().__init__()
 
         self.act_function = act_function
         self.scaling = scaling
@@ -36,7 +37,7 @@ class LeNet(torch.nn.Module):
                 l.bias.data.mul_(self.sigma_b)
 
                 if not self.scaling:
-                    l.weight.data.div_(np.sqrt(self.layer_in_size(l))) 
+                    l.weight.data.div_(np.sqrt(self.layer_in_size(l)))
 
     def layer_in_size(self, l):
         size = 1

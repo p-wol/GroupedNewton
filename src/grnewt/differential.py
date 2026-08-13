@@ -1,7 +1,6 @@
 import copy
 from itertools import combinations_with_replacement
-import torch
-from .util import ParamStructure
+
 
 def diff_n(param_struct, order, full_loss, x, y, direction):
     # Define useful variables

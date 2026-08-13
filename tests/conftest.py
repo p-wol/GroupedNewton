@@ -4,7 +4,6 @@ import torch
 from grnewt import ParamStructure
 from grnewt import partition as build_partition
 
-
 # --------------------------------------------------------------------------
 # determinism
 # --------------------------------------------------------------------------

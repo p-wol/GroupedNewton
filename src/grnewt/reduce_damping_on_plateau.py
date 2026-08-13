@@ -1,6 +1,6 @@
-import torch
 from torch import inf
 from torch.optim import Optimizer
+
 
 class ReduceDampingOnPlateau:
     """Reduce learning rate when a metric has stopped improving.
@@ -144,7 +144,7 @@ class ReduceDampingOnPlateau:
                              "%.5d") % epoch
                 print(f'Epoch {epoch_str}: change damping_int to {self.optimizer.dct_nesterov["damping_int"]:.4e}.')
         else:
-            raise ValueError('Error: unrecognized value for "apply_to": found {}.'.format(self.apply_to))
+            raise ValueError(f'Error: unrecognized value for "apply_to": found {self.apply_to}.')
 
 
     @property

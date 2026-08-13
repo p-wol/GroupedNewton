@@ -23,7 +23,6 @@ import torch
 from grnewt import ParamStructure, compute_Hg, nesterov_lrs
 from grnewt import partition as build_partition
 
-
 # --------------------------------------------------------------------------
 # reparameterized wrapper
 # --------------------------------------------------------------------------
@@ -196,7 +195,7 @@ def test_solver_scale_invariance():
 @pytest.mark.timeout(30)
 def test_solver_terminates_on_a_nasty_instance():
     """Guards the unbounded `while f(x1) >= 0: x1 *= 3` bracketing loop."""
-    S = 4
+    #S = 4
     H = torch.diag(torch.tensor([1e8, 1.0, -1e-6, 1e-8], dtype=torch.float64))
     g = torch.tensor([1e6, 0.0, -1e-8, 1e3], dtype=torch.float64)
     D = torch.tensor([1e-4, 1e4, 1.0, 1e-3], dtype=torch.float64)

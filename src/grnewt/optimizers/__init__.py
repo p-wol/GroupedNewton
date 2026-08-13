@@ -1,2 +1,2 @@
-from .sgd import SGDUpdate
 from .adam import AdamUpdate
+from .sgd import SGDUpdate

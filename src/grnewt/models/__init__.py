@@ -1,5 +1,5 @@
-from .perceptron import Perceptron
-from .lenet import LeNet
-from .vgg import VGG
 from .autoencoder_mlp import AutoencoderMLP
+from .lenet import LeNet
+from .perceptron import Perceptron
 from .rosenbrock import Rosenbrock, RosenbrockT
+from .vgg import VGG

@@ -1,32 +1,33 @@
 import copy
+
 import pytest
 import torch
-import grnewt
+from torch.optim import SGD, Adam
+
 from grnewt.optimizers import AdamUpdate, SGDUpdate
-from torch.optim import Adam, SGD
-from conftest import f64
+
 
 class Perceptron(torch.nn.Module):
     def __init__(self, layers, act_name = 'tanh'):
-        super(Perceptron, self).__init__()
-        
+        super().__init__()
+
         if act_name == 'identity':
             act_name = 'linear'
-    
+
         gain = torch.nn.init.calculate_gain(act_name)
-        
+
         self.layers = torch.nn.ModuleList()
         for l_in, l_out in zip(layers[:-1], layers[1:]):
             self.layers.append(torch.nn.Linear(l_in, l_out))
             with torch.no_grad():
                 self.layers[-1].weight.mul_(gain)
         self.nb_layers = len(self.layers)
-        
+
         if act_name in ['tanh', 'sigmoid', 'relu']:
             self.act_function = torch.__dict__[act_name]
         elif act_name == 'linear':
             self.act_function = lambda x: x
-        
+
     def forward(self, x):
         for l in self.layers[:-1]:
             x = l(x)
@@ -36,7 +37,7 @@ class Perceptron(torch.nn.Module):
 
 def check_equal(m1, m2):
     e = True
-    
+
     dct1 = dict(m1.named_parameters())
     dct2 = dict(m2.named_parameters())
     for n, p in dct1.items():
@@ -74,7 +75,6 @@ def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
     epochs = 10
     num_batches = len(x_tr)
 
-    e = True
     for i in range(epochs * num_batches):
         x = x_tr[i % num_batches]
         y = y_tr[i % num_batches]

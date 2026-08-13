@@ -1,12 +1,14 @@
 import numpy as np
 import torch
+
 from .. import partition as build_partition
+
 
 class Perceptron(torch.nn.Module):
     def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
             sampler_w = lambda t: t.normal_(), sampler_b = lambda t: t.normal_(), first_layer_normal = False,
             classification = True):
-        super(Perceptron, self).__init__()
+        super().__init__()
 
         self.act_function = act_function
         self.scaling = scaling
@@ -75,17 +77,17 @@ class Perceptron(torch.nn.Module):
                 pre_groups.append(gr)
                 k += bsize
 
-            lst_names_w = [['layers.{}.weight'.format(k) for k in gr] for gr in pre_groups]
-            lst_names_b = [['layers.{}.bias'.format(k) for k in gr] for gr in pre_groups]
+            lst_names_w = [[f'layers.{k}.weight' for k in gr] for gr in pre_groups]
+            lst_names_b = [[f'layers.{k}.bias' for k in gr] for gr in pre_groups]
 
             param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
         elif partition_args.find('alternate') == 0:
             n = int(partition_args[len('alternate-'):])
-            lst_names_w = [['layers.{}.weight'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
-            lst_names_b = [['layers.{}.bias'.format(k) for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_w = [[f'layers.{k}.weight' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_b = [[f'layers.{k}.bias' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
 
             param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
         else:
-            NotImplementedError('Error: not implemented partition_args: "{}".'.format(partition_args))
+            NotImplementedError(f'Error: not implemented partition_args: "{partition_args}".')
 
         return param_groups, name_groups
