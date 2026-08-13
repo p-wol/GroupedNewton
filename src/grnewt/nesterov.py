@@ -83,7 +83,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
 
     # Compute lrs
     r = scipy.optimize.root_scalar(f, bracket = [x0, x1], maxiter = 100) #, rtol = 1e-4)
-    r_root = torch.tensor(r.root, dtype = torch.float64, device = device)
+    r_root = torch.tensor(r.root, dtype = torch.float64, device = "cpu")
     dct_logs['r'] = r_root
     dct_logs['r_converged'] = r.converged
     dct_logs['found'] = r.converged

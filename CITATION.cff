@@ -1,0 +1,38 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: GroupedNewton
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Pierre
+    family-names: Wolinski
+    email: pierre.wolinski@dauphine.psl.eu
+    affiliation: >-
+      LAMSADE, Paris-Dauphine University, PSL University,
+      CNRS, Paris, France
+    orcid: 'https://orcid.org/0000-0003-1007-0144'
+identifiers:
+  - type: doi
+    value: 10.1007/978-3-032-06078-5_25
+    description: Paper describing the method
+  - type: url
+    value: 'https://arxiv.org/abs/2312.03885'
+    description: Preprint of the paper
+repository-code: 'https://github.com/p-wol/GroupedNewton'
+abstract: >-
+  Second-order optimization method adapted to neural
+  networks
+keywords:
+  - deep learning
+  - neural network
+  - optimization
+  - newton
+  - pytorch
+license: GPL-3.0
+commit: ca51e66c0bdd35a561164f77524496a55414ad1a
+version: 0.1.0
+date-released: '2026-08-13'

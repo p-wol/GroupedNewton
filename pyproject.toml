@@ -60,7 +60,7 @@ addopts = [
   "-ra",
   "--strict-markers",
   "--strict-config",
-#  "--timeout=120",
+  "--timeout=120",
 ]
 markers = [
   "slow: deselect with -m 'not slow'",
