@@ -4,6 +4,7 @@ from . import datasets
 from . import optimizers
 from .util import fullbatch_gradient, ParamStructure, loader_pre_hooks
 from .hg import compute_Hg, compute_Hg_fullbatch
+from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .newton_summary import NewtonSummary
 from .newton_summary_fb import NewtonSummaryFB

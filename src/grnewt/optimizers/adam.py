@@ -163,7 +163,7 @@ class AdamUpdate(Optimizer):
             j = 0
             for group in self.param_groups:
                 for i, param in enumerate(group["params"]):
-                    param.add_(tup_updates[j])
+                    param.sub_(tup_updates[j])
                     j += 1
 
 

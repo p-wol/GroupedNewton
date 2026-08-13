@@ -144,4 +144,4 @@ def blocks(model: torch.nn.Module, num_blocks):
         if lst_nums[i_block] == 0:
             i_block += 1
 
-    return param_groups, name_groups
+    return remove_empty(param_groups, name_groups)

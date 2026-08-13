@@ -213,7 +213,7 @@ class Trainer:
             hg_batch_size = args.dataset.batch_size
         else:
             hg_batch_size = args_hg.batch_size
-        self.hg_loader = data.DataLoader(self.trainset, hg_batch_size)
+        self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle = True, drop_last = True)
 
         # Build partition
         if args_hg.partition == 'canonical':

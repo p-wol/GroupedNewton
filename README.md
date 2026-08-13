@@ -31,10 +31,10 @@ damping_int = 10.
 # Prepare the optimizer
 full_loss = lambda x, target: loss_fn(model(x), target)
 param_groups, name_groups = grnewt.partition.canonical(model)
-optimizer = grnewt.NewtonSummary(param_groups, full_loss, hg_loader, 
+updater = grnewt.optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = .9)
+optimizer = grnewt.NewtonSummary(param_groups, full_loss, hg_loader, updater,
                     damping = damping, dct_nesterov = {'use': True, 'damping_int': damping_int}, 
-                    period_hg = 10, mom_lrs = .5, remove_negative = True,
-                    momentum = .9, momentum_damp = .9)
+                    period_hg = 10, mom_lrs = .5, remove_negative = True)
 
 # Optimization process
 for epoch in range(10):

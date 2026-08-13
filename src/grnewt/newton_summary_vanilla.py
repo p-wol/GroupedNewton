@@ -134,7 +134,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
                     H = self.H
                     g = self.g
                     order3 = self.order3
-                order3_ = order3_ = order3.abs().pow(1/3)
+                order3_ = order3.abs().pow(1/3)
 
             # Compute lrs
             if self.noregul or not self.dct_nesterov['use']:

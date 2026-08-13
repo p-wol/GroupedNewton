@@ -40,19 +40,18 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
     dct_logs = {}
 
     # Create useful variables
-    H = H.to(dtype = torch.float64)
-    g = g.to(dtype = torch.float64)
-    order3_ = order3_.to(dtype = torch.float64)
+    H = H.to(device = "cpu", dtype = torch.float64)
+    g = g.to(device = "cpu", dtype = torch.float64)
+    order3_ = order3_.to(device = "cpu", dtype = torch.float64)
     D = order3_.diag()
     D_squ = order3_.pow(2).diag()
-    D_inv = (1/order3_).diag()
 
     # Function whose roots should be found, between x0 and x1
     def f(x):
         return (D @ torch.linalg.solve(H + .5 * damping_int * x * D_squ, g)).norm().item() - x
 
     # Compute x0
-    x0, dct_logs_x0 = compute_x0(H, order3_, D_squ, D_inv, damping_int, \
+    x0, dct_logs_x0 = compute_x0(H, order3_, D_squ, damping_int, \
         threshold_D_sing = threshold_D_sing, force_x0_computation = force_x0_computation)
     for k, v in dct_logs_x0.items():
         dct_logs['x0.' + k] = v
@@ -64,7 +63,7 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
         return None, dct_logs
     try:
         val_fx0 = f(x0)
-    except:
+    except torch._C._LinAlgError:
         x0 *= 1.001
         val_fx0 = f(x0)
     dct_logs['x0'] = x0
@@ -94,9 +93,9 @@ def nesterov_lrs(H, g, order3_, *, damping_int = 1., force_x0_computation = None
     dct_logs['lrs'] = lrs
     
     dct_logs['time'] = time.time() - time_beginning
-    return lrs.to(dtype = dtype), dct_logs
+    return lrs.to(device = device, dtype = dtype), dct_logs
 
-def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
+def compute_x0(H, order3_, D_squ, damping_int, \
         threshold_D_sing = 1e-5, force_x0_computation = None):
     dct_logs = {}
 
@@ -140,6 +139,7 @@ def compute_x0(H, order3_, D_squ, D_inv, damping_int, \
         # Case H not PD and D not singular
         # Computation of the largest value r = x0 for which the matrix to invert (H + .5 * damping_int * r * D_squ) is singular
 
+        D_inv = (1/order3_).diag()
         lambd_min = torch.linalg.eigvalsh(D_inv @ H @ D_inv).min().item()
         lambd_min = abs(min(0, lambd_min))
         x0 = (2/damping_int) * lambd_min

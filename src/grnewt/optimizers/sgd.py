@@ -46,6 +46,11 @@ class SGDUpdate(Optimizer):
         has_sparse_grad = False
 
         for p in group["params"]:
+            if p.grad is None:
+                # materialize_grads elsewhere in grnewt treats missing grads as
+                # zero
+                p.grad = torch.zeros_like(p)
+
             params.append(p)
             grads.append(p.grad)
             if p.grad.is_sparse:
@@ -117,11 +122,17 @@ class SGDUpdate(Optimizer):
         return tuple(lst_updates)
         
     def step(self, tup_updates):
+        """Apply an update returned by `compute_step`.
+
+        `compute_step` returns a descent direction u >= 0 aligned with the
+        gradient; the caller is responsible for the minus sign.
+        """
+
         with torch.no_grad():
             j = 0
             for group in self.param_groups:
                 for i, param in enumerate(group["params"]):
-                    param.add_(tup_updates[j])
+                    param.sub_(tup_updates[j])
                     j += 1
 
 

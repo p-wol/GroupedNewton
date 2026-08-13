@@ -4,6 +4,7 @@ import torch
 import grnewt
 from grnewt.optimizers import AdamUpdate, SGDUpdate
 from torch.optim import Adam, SGD
+from conftest import f64
 
 class Perceptron(torch.nn.Module):
     def __init__(self, layers, act_name = 'tanh'):
@@ -39,6 +40,7 @@ def check_equal(m1, m2):
     dct1 = dict(m1.named_parameters())
     dct2 = dict(m2.named_parameters())
     for n, p in dct1.items():
+        print(p - dct2[n])
         e &= torch.allclose(p, dct2[n])
     return e
 
@@ -60,8 +62,6 @@ def model():
     return Perceptron(layers, act_name)
 
 def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
-    torch.set_default_dtype(torch.float64)
-
     # Define loss, dataset and models
     loss_mean = torch.nn.MSELoss(reduction = 'mean')
     x_tr, y_tr = dataset
@@ -95,12 +95,53 @@ def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
         optimizer.step()
 
         # Final test
-        e &= check_equal(model1, model2)
-    return e
+        for n, p1 in model1.named_parameters():
+            p2 = dict(model2.named_parameters())[n]
+            assert torch.allclose(p1, p2), (
+                f"diverged at step {i} on {n}: "
+                f"max|diff| = {(p1 - p2).abs().max().item():.3e}"
+            )
+    return True
 
-def test_adam(model, dataset):
+def test_adam(f64, model, dataset):
     assert _test_optim(model, dataset, AdamUpdate, Adam, lr = 1e-3)
 
-def test_sgd(model, dataset):
+def test_sgd(f64, model, dataset):
     assert _test_optim(model, dataset, SGDUpdate, SGD, lr = 1e-3)
+
+@pytest.mark.parametrize("Cl_Update", [SGDUpdate, AdamUpdate])
+def test_step_is_a_descent_step(f64, model, dataset, Cl_Update):
+    """Regression guard: updater.step() must DECREASE the loss.
+
+    This is the invariant the sign bug violated. It does not depend on
+    matching torch.optim, so it stays meaningful if the reference changes.
+    """
+    x, y = dataset[0][0], dataset[1][0]
+    loss_fn = torch.nn.MSELoss()
+    updater = Cl_Update(model.parameters(), lr=1e-3)
+
+    model.zero_grad()
+    before = loss_fn(model(x), y)
+    before.backward()
+    updater.step(updater.compute_step())
+
+    with torch.no_grad():
+        after = loss_fn(model(x), y)
+    assert after.item() < before.item(), (
+        f"loss increased: {before.item():.6e} -> {after.item():.6e}"
+    )
+
+
+@pytest.mark.parametrize("Cl_Update", [SGDUpdate, AdamUpdate])
+def test_compute_step_returns_a_positive_direction(f64, model, dataset, Cl_Update):
+    """Pins the convention NewtonSummary relies on: with lr=1 and no momentum,
+    compute_step() returns +grad, and the caller supplies the minus sign."""
+    x, y = dataset[0][0], dataset[1][0]
+    model.zero_grad()
+    torch.nn.MSELoss()(model(x), y).backward()
+
+    updater = Cl_Update(model.parameters(), lr=1.0)
+    direction = updater.compute_step()
+    for p, d in zip(model.parameters(), direction):
+        assert (p.grad * d).sum() > 0, "direction must be aligned with +grad"
 
