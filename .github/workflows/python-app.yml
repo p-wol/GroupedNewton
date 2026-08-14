@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly: catches upstream torch breakage without a push
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# NOTE: there is deliberately no workflow-level `env:` block here.
+# PIP_EXTRA_INDEX_URL cannot be used to select CPU-only torch: --extra-index-url
+# MERGES indexes and resolves by version, and PyPI and download.pytorch.org
+# publish the same version numbers, so the winner is unspecified. The CPU wheels
+# are selected per job below with --index-url, which REPLACES the index.
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pipx install ruff==0.6.9        # pinned: an upstream release must not turn CI red
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.11", "3.12"]
+        include:
+          # one macOS job: catches accelerate/BLAS differences in linalg.solve
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # Linux only. macOS torch wheels on PyPI are already CPU/MPS -- there is
+      # no CUDA build to avoid, so plain PyPI is correct there.
+      - name: Install CPU-only torch (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"          # torch>=2.1.0 already satisfied above; not re-resolved
+
+      - name: Record the environment
+        run: |
+          python -c "import torch, numpy, scipy; print(torch.__version__, numpy.__version__, scipy.__version__)"
+          python -c "import torch; print('CUDA build:', torch.version.cuda)"   # expect None
+      - name: Test
+        run: pytest -n auto -m "not slow" --cov=grnewt --cov-report=xml
+      - uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        with:
+          files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+  test-minimum-versions:
+    # Verifies the floor declared in pyproject instead of just asserting it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          # Pin torch FIRST, from the CPU index, so the editable install below
+          # finds torch>=2.1.0 already satisfied and leaves it alone.
+          pip install "torch==2.1.0" --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+          pip install "numpy==1.23.5" "scipy==1.10.1"
+      - run: pytest -q -m "not slow"
+
+  notebooks:
+    # The notebooks and the README example are the advertised entry points.
+    # Executing them in CI is what catches API drift like a changed
+    # NewtonSummary signature.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          # torch AND torchvision together: torchvision pins an exact torch
+          # version, so installing it from PyPI afterwards would drag the CUDA
+          # torch back in and undo the line above.
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,experiments]"
+      - run: pytest --nbmake --nbmake-timeout=900 Example01_basic.ipynb
+      - name: README example still runs
+        run: python scripts/check_readme_example.py
+
+  smoke-train:
+    # End-to-end: a real training run must actually reduce the loss.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,experiments]"
+      - run: pytest -q -m slow tests/test_smoke_training.py
+
+  build:
+    # No torch here: `build` only needs the build backend, not the runtime deps.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pipx run build
+      - run: pipx run twine check dist/*
