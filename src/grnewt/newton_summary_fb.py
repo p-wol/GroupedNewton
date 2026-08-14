@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader
 
 from .hg import compute_Hg_fullbatch
 from .nesterov import nesterov_lrs
-from .util import ParamStructure, fullbatch_gradient
+from .param_struct import ParamStructure
+from .fullbatch import fullbatch_gradient
 
 
 class NewtonSummaryFB(torch.optim.Optimizer):

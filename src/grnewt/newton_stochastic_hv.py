@@ -3,7 +3,7 @@ import itertools
 import torch
 from torch.utils.data import DataLoader
 
-from .util import ParamStructure
+from .param_struct import ParamStructure
 
 
 class NewtonStochasticHv(torch.optim.Optimizer):

@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 
 from .hg import compute_Hg
 from .nesterov import nesterov_lrs
-from .util import ParamStructure
+from .param_struct import ParamStructure
 
 
 def increment_step(func):

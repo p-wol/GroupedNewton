@@ -104,13 +104,14 @@ def nesterov_lrs(
     return lrs.to(device=device, dtype=dtype), dct_logs
 
 
-def compute_x0(H, order3_, D_squ, damping_int, threshold_D_sing=1e-5, force_x0_computation=None):
+def compute_x0(H, order3_, D_squ, damping_int, threshold_D_sing=1e-5, threshold_H_sing=1e-10,
+        force_x0_computation=None):
     dct_logs = {}
 
     # Check if H is positive definite
     Hd = torch.linalg.eigvalsh(H)
 
-    H_pd = ((Hd <= 0).sum() == 0).item()
+    H_pd = ((Hd <= threshold_H_sing).sum() == 0).item()
     dct_logs["H_pd"] = H_pd
 
     # Error if H is not positive definite and damping_int == 0 (case impossible to solve)
