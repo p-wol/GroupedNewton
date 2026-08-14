@@ -1,6 +1,4 @@
-
-def fullbatch_gradient(param_struct, loss_fn, model, train_loader, train_size, *,
-        loader_pre_hook):
+def fullbatch_gradient(param_struct, loss_fn, model, train_loader, train_size, *, loader_pre_hook):
     # Compute full-batch gradient
     model.zero_grad()
     for x, y in train_loader:

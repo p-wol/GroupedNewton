@@ -15,23 +15,35 @@ def diff_n(param_struct, order, full_loss, x, y, direction):
     deriv = full_loss(x, y)
     lst_results[0] = {tuple(): deriv.detach()}
 
-    deriv = {tuple(): param_struct.dercon(deriv, direction, 0, None, detach = False)}
+    deriv = {tuple(): param_struct.dercon(deriv, direction, 0, None, detach=False)}
     lst_results[1] = {k: v.detach() for k, v in deriv.items()}
 
     for d in range(2, order + 1):
         new_deriv = {}
-        set_idx = [tuple(sorted(idx)) for idx in combinations_with_replacement(range(nb_groups), d - 1)]
+        set_idx = [
+            tuple(sorted(idx)) for idx in combinations_with_replacement(range(nb_groups), d - 1)
+        ]
         for idx in set_idx:
             init, last = idx[:-1], idx[-1]
             imax = last if len(init) == 0 else last - init[-1]
-            new_deriv[idx] = param_struct.dercon(deriv[init][imax], direction, last, None, detach = False)
+            new_deriv[idx] = param_struct.dercon(
+                deriv[init][imax], direction, last, None, detach=False
+            )
         lst_results[d] = {k: v.detach() for k, v in new_deriv.items()}
         deriv = new_deriv
 
     return lst_results
 
-def diff_n_fullbatch(param_struct, order, full_loss, data_loader, dataset_size, direction,
-        loader_pre_hook = lambda *args: args):
+
+def diff_n_fullbatch(
+    param_struct,
+    order,
+    full_loss,
+    data_loader,
+    dataset_size,
+    direction,
+    loader_pre_hook=lambda *args: args,
+):
     # Define useful variables
     device = param_struct.device
     dtype = param_struct.dtype

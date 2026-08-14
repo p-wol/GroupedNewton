@@ -15,6 +15,6 @@ def main(cfg):
     trainer = Trainer(cfg, hydra.core.hydra_config.HydraConfig.get().runtime.output_dir)
     trainer.train()
 
+
 if __name__ == "__main__":
     main()
-

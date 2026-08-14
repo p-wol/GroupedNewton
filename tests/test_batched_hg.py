@@ -5,13 +5,17 @@ from grnewt import ParamStructure, compute_Hg, compute_Hg_batched
 from grnewt import partition as build_partition
 
 
-@pytest.mark.parametrize("build", [build_partition.canonical, build_partition.trivial, build_partition.wb])
+@pytest.mark.parametrize(
+    "build", [build_partition.canonical, build_partition.trivial, build_partition.wb]
+)
 def test_match_hg_vs_hg_batched(f64, build, chunk_size: int = 2):
     """Compare against grnewt.compute_Hg on a small MLP with a RANDOM direction."""
 
     model = torch.nn.Sequential(
-        torch.nn.Linear(5, 4), torch.nn.Tanh(),
-        torch.nn.Linear(4, 3), torch.nn.Tanh(),
+        torch.nn.Linear(5, 4),
+        torch.nn.Tanh(),
+        torch.nn.Linear(4, 3),
+        torch.nn.Tanh(),
         torch.nn.Linear(3, 2),
     )
     x, yt = torch.randn(11, 5), torch.randn(11, 2)

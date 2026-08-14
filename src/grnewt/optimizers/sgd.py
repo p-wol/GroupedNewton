@@ -61,10 +61,10 @@ class SGDUpdate(Optimizer):
                 momentum_buffer_list.append(state.get("momentum_buffer"))
 
             updates.append(state.get("update"))
-            #state["update"] = torch.zeros_like(
+            # state["update"] = torch.zeros_like(
             #    p, memory_format=torch.preserve_format
-            #)
-            #updates.append(state["update"])
+            # )
+            # updates.append(state["update"])
 
         return has_sparse_grad
 
@@ -87,9 +87,7 @@ class SGDUpdate(Optimizer):
             momentum_buffer_list: list[Optional[Tensor]] = []
             updates: list[Tensor] = []
 
-            has_sparse_grad = self._init_group(
-                group, params, grads, momentum_buffer_list, updates
-            )
+            has_sparse_grad = self._init_group(group, params, grads, momentum_buffer_list, updates)
 
             sgd(
                 params,
@@ -182,6 +180,6 @@ def sgd(
                 grad = buf
 
         if updates[i] is None:
-            updates[i] = torch.zeros_like(param, memory_format = torch.preserve_format)
+            updates[i] = torch.zeros_like(param, memory_format=torch.preserve_format)
 
         updates[i].zero_().add_(grad, alpha=lr)

@@ -37,9 +37,15 @@ try:
 
     @triton.jit
     def _seg_contract_kernel(
-        R_ptr, u_ptr, out_ptr, tile_seg_ptr,
-        stride_rk, stride_rn, stride_ok,
-        N, BLOCK: tl.constexpr,
+        R_ptr,
+        u_ptr,
+        out_ptr,
+        tile_seg_ptr,
+        stride_rk,
+        stride_rn,
+        stride_ok,
+        N,
+        BLOCK: tl.constexpr,
     ):
         k = tl.program_id(0)
         t = tl.program_id(1)
@@ -70,14 +76,14 @@ def _contract(param_struct, batched, direction, start: int, end: int, k: int) ->
     i0 = gi[start]
 
     per_tensor = [
-        (b.reshape(k, -1) * d.reshape(1, -1)).sum(dim=1)          # (k,)
+        (b.reshape(k, -1) * d.reshape(1, -1)).sum(dim=1)  # (k,)
         for b, d in zip(batched, dirs)
     ]
     cols = [
-        torch.stack(per_tensor[i1 - i0:i2 - i0], dim=0).sum(dim=0)
-        for i1, i2 in zip(gi[start:end], gi[start + 1:end + 1])
+        torch.stack(per_tensor[i1 - i0 : i2 - i0], dim=0).sum(dim=0)
+        for i1, i2 in zip(gi[start:end], gi[start + 1 : end + 1])
     ]
-    return torch.stack(cols, dim=1)                               # (k, end-start)
+    return torch.stack(cols, dim=1)  # (k, end-start)
 
 
 def compute_Hg_batched(
@@ -97,7 +103,7 @@ def compute_Hg_batched(
     chunk_size = chunk_size or S
 
     loss = full_loss(x, y)
-    g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)   # (S,), with graph
+    g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)  # (S,), with graph
     g = g_tup.detach()
 
     if not g_tup.requires_grad:
@@ -121,21 +127,25 @@ def compute_Hg_batched(
         E[torch.arange(k, device=device), torch.arange(lo, hi, device=device)] = 1.0
 
         rows = torch.autograd.grad(
-            g_tup, inputs, grad_outputs=E,
+            g_tup,
+            inputs,
+            grad_outputs=E,
             is_grads_batched=True,
-            create_graph=need_o3, retain_graph=True, materialize_grads=True,
+            create_graph=need_o3,
+            retain_graph=True,
+            materialize_grads=True,
         )
 
-        blk = _contract(param_struct, rows, direction, lo, end, k)       # (k, end-lo)
+        blk = _contract(param_struct, rows, direction, lo, end, k)  # (k, end-lo)
 
         if diagonal:
             H[torch.arange(lo, hi), torch.arange(lo, hi)] = blk[:, 0].detach()
         else:
             # blk[j] holds H[lo+j, lo:]; only columns >= lo+j belong to the upper triangle
             for j in range(k):
-                H[lo + j, lo + j:] = blk[j, j:].detach()
+                H[lo + j, lo + j :] = blk[j, j:].detach()
                 if not semiH:
-                    H[lo + j:, lo + j] = blk[j, j:].detach()
+                    H[lo + j :, lo + j] = blk[j, j:].detach()
 
         if need_o3:
             # diag_chunk[j] = H[lo+j, lo+j], still attached to the graph
@@ -143,15 +153,18 @@ def compute_Hg_batched(
             own = param_struct.select_params(start=lo, end=hi)
             I = torch.eye(k, device=device, dtype=diag_chunk.dtype)
             d3 = torch.autograd.grad(
-                diag_chunk, own, grad_outputs=I,
+                diag_chunk,
+                own,
+                grad_outputs=I,
                 is_grads_batched=True,
-                retain_graph=True, materialize_grads=True,
+                retain_graph=True,
+                materialize_grads=True,
             )
-            full = _contract(param_struct, d3, direction, lo, hi, k)      # (k, k)
-            order3[lo:hi] = full[torch.arange(k, device=device),
-                                 torch.arange(k, device=device)].detach()
+            full = _contract(param_struct, d3, direction, lo, hi, k)  # (k, k)
+            order3[lo:hi] = full[
+                torch.arange(k, device=device), torch.arange(k, device=device)
+            ].detach()
 
         del rows, blk
 
     return H, g, order3
-

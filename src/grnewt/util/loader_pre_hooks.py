@@ -1,6 +1,6 @@
-
 def classification(x, y, device, dtype):
-    return x.to(device = device, dtype = dtype), y.to(device = device)
+    return x.to(device=device, dtype=dtype), y.to(device=device)
+
 
 def regression(x, y, device, dtype):
-    return x.to(device = device, dtype = dtype), y.to(device = device, dtype = dtype)
+    return x.to(device=device, dtype=dtype), y.to(device=device, dtype=dtype)

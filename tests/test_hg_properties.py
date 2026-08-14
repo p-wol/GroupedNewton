@@ -45,6 +45,7 @@ def _phi(param_struct, full_loss, x, y, v, t):
 
 def _derivs_fd(param_struct, full_loss, x, y, v, eps=1e-3):
     """Central differences of phi(t) = L(theta + t v) at t = 0, orders 1..3."""
+
     def f(t):
         return _phi(param_struct, full_loss, x, y, v, t)
 
@@ -62,9 +63,7 @@ def _derivs_fd(param_struct, full_loss, x, y, v, eps=1e-3):
 # --------------------------------------------------------------------------
 
 
-def test_gbar_and_diagonal_match_finite_differences(
-    mlp, batch, mse, param_struct, direction
-):
+def test_gbar_and_diagonal_match_finite_differences(mlp, batch, mse, param_struct, direction):
     """gbar[s], Hbar[s,s] and order3[s] are the 1st/2nd/3rd derivatives of
     t -> L(theta + t P_s u) at t = 0."""
     x, y = batch(mlp)
@@ -114,6 +113,7 @@ def test_quadratic_oracle(f64, device):
     direction = tuple(torch.randn_like(p) for p in ps.tup_params)
 
     x = torch.zeros(1, 1, device=device, dtype=f64)
+
     def full_loss(x_, y_):
         return model(x_).mean()
 
@@ -124,7 +124,7 @@ def test_quadratic_oracle(f64, device):
     V = torch.zeros(len(sizes), n, device=device, dtype=f64)
     u = torch.cat([d.reshape(-1) for d in direction])
     for s in range(len(sizes)):
-        V[s, idx[s]:idx[s + 1]] = u[idx[s]:idx[s + 1]]
+        V[s, idx[s] : idx[s + 1]] = u[idx[s] : idx[s + 1]]
 
     assert torch.allclose(H, V @ model.A @ V.T, atol=1e-9)
     assert torch.allclose(g, V @ (model.A @ model.theta() + model.b), atol=1e-9)

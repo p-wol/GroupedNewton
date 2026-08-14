@@ -3,8 +3,17 @@ import torch
 
 
 class AutoencoderMLP(torch.nn.Module):
-    def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
-            sampler_w = lambda t: t.normal_(), sampler_b = lambda t: t.normal_(), first_layer_normal = False):
+    def __init__(
+        self,
+        layers,
+        act_function,
+        scaling=False,
+        sigma_w=1.0,
+        sigma_b=1.0,
+        sampler_w=lambda t: t.normal_(),
+        sampler_b=lambda t: t.normal_(),
+        first_layer_normal=False,
+    ):
         super().__init__()
 
         self.act_function = act_function
@@ -68,4 +77,3 @@ class AutoencoderMLP(torch.nn.Module):
         x = torch.nn.functional.sigmoid(x)
 
         return x
-

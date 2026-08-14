@@ -6,22 +6,33 @@ from .. import partition as build_partition
 
 
 class VGG(nn.Module):
-    def __init__(self, cfg_type, fc_sizes = [4096, 4096], image_size = 224, num_classes = 1000,
-            scaling = False, sigma_w = 1., name_act_function = 'relu', batch_norm = False):
+    def __init__(
+        self,
+        cfg_type,
+        fc_sizes=[4096, 4096],
+        image_size=224,
+        num_classes=1000,
+        scaling=False,
+        sigma_w=1.0,
+        name_act_function="relu",
+        batch_norm=False,
+    ):
         super().__init__()
 
         self.scaling = scaling
         self.sigma_w = sigma_w
         fc_multiplier = image_size // 32
 
-        dct_act_functions = {'identity': nn.Identity,
-                             'tanh': nn.Tanh,
-                             'relu': nn.ReLU,
-                             'sigmoid': nn.Sigmoid,
-                             'elu': nn.ELU}
+        dct_act_functions = {
+            "identity": nn.Identity,
+            "tanh": nn.Tanh,
+            "relu": nn.ReLU,
+            "sigmoid": nn.Sigmoid,
+            "elu": nn.ELU,
+        }
         cl_act_function = dct_act_functions[name_act_function]
 
-        self.features = make_layers(cfgs[cfg_type], cl_act_function, batch_norm = batch_norm)
+        self.features = make_layers(cfgs[cfg_type], cl_act_function, batch_norm=batch_norm)
 
         self.avgpool = nn.AdaptiveAvgPool2d((fc_multiplier, fc_multiplier))
 
@@ -29,7 +40,7 @@ class VGG(nn.Module):
         last_sz = fc_sizes[0]
         self.classifier = nn.ModuleList([nn.Linear(512 * fc_multiplier**2, last_sz)])
         for fc_sz in fc_sizes[1:]:
-            self.classifier += [cl_act_function(inplace = True), nn.Linear(last_sz, fc_sz)]
+            self.classifier += [cl_act_function(inplace=True), nn.Linear(last_sz, fc_sz)]
             last_sz = fc_sz
 
         with torch.no_grad():
@@ -62,20 +73,21 @@ class VGG(nn.Module):
                 x = x / np.sqrt(self.layer_in_size(m))
             x = m(x)
 
-        x = nn.functional.log_softmax(x, dim = 1)
+        x = nn.functional.log_softmax(x, dim=1)
 
         return x
 
     def partition(self, partition_args):
         idx_conv2d = [i for i, k in enumerate(self.features) if isinstance(k, nn.Conv2d)]
         nlayers = len(idx_conv2d)
-        if partition_args.find('blocks') == 0:
+        if partition_args.find("blocks") == 0:
+
             def fn_blocks(size, nblocks):
                 q = size // nblocks
                 r = size % nblocks
                 return [q + 1 for i in range(r)] + [q for i in range(nblocks - r)]
 
-            n = int(partition_args[len('blocks-'):])
+            n = int(partition_args[len("blocks-") :])
             lst_blocks = fn_blocks(nlayers, n)
             pre_groups = []
             k = 0
@@ -86,38 +98,48 @@ class VGG(nn.Module):
                 pre_groups.append(gr)
                 k += bsize
 
-            lst_names_w = [[f'features.{k}.weight' for k in gr] for gr in pre_groups]
-            lst_names_b = [[f'features.{k}.bias' for k in gr] for gr in pre_groups]
+            lst_names_w = [[f"features.{k}.weight" for k in gr] for gr in pre_groups]
+            lst_names_b = [[f"features.{k}.bias" for k in gr] for gr in pre_groups]
 
-            lst_names_w.append(['classifier.0.weight'])
-            lst_names_b.append(['classifier.0.bias'])
-            param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
-        elif partition_args.find('alternate') == 0:
-            n = int(partition_args[len('alternate-'):])
-            lst_names_w = [[f'features.{k}.weight' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
-            lst_names_b = [[f'features.{k}.bias' for i, k in enumerate(idx_conv2d) if i % n == r] for r in range(n)]
+            lst_names_w.append(["classifier.0.weight"])
+            lst_names_b.append(["classifier.0.bias"])
+            param_groups, name_groups = build_partition.names_by_lst(
+                self, lst_names_w + lst_names_b
+            )
+        elif partition_args.find("alternate") == 0:
+            n = int(partition_args[len("alternate-") :])
+            lst_names_w = [
+                [f"features.{k}.weight" for i, k in enumerate(idx_conv2d) if i % n == r]
+                for r in range(n)
+            ]
+            lst_names_b = [
+                [f"features.{k}.bias" for i, k in enumerate(idx_conv2d) if i % n == r]
+                for r in range(n)
+            ]
 
-            lst_names_w.append(['classifier.0.weight'])
-            lst_names_b.append(['classifier.0.bias'])
-            param_groups, name_groups = build_partition.names_by_lst(self, lst_names_w + lst_names_b)
+            lst_names_w.append(["classifier.0.weight"])
+            lst_names_b.append(["classifier.0.bias"])
+            param_groups, name_groups = build_partition.names_by_lst(
+                self, lst_names_w + lst_names_b
+            )
         else:
             NotImplementedError(f'Error: not implemented partition_args: "{partition_args}".')
 
         return param_groups, name_groups
 
 
-def make_layers(cfg, cl_act_function, batch_norm = False):
+def make_layers(cfg, cl_act_function, batch_norm=False):
     layers = nn.ModuleList()
     in_channels = 3
     for v in cfg:
         if v == "M":
-            layers.append(nn.MaxPool2d(kernel_size = 2, stride = 2))
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
         else:
             v = int(v)
-            layers.append(nn.Conv2d(in_channels, v, kernel_size = 3, padding = 1))
+            layers.append(nn.Conv2d(in_channels, v, kernel_size=3, padding=1))
             if batch_norm:
                 layers.append(nn.BatchNorm2d(v))
-            layers.append(cl_act_function(inplace = True))
+            layers.append(cl_act_function(inplace=True))
             in_channels = v
     return layers
 
@@ -126,5 +148,27 @@ cfgs = {
     "A": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
     "B": [64, 64, "M", 128, 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
     "D": [64, 64, "M", 128, 128, "M", 256, 256, 256, "M", 512, 512, 512, "M", 512, 512, 512, "M"],
-    "E": [64, 64, "M", 128, 128, "M", 256, 256, 256, 256, "M", 512, 512, 512, 512, "M", 512, 512, 512, 512, "M"],
+    "E": [
+        64,
+        64,
+        "M",
+        128,
+        128,
+        "M",
+        256,
+        256,
+        256,
+        256,
+        "M",
+        512,
+        512,
+        512,
+        512,
+        "M",
+        512,
+        512,
+        512,
+        512,
+        "M",
+    ],
 }

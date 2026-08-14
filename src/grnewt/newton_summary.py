@@ -11,12 +11,25 @@ from .util import ParamStructure
 
 
 class NewtonSummary(torch.optim.Optimizer):
-    def __init__(self, param_groups, full_loss, data_loader: DataLoader, updater, *,
-            loader_pre_hook,
-            damping: float = 1, period_hg: int = 1, mom_lrs: float = 0, movavg: float = 0, ridge: float = 0,
-            dct_nesterov: dict = None, noregul: bool = False,
-            remove_negative: bool = False, maintain_true_lrs = False,
-            diagonal = False):
+    def __init__(
+        self,
+        param_groups,
+        full_loss,
+        data_loader: DataLoader,
+        updater,
+        *,
+        loader_pre_hook,
+        damping: float = 1,
+        period_hg: int = 1,
+        mom_lrs: float = 0,
+        movavg: float = 0,
+        ridge: float = 0,
+        dct_nesterov: dict = None,
+        noregul: bool = False,
+        remove_negative: bool = False,
+        maintain_true_lrs=False,
+        diagonal=False,
+    ):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y) = l(m(x), y), where:
@@ -48,8 +61,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.maintain_true_lrs = maintain_true_lrs
         self.curr_lrs = 0
         self.diagonal = diagonal
-        defaults = {'lr': 0,
-                    'damping': damping}
+        defaults = {"lr": 0, "damping": damping}
         super().__init__(param_groups, defaults)
 
         self.param_struct = ParamStructure(param_groups)
@@ -59,10 +71,10 @@ class NewtonSummary(torch.optim.Optimizer):
         self.step_counter = 0
 
         if dct_nesterov is None:
-            dct_nesterov = {'use': False}
-        if 'mom_order3_' not in dct_nesterov.keys():
-            dct_nesterov['mom_order3_'] = 0.
-        if dct_nesterov['mom_order3_'] != 0.:
+            dct_nesterov = {"use": False}
+        if "mom_order3_" not in dct_nesterov.keys():
+            dct_nesterov["mom_order3_"] = 0.0
+        if dct_nesterov["mom_order3_"] != 0.0:
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
@@ -74,15 +86,23 @@ class NewtonSummary(torch.optim.Optimizer):
         self.reset_logs()
 
     def reset_logs(self):
-        if hasattr(self, 'logs'):
+        if hasattr(self, "logs"):
             del self.logs
-        self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [], 'lrs_clipped': [],
-                'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
+        self.logs = {
+            "H": [],
+            "g": [],
+            "order3": [],
+            "lrs": [],
+            "lrs_clipped": [],
+            "curr_lrs": [],
+            "nesterov.r": [],
+            "nesterov.converged": [],
+        }
 
     def damping_mul(self, factor):
         for group in self.param_groups:
-            group['damping'] *= factor
-            group['lr'] *= factor
+            group["damping"] *= factor
+            group["lr"] *= factor
 
     def step(self):
         direction = self.updater.compute_step()
@@ -95,18 +115,25 @@ class NewtonSummary(torch.optim.Optimizer):
             x, y = self.loader_pre_hook(x, y)
 
             # Compute H, g, order3
-            H, g, order3 = compute_Hg(self.param_struct, self.full_loss, x, y, direction,
-                    noregul = self.noregul, diagonal = self.diagonal)
+            H, g, order3 = compute_Hg(
+                self.param_struct,
+                self.full_loss,
+                x,
+                y,
+                direction,
+                noregul=self.noregul,
+                diagonal=self.diagonal,
+            )
 
-            #if self.diagonal:
+            # if self.diagonal:
             #    H = H.diag().diag()
 
-            order3_ = order3.abs().pow(1/3)
-            if self.dct_nesterov['mom_order3_'] != 0.:
+            order3_ = order3.abs().pow(1 / 3)
+            if self.dct_nesterov["mom_order3_"] != 0.0:
                 if self.order3_ is None:
                     self.order3_ = order3_
                 else:
-                    r = self.dct_nesterov['mom_order3_']
+                    r = self.dct_nesterov["mom_order3_"]
                     self.order3_ = r * self.order3_ + (1 - r) * order3_
                     order3_ = self.order3_
 
@@ -124,31 +151,35 @@ class NewtonSummary(torch.optim.Optimizer):
                     H = self.H
                     g = self.g
                     order3 = self.order3
-                order3_ = order3.abs().pow(1/3)
+                order3_ = order3.abs().pow(1 / 3)
 
             # Compute lrs
-            if self.noregul or not self.dct_nesterov['use']:
+            if self.noregul or not self.dct_nesterov["use"]:
                 if self.noregul:
                     regul_H = 0
                 else:
-                    regul_H = self.ridge * torch.eye(H.size(0), dtype = self.dtype, device = self.device)
+                    regul_H = self.ridge * torch.eye(
+                        H.size(0), dtype=self.dtype, device=self.device
+                    )
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
-                lrs, lrs_logs = nesterov_lrs(H, g, order3_, damping_int = self.dct_nesterov['damping_int'])
+                lrs, lrs_logs = nesterov_lrs(
+                    H, g, order3_, damping_int=self.dct_nesterov["damping_int"]
+                )
 
                 for k, v in lrs_logs.items():
-                    kk = 'nesterov.' + k
+                    kk = "nesterov." + k
                     if kk not in self.logs.keys():
                         self.logs[kk] = []
                     self.logs[kk].append(v)
 
-                if not lrs_logs['found']:
+                if not lrs_logs["found"]:
                     perform_update = False
-                    print('Nesterov did not converge: lr not updated during this step.')
-                    #TODO: throw warning?
+                    print("Nesterov did not converge: lr not updated during this step.")
+                    # TODO: throw warning?
 
             if not perform_update:
-                lrs = torch.zeros(g.size(0), dtype = self.dtype, device = self.device)
+                lrs = torch.zeros(g.size(0), dtype=self.dtype, device=self.device)
 
             # To execute even when update_lrs = False? Block #1
             r = self.mom_lrs if self.step_counter > 0 else 0
@@ -165,27 +196,33 @@ class NewtonSummary(torch.optim.Optimizer):
 
             # To execute even when update_lrs = False? Block #2
             # Assign lrs
-            self.logs['lrs_clipped'].append(lrs)
-            self.logs['curr_lrs'].append(self.curr_lrs)
+            self.logs["lrs_clipped"].append(lrs)
+            self.logs["curr_lrs"].append(self.curr_lrs)
             for group, lr in zip(self.param_groups, lrs):
-                group['lr'] = group['damping'] * lr.item()
+                group["lr"] = group["damping"] * lr.item()
 
             # Store logs
-            self.logs['H'].append(H)
-            self.logs['g'].append(g)
-            self.logs['order3'].append(order3)
-            self.logs['lrs'].append(torch.tensor([group['lr'] for group in self.param_groups],
-                device = self.device, dtype = self.dtype))
+            self.logs["H"].append(H)
+            self.logs["g"].append(g)
+            self.logs["order3"].append(order3)
+            self.logs["lrs"].append(
+                torch.tensor(
+                    [group["lr"] for group in self.param_groups],
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+            )
 
         # Perform update
         with torch.no_grad():
             i = 0
             for group in self.param_groups:
-                for p in group['params']:
-                    p.add_(direction[i], alpha = -group['lr'])
+                for p in group["params"]:
+                    p.add_(direction[i], alpha=-group["lr"])
                     i += 1
 
         self.step_counter += 1
+
 
 def create_infinite_data_loader(data_loader):
     # XXX: if the batch_size does not divide the total number of samples in
@@ -194,12 +231,18 @@ def create_infinite_data_loader(data_loader):
         for dl in itertools.repeat(data_loader):
             for minibatch in dl:
                 yield minibatch
+
     return f
 
-def update_momentum_buffers(params: list[Tensor], d_p_list: list[Tensor],
-        momentum_buffer_list: list[Optional[Tensor]],
-        *,
-        momentum: float, momentum_damp: float):
+
+def update_momentum_buffers(
+    params: list[Tensor],
+    d_p_list: list[Tensor],
+    momentum_buffer_list: list[Optional[Tensor]],
+    *,
+    momentum: float,
+    momentum_damp: float,
+):
     for i, _param in enumerate(params):
         d_p = d_p_list[i]
 
@@ -209,5 +252,4 @@ def update_momentum_buffers(params: list[Tensor], d_p_list: list[Tensor],
             buf = torch.clone(d_p).detach()
             momentum_buffer_list[i] = buf
         else:
-            buf.mul_(momentum).add_(d_p, alpha = 1 - momentum_damp)
-
+            buf.mul_(momentum).add_(d_p, alpha=1 - momentum_damp)

@@ -2,30 +2,32 @@ import pathlib
 
 import yaml
 
-#seed=571677914,421146319,505702709,70478166,358472055\
+# seed=571677914,421146319,505702709,70478166,358472055\
 
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_Adam_01_grid/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_Adam_01_grid/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_CIFAR_Adam_01_grid/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_Adam_01_grid/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_Adam_01_grid/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_Adam_01_grid/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_CIFAR_Adam_01_grid/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_Adam_01_grid/")
 
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_07_final_avg3/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_04_final_stable2/")
-global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_08_final_stable2_avg3/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_05_final_avg3/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_07_final_avg3/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_04_final_stable2/")
+global_path = pathlib.Path(
+    "/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_08_final_stable2_avg3/"
+)
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_05_final_avg3/")
 
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_04_many_tests/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_02_many_tests/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/MLP_MNIST_UnifAvg_04_many_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_UnifAvg_02_many_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_UnifAvg_05_many_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_UnifAvg_02_many_tests/")
 
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_NS_01_new_tests/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_NS_01_new_tests/")
-#global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_iNS_01_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/LeNet_CIFAR_NS_01_new_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/VGG_CIFAR_NS_01_new_tests/")
+# global_path = pathlib.Path("/gpfswork/rech/tza/uki35ex/_Experiments/GroupedNewton_Results/BigMLP_MNIST_iNS_01_tests/")
 
 lst_metrics = global_path.glob("*/*/metrics/metrics.json")
 
-loss_threshold = .1
+loss_threshold = 0.1
 rate_instability = 100
 only_finished_expes = False
 
@@ -34,13 +36,13 @@ dct_expes = {}
 # Gather existing experiments with "metrics" file
 for fmetrics in lst_metrics:
     s = str(fmetrics)
-    s = s[:s.rfind("/")]
-    s = s[:s.rfind("/")]
+    s = s[: s.rfind("/")]
+    s = s[: s.rfind("/")]
     path = pathlib.Path(s)
     fconfig = list(path.glob(".hydra/config.yaml"))[0]
 
-    subexp_number = s[s.rfind("/")+1:]
-    exp_path = s[:s.rfind("/")]
+    subexp_number = s[s.rfind("/") + 1 :]
+    exp_path = s[: s.rfind("/")]
     exp_path = pathlib.Path(exp_path + "/.submitit")
     lst_paths = list(exp_path.glob("*_" + subexp_number))
     if len(lst_paths) > 0:
@@ -54,12 +56,14 @@ for fmetrics in lst_metrics:
                 sub_path = str(p)
                 break
 
-    expe_id = sub_path[sub_path.rfind("/")+1:]
+    expe_id = sub_path[sub_path.rfind("/") + 1 :]
 
-    dct_expes[str(path)] = {"path": path,
-            "fmetrics": fmetrics,
-            "fconfig": fconfig,
-            "expe_id": expe_id}
+    dct_expes[str(path)] = {
+        "path": path,
+        "fmetrics": fmetrics,
+        "fconfig": fconfig,
+        "expe_id": expe_id,
+    }
 
 lst_results = []
 for expe_name, dct_expe in dct_expes.items():
@@ -93,17 +97,21 @@ for expe_name, dct_expe in dct_expes.items():
         continue
 
     # Store the final loss and the config
-    lst_results.append({"expe_name": expe_name,
-        "expe_id": dct_expe["expe_id"],
-        "epoch": lst_metrics[-1]["epoch"],
-        "loss": lst_metrics[-1]["tr_nll"],
-        "config": config})
+    lst_results.append(
+        {
+            "expe_name": expe_name,
+            "expe_id": dct_expe["expe_id"],
+            "epoch": lst_metrics[-1]["epoch"],
+            "loss": lst_metrics[-1]["tr_nll"],
+            "config": config,
+        }
+    )
 
-lst_results = sorted(lst_results, key = lambda dct: dct["loss"])
+lst_results = sorted(lst_results, key=lambda dct: dct["loss"])
 
-print("#"*60)
-print("#"*60)
-print("#"*60)
+print("#" * 60)
+print("#" * 60)
+print("#" * 60)
 for dct in lst_results:
     loss = dct["loss"]
     if loss <= loss_threshold:
@@ -114,4 +122,3 @@ for dct in lst_results:
         print(dct["config"])
     else:
         break
-

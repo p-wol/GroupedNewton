@@ -7,9 +7,19 @@ from .util import ParamStructure
 
 
 class NewtonStochasticHv(torch.optim.Optimizer):
-    def __init__(self, param_groups, model, final_loss, data_loader: DataLoader, *,
-            loader_pre_hook, lr_param: float, lr_direction: float,
-            ridge: float = 0, dct_nesterov: dict = None):
+    def __init__(
+        self,
+        param_groups,
+        model,
+        final_loss,
+        data_loader: DataLoader,
+        *,
+        loader_pre_hook,
+        lr_param: float,
+        lr_direction: float,
+        ridge: float = 0,
+        dct_nesterov: dict = None,
+    ):
         """
         param_groups: param_groups of the model
         full_loss: full_loss(x, y) = l(m(x), y), where:
@@ -35,7 +45,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         self.ridge = ridge
         self.loader_pre_hook = loader_pre_hook
         self.curr_direction = None
-        defaults = {'lr': 0}
+        defaults = {"lr": 0}
         super().__init__(param_groups, defaults)
 
         self.param_struct = ParamStructure(param_groups)
@@ -45,25 +55,33 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         self.step_counter = 0
 
         if dct_nesterov is None:
-            dct_nesterov = {'use': False}
-        if 'mom_order3_' not in dct_nesterov.keys():
-            dct_nesterov['mom_order3_'] = 0.
-        if dct_nesterov['mom_order3_'] != 0.:
+            dct_nesterov = {"use": False}
+        if "mom_order3_" not in dct_nesterov.keys():
+            dct_nesterov["mom_order3_"] = 0.0
+        if dct_nesterov["mom_order3_"] != 0.0:
             self.order3_ = None
         self.dct_nesterov = dct_nesterov
 
         self.reset_logs()
 
     def reset_logs(self):
-        if hasattr(self, 'logs'):
+        if hasattr(self, "logs"):
             del self.logs
-        self.logs = {'H': [], 'g': [], 'order3': [], 'lrs': [], 'lrs_clipped': [],
-                'curr_lrs': [], 'nesterov.r': [], 'nesterov.converged': []}
+        self.logs = {
+            "H": [],
+            "g": [],
+            "order3": [],
+            "lrs": [],
+            "lrs_clipped": [],
+            "curr_lrs": [],
+            "nesterov.r": [],
+            "nesterov.converged": [],
+        }
 
     def damping_mul(self, factor):
         for group in self.param_groups:
-            group['damping'] *= factor
-            group['lr'] *= factor
+            group["damping"] *= factor
+            group["lr"] *= factor
 
     def step(self):
         # Compute the gradient
@@ -77,24 +95,26 @@ class NewtonStochasticHv(torch.optim.Optimizer):
 
         # Full loss function w.r.t. the parameters
         def full_loss(*params):
-            output = torch.func.functional_call(self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params)}, x)
+            output = torch.func.functional_call(
+                self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params)}, x
+            )
             return self.final_loss(output, y)
 
         # Compute Hessian-vector product
-        _, vhp = torch.autograd.functional.vhp(full_loss, self.tup_params, v = self.curr_direction)
+        _, vhp = torch.autograd.functional.vhp(full_loss, self.tup_params, v=self.curr_direction)
 
         # Update direction: d_{t+1} = d_t - lr_direction * (H d_t - grad)
         with torch.no_grad():
             for d, g, v in zip(self.curr_direction, grad, vhp):
                 if self.ridge == 0:
-                    d.add_(v - g, alpha = -self.lr_direction)
+                    d.add_(v - g, alpha=-self.lr_direction)
                 else:
-                    d.add_(v - g + self.ridge * d, alpha = -self.lr_direction)
+                    d.add_(v - g + self.ridge * d, alpha=-self.lr_direction)
 
         # Update params
         with torch.no_grad():
             for p, d in zip(self.tup_params, self.curr_direction):
-                p.add_(d, alpha = -self.lr_param)
+                p.add_(d, alpha=-self.lr_param)
 
         # Store logs
         """
@@ -117,6 +137,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
 
         self.step_counter += 1
 
+
 def create_infinite_data_loader(data_loader):
     # XXX: if the batch_size does not divide the total number of samples in
     #      the data_loader, then this may fail (possibly batches of irregular sizes)
@@ -124,5 +145,5 @@ def create_infinite_data_loader(data_loader):
         for dl in itertools.repeat(data_loader):
             for minibatch in dl:
                 yield minibatch
-    return f
 
+    return f

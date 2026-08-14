@@ -3,8 +3,17 @@ import torch
 
 
 class LeNet(torch.nn.Module):
-    def __init__(self, layers, act_function, scaling = False, sigma_w = 1., sigma_b = 1., \
-            sampler_w = lambda t: t.normal_(), sampler_b = lambda t: t.normal_(), first_layer_normal = False):
+    def __init__(
+        self,
+        layers,
+        act_function,
+        scaling=False,
+        sigma_w=1.0,
+        sigma_b=1.0,
+        sampler_w=lambda t: t.normal_(),
+        sampler_b=lambda t: t.normal_(),
+        first_layer_normal=False,
+    ):
         super().__init__()
 
         self.act_function = act_function
@@ -73,6 +82,6 @@ class LeNet(torch.nn.Module):
         if self.scaling:
             x = x / np.sqrt(self.layer_in_size(self.fc3))
         x = self.fc3(x)
-        x = torch.nn.functional.log_softmax(x, dim = 1)
+        x = torch.nn.functional.log_softmax(x, dim=1)
 
         return x

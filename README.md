@@ -25,16 +25,24 @@ loss_fn = lambda output, target: ...
 hg_loader = torch.utils.data.DataLoader(...)
 
 # Set some hyperparameters
-damping = .1
-damping_int = 10.
+damping = 0.1
+damping_int = 10.0
 
 # Prepare the optimizer
 full_loss = lambda x, target: loss_fn(model(x), target)
 param_groups, name_groups = grnewt.partition.canonical(model)
-updater = grnewt.optimizers.SGDUpdate(model.parameters(), lr = 1, momentum = .9)
-optimizer = grnewt.NewtonSummary(param_groups, full_loss, hg_loader, updater,
-                    damping = damping, dct_nesterov = {'use': True, 'damping_int': damping_int}, 
-                    period_hg = 10, mom_lrs = .5, remove_negative = True)
+updater = grnewt.optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
+optimizer = grnewt.NewtonSummary(
+    param_groups,
+    full_loss,
+    hg_loader,
+    updater,
+    damping=damping,
+    dct_nesterov={"use": True, "damping_int": damping_int},
+    period_hg=10,
+    mom_lrs=0.5,
+    remove_negative=True,
+)
 
 # Optimization process
 for epoch in range(10):

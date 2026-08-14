@@ -100,9 +100,7 @@ def test_lrs_are_invariant(mlp, batch, mse, scales, damping_int):
         eta_t = torch.linalg.solve(H_t, g_t)
     else:
         eta, log = nesterov_lrs(H, g, o3.abs().pow(1 / 3), damping_int=damping_int)
-        eta_t, log_t = nesterov_lrs(
-            H_t, g_t, o3_t.abs().pow(1 / 3), damping_int=damping_int
-        )
+        eta_t, log_t = nesterov_lrs(H_t, g_t, o3_t.abs().pow(1 / 3), damping_int=damping_int)
         if not (log["found"] and log_t["found"]):
             pytest.skip("root-finder did not converge on this instance")
         # r = ||D eta|| is itself invariant
@@ -195,7 +193,7 @@ def test_solver_scale_invariance():
 @pytest.mark.timeout(30)
 def test_solver_terminates_on_a_nasty_instance():
     """Guards the unbounded `while f(x1) >= 0: x1 *= 3` bracketing loop."""
-    #S = 4
+    # S = 4
     H = torch.diag(torch.tensor([1e8, 1.0, -1e-6, 1e-8], dtype=torch.float64))
     g = torch.tensor([1e6, 0.0, -1e-8, 1e3], dtype=torch.float64)
     D = torch.tensor([1e-4, 1e4, 1.0, 1e-3], dtype=torch.float64)

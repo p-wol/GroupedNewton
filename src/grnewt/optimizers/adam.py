@@ -48,7 +48,12 @@ class AdamUpdate(Optimizer):
                 p_state = self.state.get(p, [])
                 if len(p_state) != 0 and not torch.is_tensor(p_state["step"]):
                     step_val = float(p_state["step"])
-                    p_state["step"] = torch.tensor(step_val, dtype=torch.float64 if torch.get_default_dtype() == torch.float64 else torch.float32)
+                    p_state["step"] = torch.tensor(
+                        step_val,
+                        dtype=torch.float64
+                        if torch.get_default_dtype() == torch.float64
+                        else torch.float32,
+                    )
 
     def _init_group(
         self,
@@ -72,23 +77,22 @@ class AdamUpdate(Optimizer):
             state = self.state[p]
             # Lazy state initialization
             if len(state) == 0:
-                state["step"] = torch.tensor(0.0, dtype=torch.float64 if torch.get_default_dtype() == torch.float64 else torch.float32)
+                state["step"] = torch.tensor(
+                    0.0,
+                    dtype=torch.float64
+                    if torch.get_default_dtype() == torch.float64
+                    else torch.float32,
+                )
                 # Exponential moving average of gradient values
-                state["exp_avg"] = torch.zeros_like(
-                    p, memory_format=torch.preserve_format
-                )
+                state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
                 # Exponential moving average of squared gradient values
-                state["exp_avg_sq"] = torch.zeros_like(
-                    p, memory_format=torch.preserve_format
-                )
+                state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
                 if group["amsgrad"]:
                     # Maintains max of all exp. moving avg. of sq. grad. values
                     state["max_exp_avg_sq"] = torch.zeros_like(
                         p, memory_format=torch.preserve_format
                     )
-                state["update"] = torch.zeros_like(
-                    p, memory_format=torch.preserve_format
-                )
+                state["update"] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
             exp_avgs.append(state["exp_avg"])
             exp_avg_sqs.append(state["exp_avg_sq"])
@@ -215,7 +219,7 @@ def adam(
 
         step_size = lr / bias_correction1
 
-        bias_correction2_sqrt = bias_correction2**.5
+        bias_correction2_sqrt = bias_correction2**0.5
 
         if amsgrad:
             # Maintains the maximum of all 2nd moment running avg. till now
@@ -226,4 +230,4 @@ def adam(
         else:
             denom = (exp_avg_sq.sqrt() / bias_correction2_sqrt).add_(eps)
 
-        updates[i].zero_().addcdiv_(exp_avg, denom, value = step_size)
+        updates[i].zero_().addcdiv_(exp_avg, denom, value=step_size)

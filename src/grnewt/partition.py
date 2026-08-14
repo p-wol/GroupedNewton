@@ -1,4 +1,3 @@
-
 import torch
 
 
@@ -15,10 +14,11 @@ def check(key: str, name: str):
     else:
         if i == 0:
             return True
-        elif key[i-1] == '.':
+        elif key[i - 1] == ".":
             return True
         else:
             return False
+
 
 def remove_empty(param_groups, name_groups):
     """
@@ -27,25 +27,26 @@ def remove_empty(param_groups, name_groups):
     new_param_groups = []
     new_name_groups = []
     for pg, ng in zip(param_groups, name_groups):
-        if len(pg['params']) > 0:
+        if len(pg["params"]) > 0:
             new_param_groups.append(pg)
             new_name_groups.append(ng)
 
     return new_param_groups, new_name_groups
 
+
 def canonical(model: torch.nn.Module):
     """
     Build a partition based on the tensors of parameters of the model.
     """
-    return [{'params': [p]} for p in model.parameters()], \
-            [[n] for n, p in model.named_parameters()]
+    return [{"params": [p]} for p in model.parameters()], [[n] for n, p in model.named_parameters()]
+
 
 def trivial(model: torch.nn.Module):
     """
     Build a partition grouping all the parameters of the model.
     """
-    return [{'params': [p for p in model.parameters()]}], \
-            [[n for n, p in model.named_parameters()]]
+    return [{"params": [p for p in model.parameters()]}], [[n for n, p in model.named_parameters()]]
+
 
 def names_by_lst(model: torch.nn.Module, lst_lst_names: list[list[str]]):
     """
@@ -58,14 +59,14 @@ def names_by_lst(model: torch.nn.Module, lst_lst_names: list[list[str]]):
     """
     # Build the groups
     nb_names = len(lst_lst_names)
-    param_groups = [{'params': []} for i in range(nb_names + 1)]
+    param_groups = [{"params": []} for i in range(nb_names + 1)]
     name_groups = [[] for i in range(nb_names + 1)]
     for k, v in model.named_parameters():
         found = False
         for i, lst_names in enumerate(lst_lst_names):
             for name in lst_names:
                 if check(k, name):
-                    param_groups[i]['params'].append(v)
+                    param_groups[i]["params"].append(v)
                     name_groups[i].append(k)
                     found = True
                     break
@@ -73,10 +74,11 @@ def names_by_lst(model: torch.nn.Module, lst_lst_names: list[list[str]]):
                 break
 
         if not found:
-            param_groups[nb_names]['params'].append(v)
+            param_groups[nb_names]["params"].append(v)
             name_groups[nb_names].append(k)
 
     return remove_empty(param_groups, name_groups)
+
 
 def names(model: torch.nn.Module, lst_names: list[str]):
     """
@@ -89,28 +91,30 @@ def names(model: torch.nn.Module, lst_names: list[str]):
     """
     # Build the groups
     nb_names = len(lst_names)
-    param_groups = [{'params': []} for i in range(nb_names + 1)]
+    param_groups = [{"params": []} for i in range(nb_names + 1)]
     name_groups = [[] for i in range(nb_names + 1)]
     for k, v in model.named_parameters():
         found = False
         for i, name in enumerate(lst_names):
             if check(k, name):
-                param_groups[i]['params'].append(v)
+                param_groups[i]["params"].append(v)
                 name_groups[i].append(k)
                 found = True
                 break
 
         if not found:
-            param_groups[nb_names]['params'].append(v)
+            param_groups[nb_names]["params"].append(v)
             name_groups[nb_names].append(k)
 
     return remove_empty(param_groups, name_groups)
+
 
 def wb(model: torch.nn.Module):
     """
     Build a partition containing 3 groups of parameters: weights, biases and other.
     """
-    return names(model, ['weight', 'bias'])
+    return names(model, ["weight", "bias"])
+
 
 def blocks(model: torch.nn.Module, num_blocks):
     params = list(model.named_parameters())
@@ -128,15 +132,15 @@ def blocks(model: torch.nn.Module, num_blocks):
             p -= p // b + 1
             b -= 1
 
-    param_groups = [{'params': []} for i in range(num_blocks * 2)]
+    param_groups = [{"params": []} for i in range(num_blocks * 2)]
     name_groups = [[] for i in range(num_blocks * 2)]
     i_block = 0
     for k, v in params:
-        if check(k, 'weight'):
-            param_groups[i_block * 2]['params'].append(v)
+        if check(k, "weight"):
+            param_groups[i_block * 2]["params"].append(v)
             name_groups[i_block * 2].append(k)
-        elif check(k, 'bias'):
-            param_groups[i_block * 2 + 1]['params'].append(v)
+        elif check(k, "bias"):
+            param_groups[i_block * 2 + 1]["params"].append(v)
             name_groups[i_block * 2 + 1].append(k)
         else:
             raise NotImplementedError('Cannot handle other parameters than "weight" or "bias".')

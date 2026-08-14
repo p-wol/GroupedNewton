@@ -8,11 +8,11 @@ from grnewt.optimizers import AdamUpdate, SGDUpdate
 
 
 class Perceptron(torch.nn.Module):
-    def __init__(self, layers, act_name = 'tanh'):
+    def __init__(self, layers, act_name="tanh"):
         super().__init__()
 
-        if act_name == 'identity':
-            act_name = 'linear'
+        if act_name == "identity":
+            act_name = "linear"
 
         gain = torch.nn.init.calculate_gain(act_name)
 
@@ -23,9 +23,9 @@ class Perceptron(torch.nn.Module):
                 self.layers[-1].weight.mul_(gain)
         self.nb_layers = len(self.layers)
 
-        if act_name in ['tanh', 'sigmoid', 'relu']:
+        if act_name in ["tanh", "sigmoid", "relu"]:
             self.act_function = torch.__dict__[act_name]
-        elif act_name == 'linear':
+        elif act_name == "linear":
             self.act_function = lambda x: x
 
     def forward(self, x):
@@ -34,6 +34,7 @@ class Perceptron(torch.nn.Module):
             x = self.act_function(x)
         x = self.layers[-1](x)
         return x
+
 
 def check_equal(m1, m2):
     e = True
@@ -45,6 +46,7 @@ def check_equal(m1, m2):
         e &= torch.allclose(p, dct2[n])
     return e
 
+
 @pytest.fixture
 def dataset(model):
     num_batches = 5
@@ -55,16 +57,18 @@ def dataset(model):
 
     return x_tr, y_tr
 
+
 @pytest.fixture
 def model():
     layers = [100, 60, 20, 10]
-    act_name = 'tanh'
+    act_name = "tanh"
 
     return Perceptron(layers, act_name)
 
+
 def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
     # Define loss, dataset and models
-    loss_mean = torch.nn.MSELoss(reduction = 'mean')
+    loss_mean = torch.nn.MSELoss(reduction="mean")
     x_tr, y_tr = dataset
     model1 = model
     model2 = copy.deepcopy(model)
@@ -98,16 +102,18 @@ def _test_optim(model, dataset, Cl_Update, Cl_Optim, **kwargs):
         for n, p1 in model1.named_parameters():
             p2 = dict(model2.named_parameters())[n]
             assert torch.allclose(p1, p2), (
-                f"diverged at step {i} on {n}: "
-                f"max|diff| = {(p1 - p2).abs().max().item():.3e}"
+                f"diverged at step {i} on {n}: max|diff| = {(p1 - p2).abs().max().item():.3e}"
             )
     return True
 
+
 def test_adam(f64, model, dataset):
-    assert _test_optim(model, dataset, AdamUpdate, Adam, lr = 1e-3)
+    assert _test_optim(model, dataset, AdamUpdate, Adam, lr=1e-3)
+
 
 def test_sgd(f64, model, dataset):
-    assert _test_optim(model, dataset, SGDUpdate, SGD, lr = 1e-3)
+    assert _test_optim(model, dataset, SGDUpdate, SGD, lr=1e-3)
+
 
 @pytest.mark.parametrize("Cl_Update", [SGDUpdate, AdamUpdate])
 def test_step_is_a_descent_step(f64, model, dataset, Cl_Update):
@@ -144,4 +150,3 @@ def test_compute_step_returns_a_positive_direction(f64, model, dataset, Cl_Updat
     direction = updater.compute_step()
     for p, d in zip(model.parameters(), direction):
         assert (p.grad * d).sum() > 0, "direction must be aligned with +grad"
-

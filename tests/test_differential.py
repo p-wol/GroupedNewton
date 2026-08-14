@@ -10,23 +10,27 @@ def _apply_poly(poly, x):
     acc = 0
     pow_x = x.pow(0)
 
-    for i in range(d+1):
+    for i in range(d + 1):
         acc = acc + poly.coef[i] * pow_x
         pow_x = pow_x * x
 
     return acc
 
+
 @pytest.fixture
 def poly_mono_1():
-    return Polynomial([1, 2, -1, .5, -.2, .1])
+    return Polynomial([1, 2, -1, 0.5, -0.2, 0.1])
+
 
 @pytest.fixture
 def point_x_1():
     return torch.nn.Parameter(torch.ones(1).squeeze())
 
+
 @pytest.fixture
 def direction_1():
     return [torch.ones(1).squeeze()]
+
 
 def test_diff_n_poly_mono(poly_mono_1, point_x_1, direction_1):
     poly = poly_mono_1
@@ -37,6 +41,7 @@ def test_diff_n_poly_mono(poly_mono_1, point_x_1, direction_1):
     # Compute with grnewt
     param_struct = grnewt.ParamStructure([{"params": [x]}])
     order = poly.degree() + 1
+
     def full_loss(x_, y_):
         return _apply_poly(poly, x_)
 
