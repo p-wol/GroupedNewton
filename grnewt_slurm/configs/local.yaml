@@ -1,6 +1,0 @@
-# configs/paths/local.yaml  --  package: paths
-# For a laptop / any machine with no Jean Zay environment.
-work: ${oc.env:HOME}
-scratch: /tmp
-datasets: ${oc.env:HOME}/datasets
-results: ./data/outputs
