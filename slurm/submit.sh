@@ -37,10 +37,10 @@ export HYDRA_FULL_ERROR=1
 export OC_CAUSE=1
 
 echo "=== dry composition, nothing submitted ==="
-# job config: catches interpolation/typing errors in the experiment parameters
-python main_hydra.py --cfg job --resolve "run_id=${RUN_ID}" "$@" > /dev/null
-# launcher: NOT via `--cfg hydra --resolve`, which strips the non-hydra top-level keys
-# and then cannot resolve ${paths.results}. See slurm/check_config.py.
+# One single check, on the exact argument list that will be swept below.
+# NOT `python main_hydra.py --cfg job --resolve "$@"`: that is a single-run composition,
+# which rejects `optimizer.lr=a,b,c` as ambiguous. check_config.py collapses sweeps to
+# their first value before composing, and resolves both the job config and the launcher.
 python slurm/check_config.py "run_id=${RUN_ID}" "$@"
 
 echo "=== submitting (run_id=${RUN_ID}) ==="
