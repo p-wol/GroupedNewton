@@ -36,10 +36,12 @@ RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 export HYDRA_FULL_ERROR=1
 export OC_CAUSE=1
 
-echo "=== resolved config (dry composition, nothing submitted) ==="
+echo "=== dry composition, nothing submitted ==="
+# job config: catches interpolation/typing errors in the experiment parameters
 python main_hydra.py --cfg job --resolve "run_id=${RUN_ID}" "$@" > /dev/null
-python main_hydra.py --cfg hydra --package hydra.launcher --resolve \
-    "run_id=${RUN_ID}" "$@"
+# launcher: NOT via `--cfg hydra --resolve`, which strips the non-hydra top-level keys
+# and then cannot resolve ${paths.results}. See slurm/check_config.py.
+python slurm/check_config.py "run_id=${RUN_ID}" "$@"
 
 echo "=== submitting (run_id=${RUN_ID}) ==="
 python main_hydra.py --multirun "run_id=${RUN_ID}" "$@"

@@ -92,12 +92,16 @@ for m in ("torch", "torchvision", "hydra", "omegaconf", "submitit",
 PY
 
 echo "== 4. Hydra composition (no submission) =="
-if HYDRA_FULL_ERROR=1 python main_hydra.py --cfg hydra --package hydra.launcher \
-        --resolve run_id=preflight >/tmp/grnewt_launcher.$$ 2>&1; then
+# NB: `--cfg hydra --resolve` cannot be used here: Hydra strips every non-hydra
+# top-level key from that view, so ${paths.results} becomes unresolvable. See
+# slurm/check_config.py.
+if HYDRA_FULL_ERROR=1 python slurm/check_config.py run_id=preflight \
+        >/tmp/grnewt_launcher.$$ 2>&1; then
     pass "hydra.launcher composes and resolves"
     sed 's/^/      /' /tmp/grnewt_launcher.$$
 else
-    fail "hydra.launcher does not compose:"; sed 's/^/      /' /tmp/grnewt_launcher.$$
+    fail "hydra.launcher does not compose or does not resolve:"
+    sed 's/^/      /' /tmp/grnewt_launcher.$$
     echo "      If the message mentions BasicLauncherConf, re-read step 0."
 fi
 rm -f /tmp/grnewt_launcher.$$
