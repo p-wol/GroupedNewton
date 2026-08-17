@@ -1,0 +1,136 @@
+# configs/config.yaml
+#
+# Primary config. Contains NO launcher settings: those live in configs/cluster/*.yaml
+# (package hydra.launcher) and are merged on top of the *typed* schema registered by
+# hydra-submitit-launcher, so that a typo in a field name is a composition-time error
+# instead of a silent no-op.
+#
+# Two invariants of this file:
+#   1. no `${now:...}` anywhere in a path. The timestamp is `run_id`, supplied on the
+#      command line by slurm/submit.sh, so that the value resolved on the login node and
+#      the value resolved inside the job are the same string by construction.
+#   2. no absolute /gpfswork or /lustre path. All roots come from configs/paths/*.yaml
+#      via $WORK / $SCRATCH / $DSDIR.
+
+defaults:
+  # First: select the typed launcher schema registered by hydra-submitit-launcher.
+  # configs/cluster/*.yaml (package hydra.launcher) is merged on top of it afterwards,
+  # so an unknown field there is a composition error rather than a silent no-op.
+  - override hydra/launcher: submitit_slurm
+  - paths: jz
+  - cluster: jz_v100_t3
+  - _self_
+
+# Mandatory, no default: `python main_hydra.py` without a run_id must fail loudly
+# rather than silently write into a directory that another run also owns.
+run_id: ???
+expe_series: 'tests'
+
+seed: 1
+
+# Set to true to check the whole Hydra/Slurm/submitit chain without touching the data:
+# the job prints its environment, writes probe.json, and returns.
+dry_run: false
+
+system:
+    dtype: 64
+    device: 0          # 0 is correct under --gres=gpu:1: CUDA_VISIBLE_DEVICES is set by Slurm
+model:
+    name: 'Perceptron'
+    args: '784-200-100-10'
+    act_function: 'tanh'
+    scaling: False
+    init:
+        sigma_w: 1.
+        sigma_b: 0.
+dataset:
+    name: 'MNIST'
+    path: ${paths.datasets}
+    train_size: -1
+    valid_size: 10000
+    test_size: -1
+    batch_size: 100
+    autoencoder: False
+    data_augm: False
+    teacher:
+        args: '1-1'
+        act_function: 'identity'
+        sigma_w: 1.
+        sigma_b: .01
+logs_hg:
+    use: False
+    batch_size: 1000
+    test_float: False
+logs_diff:
+    use: False
+    order: 2
+    partition: 'trivial'
+    try_descent:
+        use: False
+        minlr: .0000001
+        maxlr: .1
+        numlr: 7
+optimizer:
+    epochs: 10
+    name: 'SGD'
+    lr: .01
+    weight_decay: 0.
+    momentum: .9
+    hg:
+        diagonal: False
+        batch_size: -1
+        partition: 'canonical'
+        damping: 1.
+        damping_schedule: 'None'
+        period_hg: 1
+        mom_lrs: 0.
+        movavg: 0.
+        maintain_true_lrs: True
+        ridge: 0
+        nologs: False
+        updater:
+            name: 'SGD'
+            momentum: .9
+            momentum_damp: 0
+        nesterov:
+            use: False
+            damping_int: 1.
+            mom_order3_: 0.
+        remove_negative: False
+        uniform_avg:
+            period: 1
+            warmup: 0
+        dmp_auto:
+            use: False
+            apply_to: 'damping'
+            patience: 1
+            cooldown: 0
+            threshold: .9
+            factor: .9
+    newtonsto:
+        lr_param: .01
+        lr_direction: .01
+        ridge: 0.
+    kfac:
+        stat_decay: .95
+        damping: .001
+        kl_clip: .01
+        weight_decay: .003
+        tcov: 10
+        tinv: 100
+    lbfgs:
+        max_iter: 20
+        history_size: 100
+        line_search_fn: None
+
+hydra:
+    job:
+        chdir: false          # the trainer uses runtime.output_dir; never rely on cwd
+    run:
+        dir: ${paths.results}/${expe_series}/${run_id}
+    sweep:
+        dir: ${paths.results}/${expe_series}/${run_id}
+        subdir: ${hydra.job.num}
+    callbacks:
+        log_job_return:
+            _target_: hydra.experimental.callbacks.LogJobReturnCallback
