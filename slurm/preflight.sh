@@ -1,12 +1,47 @@
 #!/bin/bash
-# slurm/preflight.sh -- run this on a Jean Zay login node before anything else.
+# slurm/preflight.sh (v2) -- run this on a Jean Zay login node before anything else.
 # Each check corresponds to a failure mode whose Slurm-side symptom is uninformative.
 # Nothing is submitted.
+#
+# v2 changes:
+#   * step 0: verify that the NEW Hydra layer is actually installed. Without it, step 4
+#     composes the old configs/config_hydra.yaml, whose hydra: block is merged onto
+#     BasicLauncherConf, and fails with
+#         Key 'submitit_folder' not in 'BasicLauncherConf'
+#     which says nothing about Jean Zay.
+#   * fixed a command-substitution bug: backticks inside a double-quoted echo were
+#     executing sacctmgr instead of printing it.
 
 cd "$(dirname "$0")/.."
 ok=0; ko=0
 pass() { echo "  PASS  $1"; ok=$((ok+1)); }
 fail() { echo "  FAIL  $1"; ko=$((ko+1)); }
+
+echo "== 0. installation of the new Hydra layer =="
+echo "      repo root: $(pwd)"
+if [ ! -f main_hydra.py ]; then
+    fail "main_hydra.py not found here -- preflight.sh is not in <repo>/slurm/"
+elif grep -q 'config_name="config_hydra"' main_hydra.py; then
+    fail "main_hydra.py is the OLD one (config_name=\"config_hydra\"): it composes
+        configs/config_hydra.yaml, which has no 'override hydra/launcher' and therefore
+        merges Slurm fields onto BasicLauncherConf. Install the new main_hydra.py."
+elif grep -q 'config_name="config"' main_hydra.py; then
+    pass "main_hydra.py uses config_name=\"config\""
+else
+    fail "main_hydra.py: cannot identify config_name -- check it by hand"
+fi
+for f in configs/config.yaml configs/paths/jz.yaml configs/cluster/jz_v100_t3.yaml \
+         configs/cluster/jz_v100_dev.yaml; do
+    if [ -f "$f" ]; then pass "$f"; else fail "$f is missing"; fi
+done
+if grep -q 'override hydra/launcher' configs/config.yaml 2>/dev/null; then
+    pass "configs/config.yaml selects the submitit_slurm launcher schema"
+else
+    fail "configs/config.yaml has no 'override hydra/launcher: submitit_slurm'"
+fi
+for f in configs/config_hydra.yaml configs/mlxp.yaml configs/mlxpy.yaml; do
+    [ -f "$f" ] && echo "  WARN  $f still present; delete it to avoid composing it by accident"
+done
 
 echo "== 1. project / accounting =="
 if [ -n "${GRNEWT_PROJECT:-}" ]; then pass "GRNEWT_PROJECT=$GRNEWT_PROJECT"
@@ -15,7 +50,7 @@ if command -v idrproj >/dev/null 2>&1; then
     echo "  --- idrproj (check the code and the @v100/@a100/@h100 hours you own) ---"
     idrproj 2>&1 | sed 's/^/      /'
 else
-    echo "  (idrproj not found; use idracct or `sacctmgr show assoc user=$USER`)"
+    echo '      (idrproj not found; try idracct, or: sacctmgr show assoc user=$USER)'
 fi
 
 echo "== 2. disk spaces =="
@@ -63,6 +98,7 @@ if HYDRA_FULL_ERROR=1 python main_hydra.py --cfg hydra --package hydra.launcher 
     sed 's/^/      /' /tmp/grnewt_launcher.$$
 else
     fail "hydra.launcher does not compose:"; sed 's/^/      /' /tmp/grnewt_launcher.$$
+    echo "      If the message mentions BasicLauncherConf, re-read step 0."
 fi
 rm -f /tmp/grnewt_launcher.$$
 
