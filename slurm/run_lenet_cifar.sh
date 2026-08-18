@@ -4,7 +4,8 @@
 set -euo pipefail
 
 exec "$(dirname "$0")/submit.sh" \
-    cluster=jz_v100_t3 \
+    paths=local_perso \
+    cluster=none \
     expe_series='LeNet_CIFAR_Adam_01_grid' \
     seed=571677914 \
     system.dtype=32 \
@@ -20,7 +21,7 @@ exec "$(dirname "$0")/submit.sh" \
     dataset.data_augm=False \
     logs_hg.use=False \
     logs_hg.batch_size=1000 \
-    optimizer.epochs=200 \
+    optimizer.epochs=1 \
     optimizer.name='Adam' \
     optimizer.lr=.0003,.0001,.00003 \
     optimizer.weight_decay=0. \

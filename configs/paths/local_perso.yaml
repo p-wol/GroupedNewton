@@ -1,0 +1,7 @@
+# configs/paths/local.yaml  --  package: paths
+# For the personal laptop (no Jean Zay environment).
+work: ${oc.env:GRNEWT_WORK}
+scratch: ${oc.env:GRNEWT_SCRATCH}
+datasets: ${oc.env:GRNEWT_DATASETS}
+results: ${oc.env:GRNEWT_RESULTS}
+
