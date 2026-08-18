@@ -29,7 +29,7 @@ exec "$(dirname "$0")/submit.sh" \
     optimizer.hg.batch_size=100 \
     optimizer.hg.partition='canonical' \
     optimizer.hg.damping=.3 \
-    optimizer.hg.period_hg=10 \
+    optimizer.hg.period_hg=1 \
     optimizer.hg.remove_negative=True \
     optimizer.hg.updater.name='SGD' \
     optimizer.hg.updater.momentum=.9 \
