@@ -6,7 +6,7 @@ set -euo pipefail
 exec "$(dirname "$0")/submit.sh" \
     paths=local_perso \
     cluster=none \
-    expe_series='LeNet_CIFAR_Adam_01_grid' \
+    expe_series='LeNet_CIFAR_02_rerun_expes' \
     seed=571677914 \
     system.dtype=32 \
     model.name='LeNet' \
@@ -21,9 +21,9 @@ exec "$(dirname "$0")/submit.sh" \
     dataset.data_augm=False \
     logs_hg.use=False \
     logs_hg.batch_size=1000 \
-    optimizer.epochs=1 \
-    optimizer.name='Adam' \
-    optimizer.lr=.0003,.0001,.00003 \
+    optimizer.epochs=200 \
+    optimizer.name='NewtonSummaryUniformAvg' \
+    optimizer.lr=.003 \
     optimizer.weight_decay=0. \
     optimizer.momentum=.9 \
     optimizer.hg.batch_size=100 \
