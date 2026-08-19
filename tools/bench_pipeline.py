@@ -64,7 +64,13 @@ def main() -> int:
     p.add_argument("--steps", type=int, default=200)
     p.add_argument("--deterministic", type=int, default=1,
                    help="1 reproduces set_seeds(): cudnn.deterministic=True, benchmark=False")
+    p.add_argument("--threads", type=int, default=0,
+                   help="torch.set_num_threads(N); 0 leaves the default. Use 1 to test "
+                        "intra-op thread oversubscription on 3x32x32 tensors.")
     args = p.parse_args()
+
+    if args.threads > 0:
+        torch.set_num_threads(args.threads)
 
     torch.backends.cudnn.deterministic = bool(args.deterministic)
     torch.backends.cudnn.benchmark = not bool(args.deterministic)
@@ -155,6 +161,64 @@ def main() -> int:
         nb += 1
     e = time.perf_counter() - t
     print(f"  {e:.2f} s for {nb} batches  ({e / nb * 1e3:.2f} ms/batch)")
+
+    print("=== [D2] same step WITHOUT the per-step .item() ===")
+    # training_hydra.py calls .item() on every iteration (lines 461-463, 520-524), which
+    # forces a host-device sync 450 times per epoch and prevents any overlap between the
+    # launch of step n+1 and the execution of step n.
+    for _ in range(20):
+        opt.zero_grad(set_to_none=True)
+        lossf(model(x), y).backward()
+        opt.step()
+    if dev.type == "cuda":
+        torch.cuda.synchronize()
+    t = time.perf_counter()
+    acc = torch.zeros((), device=dev, dtype=dtype)
+    for _ in range(args.steps):
+        opt.zero_grad(set_to_none=True)
+        loss = lossf(model(x), y)
+        loss.backward()
+        opt.step()
+        acc += loss.detach()      # accumulate on the device, read once at the end
+    acc.item()
+    if dev.type == "cuda":
+        torch.cuda.synchronize()
+    d2 = (time.perf_counter() - t) / args.steps
+    print(f"  {d2 * 1e3:.2f} ms/step  ->  {d2 * 450 * 1e3:.0f} ms for 450 steps "
+          f"({(d - d2) / d * 100:+.0f} % vs [D])")
+
+    print("=== [F] epoch with the dataset resident on the device, no DataLoader ===")
+    # Legitimate only because data_augm=False makes transform_train deterministic
+    # (ToTensor + Normalize): precomputing it once is exactly equivalent, up to the
+    # shuffling order. Memory: 50000*3*32*32*4 B = 614 MB in fp32, 1.2 GB in fp64.
+    t = time.perf_counter()
+    big = torch.stack([trainset[i][0] for i in range(len(trainset))])
+    labels = torch.tensor(trainset.targets)
+    prep = time.perf_counter() - t
+    try:
+        gx = big.to(dev, dtype)
+        gy = labels.to(dev)
+        print(f"  one-off preparation: {prep:.1f} s, {gx.numel() * gx.element_size() / 2**20:.0f} MiB on device")
+        if dev.type == "cuda":
+            torch.cuda.synchronize()
+        t = time.perf_counter()
+        perm = torch.randperm(gx.shape[0], device=dev)
+        nb = 0
+        for i in range(0, gx.shape[0], args.batch_size):
+            idx = perm[i:i + args.batch_size]
+            opt.zero_grad(set_to_none=True)
+            loss = lossf(model(gx[idx]), gy[idx])
+            loss.backward()
+            opt.step()
+            acc += loss.detach()
+            nb += 1
+        acc.item()
+        if dev.type == "cuda":
+            torch.cuda.synchronize()
+        f = time.perf_counter() - t
+        print(f"  {f:.2f} s for {nb} batches  ({f / nb * 1e3:.2f} ms/batch)")
+    except RuntimeError as exc:
+        print(f"  skipped: {exc}")
 
     print("=== reading ===")
     print(f"  host-side share of [E]: {(e - d * nb) / e * 100:.0f} %  "
