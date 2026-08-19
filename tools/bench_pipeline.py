@@ -64,6 +64,12 @@ def main() -> int:
     p.add_argument("--steps", type=int, default=200)
     p.add_argument("--deterministic", type=int, default=1,
                    help="1 reproduces set_seeds(): cudnn.deterministic=True, benchmark=False")
+    p.add_argument("--pin-memory", type=int, default=0,
+                   help="DataLoader(pin_memory=...). Only useful together with "
+                        "--non-blocking 1, and only if the tensor actually transferred "
+                        "is the pinned one (see [E2]).")
+    p.add_argument("--non-blocking", type=int, default=0,
+                   help="use .to(..., non_blocking=True) for the host-to-device copy")
     p.add_argument("--threads", type=int, default=0,
                    help="torch.set_num_threads(N); 0 leaves the default. Use 1 to test "
                         "intra-op thread oversubscription on 3x32x32 tensors.")
@@ -113,7 +119,8 @@ def main() -> int:
 
     loader = data.DataLoader(trainset, args.batch_size, shuffle=True,
                              num_workers=args.workers,
-                             persistent_workers=args.workers > 0)
+                             persistent_workers=args.workers > 0,
+                             pin_memory=bool(args.pin_memory))
 
     print("=== [C] one pass over the train loader, no model ===")
     t = time.perf_counter()
@@ -147,12 +154,20 @@ def main() -> int:
     print(f"  {d * 1e3:.2f} ms/step (including the .item() sync)  ->  "
           f"{d * 450 * 1e3:.0f} ms for 450 steps")
 
+    print(f"  (pin_memory={bool(args.pin_memory)}, "
+          f"non_blocking={bool(args.non_blocking)})")
+    nbk = bool(args.non_blocking)
+
     print("=== [E] loader + transfer + step, as the trainer runs it ===")
+    # loader_pre_hooks.classification does x.to(device=..., dtype=...): when the loader
+    # yields float32 and dtype is float64, the cast and the transfer are requested in one
+    # call, and whether the pinned buffer is the thing actually DMA'd is not guaranteed.
+    # [E2] below separates the two so the question is answered by measurement.
     t = time.perf_counter()
     nb = 0
     for xb, yb in loader:
-        xb = xb.to(dev, dtype)
-        yb = yb.to(dev)
+        xb = xb.to(dev, dtype, non_blocking=nbk)
+        yb = yb.to(dev, non_blocking=nbk)
         opt.zero_grad(set_to_none=True)
         loss = lossf(model(xb), yb)
         loss.backward()
@@ -161,6 +176,22 @@ def main() -> int:
         nb += 1
     e = time.perf_counter() - t
     print(f"  {e:.2f} s for {nb} batches  ({e / nb * 1e3:.2f} ms/batch)")
+
+    print("=== [E2] same, but transfer first and cast on the device ===")
+    t = time.perf_counter()
+    nb = 0
+    for xb, yb in loader:
+        xb = xb.to(dev, non_blocking=nbk).to(dtype)   # DMA the pinned tensor, then cast
+        yb = yb.to(dev, non_blocking=nbk)
+        opt.zero_grad(set_to_none=True)
+        loss = lossf(model(xb), yb)
+        loss.backward()
+        opt.step()
+        loss.item()
+        nb += 1
+    e2 = time.perf_counter() - t
+    print(f"  {e2:.2f} s for {nb} batches  ({e2 / nb * 1e3:.2f} ms/batch, "
+          f"{(e - e2) / e * 100:+.0f} % vs [E])")
 
     print("=== [D2] same step WITHOUT the per-step .item() ===")
     # training_hydra.py calls .item() on every iteration (lines 461-463, 520-524), which
@@ -185,7 +216,8 @@ def main() -> int:
         torch.cuda.synchronize()
     d2 = (time.perf_counter() - t) / args.steps
     print(f"  {d2 * 1e3:.2f} ms/step  ->  {d2 * 450 * 1e3:.0f} ms for 450 steps "
-          f"({(d - d2) / d * 100:+.0f} % vs [D])")
+          f"({(d - d2) / d * 100:.0f} % faster than [D], "
+          f"{(d - d2) * 450 * 1e3:.0f} ms saved per epoch)")
 
     print("=== [F] epoch with the dataset resident on the device, no DataLoader ===")
     # Legitimate only because data_augm=False makes transform_train deterministic
