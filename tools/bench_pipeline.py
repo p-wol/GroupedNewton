@@ -122,13 +122,20 @@ def main() -> int:
                              persistent_workers=args.workers > 0,
                              pin_memory=bool(args.pin_memory))
 
-    print("=== [C] one pass over the train loader, no model ===")
-    t = time.perf_counter()
-    nb = 0
-    for _ in loader:
-        nb += 1
-    c = time.perf_counter() - t
-    print(f"  {c:.2f} s for {nb} batches  ({c / nb * 1e3:.2f} ms/batch)")
+    print("=== [C] passes over the train loader, no model ===")
+    # Two passes: with persistent_workers=True the first one pays the spawning of the
+    # worker processes, which the trainer pays once per run and not once per epoch.
+    # Compare [E] against C2, never against C1.
+    c = None
+    for k in (1, 2):
+        t = time.perf_counter()
+        nb = 0
+        for _ in loader:
+            nb += 1
+        ck = time.perf_counter() - t
+        tag = "C1 (includes worker spawn)" if k == 1 else "C2 (steady state)"
+        print(f"  {tag:<28} {ck:.2f} s for {nb} batches  ({ck / nb * 1e3:.2f} ms/batch)")
+        c = ck
 
     model = LeNet().to(dev, dtype)
     opt = torch.optim.SGD(model.parameters(), lr=1e-3)
