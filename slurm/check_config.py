@@ -10,7 +10,7 @@ Two modes, because the invariants differ:
          anything about it is meaningless. What matters instead is that CUDA agrees with
          `system.device`.
 
-Mode is auto-detected from the selected `cluster` option (`cluster=none` -> local) and
+Mode is auto-detected from the selected `machine` option (`machine=none` -> local) and
 can be forced with --mode=slurm|local.
 
 Design notes:
@@ -25,8 +25,8 @@ Design notes:
     outside an actual job.
 
 Usage, from the repo root:
-    python slurm/check_config.py run_id=check cluster=jz_v100_dev optimizer.lr=1e-3,1e-4
-    python slurm/check_config.py --mode=local run_id=check paths=local cluster=none
+    python slurm/check_config.py run_id=check machine=jz_v100_dev optimizer.lr=1e-3,1e-4
+    python slurm/check_config.py --mode=local run_id=check paths=local machine=none
 Exit code 0 = the run would compose and resolve.
 """
 
@@ -106,7 +106,7 @@ def detect_mode(cfg) -> str:
     `account: ${oc.env:GRNEWT_PROJECT}@v100` raises, and that machine is precisely the
     one where the answer is 'local'."""
     try:
-        return "local" if str(cfg.hydra.runtime.choices.cluster) == "none" else "slurm"
+        return "local" if str(cfg.hydra.runtime.choices.machine) in ("none", "laptop") else "slurm"
     except Exception:
         pass
     try:

@@ -581,7 +581,8 @@ class Trainer:
             f_loader_pre_hook = loader_pre_hooks.classification
 
         self.loader_pre_hook = lambda x, y: f_loader_pre_hook(
-                x, y, device=self.device, dtype=self.dtype, non_blocking=self.args.dsloader.non_blocking
+                x, y, device=self.device, dtype=self.dtype, 
+                non_blocking=self.args.dsloader.non_blocking
             )
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):

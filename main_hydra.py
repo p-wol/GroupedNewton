@@ -101,11 +101,23 @@ def main(cfg: DictConfig):
     # Fail immediately, not after 40 minutes of CPU training, if a GPU was requested and
     # is not there. This is the single most common consequence of a wrong --gres.
     if int(cfg.system.device) > -2:
-        torch_env = env.get("torch")
-        if not isinstance(torch_env, dict) or not torch_env["cuda_available"]:
+        t = env.get("torch")
+        if not isinstance(t, dict) or not t["cuda_available"]:
+            node = env["slurm"].get("SLURM_NODELIST", "?")
+            allocated = env["slurm"].get("SLURM_JOB_GPUS") or env["slurm"].get("SLURM_STEP_GPUS")
+            smi = env["nvidia_smi"]
+            if allocated and "No devices were found" in smi:
+                raise RuntimeError(
+                    f"Slurm allocated GPU(s) {allocated} on node {node}, but the driver "
+                    f"enumerates none (nvidia-smi: {smi!r}). This is a node fault, not a "
+                    f"configuration error: resubmit with "
+                    f"hydra.launcher.exclude={node} and report the node to assist@idris.fr."
+                )
             raise RuntimeError(
-                f"CUDA requested (system.device={cfg.system.device}) but unavailable. "
-                f"CUDA_VISIBLE_DEVICES={env['cuda_visible_devices']!r}. See env.json."
+                f"CUDA requested (system.device={cfg.system.device}) but unavailable on "
+                f"{node}.\n  CUDA_VISIBLE_DEVICES = {env['cuda_visible_devices']!r}\n"
+                f"  nvidia-smi = {smi}\n"
+                f"  LOADEDMODULES = {os.environ.get('LOADEDMODULES', '<unset>')}"
             )
 
     if cfg.dry_run:
