@@ -5,8 +5,8 @@
 # an unknown key here is a composition-time error, which is what we want.
 
 dsloader:
-    num_workers: 6
-    num_workers_eval: 2
+    num_workers: 9
+    num_workers_eval: 5
     pin_memory: True
     non_blocking: True
 
