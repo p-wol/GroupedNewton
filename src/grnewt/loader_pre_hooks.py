@@ -1,6 +1,6 @@
-def classification(x, y, device, dtype):
-    return x.to(device=device, dtype=dtype), y.to(device=device)
+def classification(x, y, **kwargs):
+    return x.to(**kwargs), y.to(**{k: v for k, v in kwargs.items() if k != "dtype"})
 
 
-def regression(x, y, device, dtype):
-    return x.to(device=device, dtype=dtype), y.to(device=device, dtype=dtype)
+def regression(x, y, **kwargs):
+    return x.to(**kwargs), y.to(**kwargs)

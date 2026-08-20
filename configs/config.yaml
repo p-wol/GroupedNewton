@@ -16,7 +16,6 @@ defaults:
   # First: select the typed launcher schema registered by hydra-submitit-launcher.
   # configs/cluster/*.yaml (package hydra.launcher) is merged on top of it afterwards,
   # so an unknown field there is a composition error rather than a silent no-op.
-  - paths: jz
   - cluster: jz_v100_t3
   - override hydra/launcher: submitit_slurm
   - _self_
@@ -25,6 +24,16 @@ defaults:
 # rather than silently write into a directory that another run also owns.
 run_id: ???
 expe_series: 'tests'
+
+paths:
+    datasets: ${oc.env:GRNEWT_DATASETS}
+    results: ${oc.env:GRNEWT_RESULTS}
+
+dsloader:
+    num_workers: ${oc.env:GRNEWT_NUM_WORKERS}
+    num_workers_eval: ${oc.env:GRNEWT_NUM_WORKERS_EVAL}
+    pin_memory: ${oc.env:GRNEWT_PIN_MEMORY}
+    non_blocking: ${oc.env:GRNEWT_NON_BLOCKING}
 
 seed: 1
 

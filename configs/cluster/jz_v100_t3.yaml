@@ -7,9 +7,9 @@
 # --- accounting -------------------------------------------------------------------
 # MANDATORY on Jean Zay. IDRIS documents the account as "must be specified":
 # --account=<3-letter project>@v100 for V100 hours. Exported by slurm/submit.sh.
-# If GRNEWT_PROJECT is unset, composition fails on the login node with a readable error,
+# If JZ_PROJECT is unset, composition fails on the login node with a readable error,
 # which is strictly better than an sbatch rejection buried in a submitit pickle.
-account: ${oc.env:GRNEWT_PROJECT}@v100
+account: ${oc.env:JZ_PROJECT}@v100
 
 # --- placement --------------------------------------------------------------------
 # The 4xV100 partition is the *default* GPU partition: IDRIS' summary table gives
@@ -45,11 +45,12 @@ additional_parameters:
 # NB: do NOT write ${VAR} here, OmegaConf would try to interpolate it. $VAR is safe.
 setup:
   - "module purge"
-  - "module load pytorch-gpu/py3/2.4.0"
+  - "module load pytorch-gpu/py3/2.8.0"
   - "export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK"
   - "export PYTHONUNBUFFERED=1"
   - "export HF_HUB_OFFLINE=1"
   - "export TORCH_HOME=$WORK/.cache/torch"
+  - "export $(cat .env | xargs)"
   # compute nodes have no route to the internet: any download attempt hangs until the
   # wall-clock limit rather than failing fast.
 

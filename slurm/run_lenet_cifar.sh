@@ -4,9 +4,8 @@
 set -euo pipefail
 
 exec "$(dirname "$0")/submit.sh" \
-    paths=local_perso \
-    cluster=none \
-    expe_series='LeNet_CIFAR_02_rerun_expes' \
+    cluster=jz_v100_t3 \
+    expe_series='LeNet_CIFAR_03_test_ds_optims' \
     seed=571677914 \
     system.dtype=32 \
     model.name='LeNet' \
@@ -21,7 +20,7 @@ exec "$(dirname "$0")/submit.sh" \
     dataset.data_augm=False \
     logs_hg.use=False \
     logs_hg.batch_size=1000 \
-    optimizer.epochs=200 \
+    optimizer.epochs=2 \
     optimizer.name='NewtonSummaryUniformAvg' \
     optimizer.lr=.003 \
     optimizer.weight_decay=0. \

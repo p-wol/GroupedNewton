@@ -576,12 +576,12 @@ class Trainer:
         self.tup_names = tuple(n for n, p in self.model.named_parameters())
 
         if self.args.dataset.autoencoder:
-            self.loader_pre_hook = lambda x, y: loader_pre_hooks.regression(
-                x, y, self.device, self.dtype
-            )
+            f_loader_pre_hook = loader_pre_hooks.regression
         else:
-            self.loader_pre_hook = lambda x, y: loader_pre_hooks.classification(
-                x, y, self.device, self.dtype
+            f_loader_pre_hook = loader_pre_hooks.classification
+
+        self.loader_pre_hook = lambda x, y: f_loader_pre_hook(
+                x, y, device=self.device, dtype=self.dtype, non_blocking=self.args.dsloader.non_blocking
             )
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):

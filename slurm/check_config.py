@@ -120,7 +120,7 @@ def detect_mode(cfg) -> str:
 
 def check_paths(job_cfg, rep: Report) -> None:
     print("--- paths ---")
-    for k in ("work", "scratch", "datasets", "results"):
+    for k in ("datasets", "results"):
         print(f"  paths.{k:9s} = {job_cfg.paths[k]}")
 
     results = Path(str(job_cfg.paths.results))

@@ -23,6 +23,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+export $(sed '/^#/d; /^[[:space:]]*$/d' .env | xargs)
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 export HYDRA_FULL_ERROR=1
 export OC_CAUSE=1
@@ -39,12 +40,12 @@ fi
 
 if [ "$MODE" = "slurm" ]; then
     # 3-letter IDRIS project code, without the @v100 suffix. Set it in ~/.bashrc.
-    : "${GRNEWT_PROJECT:?set GRNEWT_PROJECT to your 3-letter IDRIS project code}"
-    export GRNEWT_PROJECT
+    : "${JZ_PROJECT:?set JZ_PROJECT to your 3-letter IDRIS project code}"
+    export JZ_PROJECT
     # The environment used to *submit* must be the one the job will use: submitit
     # hardcodes sys.executable of the submitting process into the sbatch script.
     module purge
-    module load pytorch-gpu/py3/2.4.0
+    module load pytorch-gpu/py3/2.8.0
 fi
 
 # --- dry composition, nothing run or submitted ---------------------------------------
