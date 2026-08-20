@@ -1,4 +1,4 @@
-# @package hydra.launcher
+# @package _global_
 #
 # For local, single-process runs (laptop, or an interactive allocation on Jean Zay).
 #
@@ -10,9 +10,12 @@
 # It is NOT usable for a local sweep: _target_ still comes from the submitit_slurm
 # schema. For a local sweep, loop in the shell (see docs/SLURM_JEANZAY.md).
 
+# either "slurm" or "local"
+launch_mode: local
+
 dsloader:
-    num_workers: 2
-    num_workers_eval: 0
+    num_workers: 15
+    num_workers_eval: 4
     pin_memory: True
     non_blocking: True
 

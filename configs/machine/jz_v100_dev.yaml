@@ -7,6 +7,9 @@
 # Slurm counts array *tasks* against that limit, so a --multirun producing 11 or more
 # configurations is rejected at submission time under this QoS. Keep sweeps <= 10 here.
 
+# either "slurm" or "local"
+launch_mode: slurm
+
 dsloader:
     num_workers: 9
     num_workers_eval: 5

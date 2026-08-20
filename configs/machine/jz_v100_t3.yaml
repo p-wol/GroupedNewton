@@ -4,6 +4,9 @@
 # Merged on top of the SlurmQueueConf schema registered by hydra-submitit-launcher:
 # an unknown key here is a composition-time error, which is what we want.
 
+# either "slurm" or "local"
+launch_mode: slurm
+
 dsloader:
     num_workers: 9
     num_workers_eval: 5

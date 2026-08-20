@@ -105,6 +105,8 @@ def detect_mode(cfg) -> str:
     """Must not resolve hydra.launcher: on a machine with no GRNEWT_PROJECT, resolving
     `account: ${oc.env:GRNEWT_PROJECT}@v100` raises, and that machine is precisely the
     one where the answer is 'local'."""
+    return cfg.launch_mode
+    """
     try:
         return "local" if str(cfg.hydra.runtime.choices.machine) in ("none", "laptop") else "slurm"
     except Exception:
@@ -116,6 +118,7 @@ def detect_mode(cfg) -> str:
         return "slurm"
     except Exception:
         return "local"  # unresolvable launcher: submission is impossible anyway
+    """
 
 
 def check_paths(job_cfg, rep: Report) -> None:

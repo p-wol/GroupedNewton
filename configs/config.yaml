@@ -16,9 +16,9 @@ defaults:
   # First: select the typed launcher schema registered by hydra-submitit-launcher.
   # configs/cluster/*.yaml (package hydra.launcher) is merged on top of it afterwards,
   # so an unknown field there is a composition error rather than a silent no-op.
+  - _self_
   - machine: jz_v100_t3
   - override hydra/launcher: submitit_slurm
-  - _self_
 
 # Mandatory, no default: `python main_hydra.py` without a run_id must fail loudly
 # rather than silently write into a directory that another run also owns.

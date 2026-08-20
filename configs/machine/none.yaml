@@ -10,6 +10,9 @@
 # It is NOT usable for a local sweep: _target_ still comes from the submitit_slurm
 # schema. For a local sweep, loop in the shell (see docs/SLURM_JEANZAY.md).
 
+# either "slurm" or "local"
+launch_mode: local
+
 dsloader:
     num_workers: 0
     num_workers_eval: 0
