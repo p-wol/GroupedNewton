@@ -382,6 +382,7 @@ class Trainer:
                     damping=args_hg.damping,
                     period_hg=args_hg.period_hg,
                     mom_lrs=args_hg.mom_lrs,
+                    ridge=args_hg.ridge,
                     dct_nesterov=dct_nesterov,
                     remove_negative=args_hg.remove_negative,
                     dct_uniform_avg=dct_uniform_avg,
@@ -439,9 +440,9 @@ class Trainer:
 
     def test_model(self, loader, dsname):
         with torch.no_grad():
-            cum_nll = 0
-            cum_pen = 0
-            cum_loss = 0
+            cum_nll = torch.zeros((), dtype=self.dtype, device=self.device)
+            cum_pen = torch.zeros((), dtype=self.dtype, device=self.device)
+            cum_loss = torch.zeros((), dtype=self.dtype, device=self.device)
             total = 0
             if self.classification:
                 correct = [
@@ -455,12 +456,12 @@ class Trainer:
                 # Forward
                 outputs = self.model(images)
                 nll = self.loss_fn(outputs, labels)
-                pen = torch.tensor(0.0)
+                pen = torch.zeros((), dtype=self.dtype, device=self.device)
                 loss = nll + pen
 
-                cum_nll += nll.item()
-                cum_pen += pen.item()
-                cum_loss += loss.item()
+                cum_nll += nll.detach()
+                cum_pen += pen.detach()
+                cum_loss += loss.detach()
 
                 total += labels.size(0)
 
@@ -474,9 +475,9 @@ class Trainer:
                         correct[idk] += tmp_correct[:k].reshape(-1).float().sum(0, keepdim=True)
 
             # Compute performance
-            mean_pen = cum_pen / (i + 1)
-            mean_nll = cum_nll / (i + 1)
-            mean_loss = cum_loss / (i + 1)
+            mean_pen = cum_pen.item() / (i + 1)
+            mean_nll = cum_nll.item() / (i + 1)
+            mean_loss = cum_loss.item() / (i + 1)
 
             metrics = {"nll": mean_nll, "pen": mean_pen, "loss": mean_loss}
 
@@ -494,9 +495,9 @@ class Trainer:
     def step_train(self):
         self.model.train()
 
-        cum_nll = 0
-        cum_pen = 0
-        cum_loss = 0
+        cum_nll = torch.zeros((), dtype=self.dtype, device=self.device)
+        cum_pen = torch.zeros((), dtype=self.dtype, device=self.device)
+        cum_loss = torch.zeros((), dtype=self.dtype, device=self.device)
         total = 0
         if self.classification:
             correct = [
@@ -513,15 +514,15 @@ class Trainer:
             self.optimizer.zero_grad()  # zero the gradient buffer
             outputs = self.model(images)
             nll = self.loss_fn(outputs, labels)
-            pen = torch.tensor(0.0)
+            pen = torch.zeros((), dtype=self.dtype, device=self.device)
             loss = nll + pen
 
             # TODO: detailed sequence of NLLs
-            self.logs_nlls.append(nll.item())
+            self.logs_nlls.append(nll.detach())
 
-            cum_nll += nll.item()
-            cum_pen += pen.item()
-            cum_loss += loss.item()
+            cum_nll += nll.detach()
+            cum_pen += pen.detach()
+            cum_loss += loss.detach()
 
             total += labels.size(0)
 
@@ -554,9 +555,9 @@ class Trainer:
             self.optimizer.step()
 
         # Compute performance
-        mean_pen = cum_pen / (i + 1)
-        mean_nll = cum_nll / (i + 1)
-        mean_loss = cum_loss / (i + 1)
+        mean_pen = cum_pen.item() / (i + 1)
+        mean_nll = cum_nll.item() / (i + 1)
+        mean_loss = cum_loss.item() / (i + 1)
 
         self.model.eval()
 
@@ -576,12 +577,13 @@ class Trainer:
         self.tup_names = tuple(n for n, p in self.model.named_parameters())
 
         if self.args.dataset.autoencoder:
-            self.loader_pre_hook = lambda x, y: loader_pre_hooks.regression(
-                x, y, self.device, self.dtype
-            )
+            f_loader_pre_hook = loader_pre_hooks.regression
         else:
-            self.loader_pre_hook = lambda x, y: loader_pre_hooks.classification(
-                x, y, self.device, self.dtype
+            f_loader_pre_hook = loader_pre_hooks.classification
+
+        self.loader_pre_hook = lambda x, y: f_loader_pre_hook(
+                x, y, device=self.device, dtype=self.dtype, 
+                non_blocking=self.args.dsloader.non_blocking
             )
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
@@ -744,9 +746,8 @@ class Trainer:
                 torch.save(logs_last, f"{self.path_artifacts}/Hg_logs_last.{self.epoch:05}.pkl")
                 torch.save(logs_mean, f"{self.path_artifacts}/Hg_logs_mean.{self.epoch:05}.pkl")
                 torch.save(logs_total, f"{self.path_artifacts}/Hg_logs_total.{self.epoch:05}.pkl")
-                torch.save(
-                    self.logs_nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.pkl"
-                )
+                nlls = torch.stack(self.logs_nlls).cpu()
+                torch.save(nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.pkl")
 
                 self.optimizer.reset_logs()
             elif self.args.optimizer.name == "NewtonSummaryFB":

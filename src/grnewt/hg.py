@@ -37,20 +37,20 @@ def compute_Hg(
         deriv_i = param_struct.dercon(H_i[0], direction, i, i + 1, detach=True)
 
         # Store the result
-        order3_list[i] = deriv_i.item()
+        order3_list[i] = deriv_i.detach().squeeze()
 
     # Build H
     H = torch.zeros(nb_groups, nb_groups, device=device, dtype=dtype)
     for i, H_i in enumerate(H_list):
         if diagonal:
-            H[i, i] = H_i.item()
+            H[i, i] = H_i.detach()
         else:
             H[i, i:] = H_i.detach()
             if not semiH:
                 H[i:, i] = H_i.detach()
 
     # Build order3
-    order3 = torch.tensor(order3_list, device=device, dtype=dtype)
+    order3 = torch.stack(order3_list)
 
     return H, g, order3
 
