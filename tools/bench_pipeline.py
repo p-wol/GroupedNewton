@@ -222,9 +222,13 @@ def main() -> int:
     if dev.type == "cuda":
         torch.cuda.synchronize()
     d2 = (time.perf_counter() - t) / args.steps
+    delta = (d - d2) * 450 * 1e3
+    verdict = (f"{(d - d2) / d * 100:.0f} % faster than [D], {delta:.0f} ms saved/epoch"
+               if d2 < d else
+               f"SLOWER than [D] by {(d2 - d) / d * 100:.0f} % -- implausible, "
+               f"this run is contaminated (warm-up or a shared node); discard it")
     print(f"  {d2 * 1e3:.2f} ms/step  ->  {d2 * 450 * 1e3:.0f} ms for 450 steps "
-          f"({(d - d2) / d * 100:.0f} % faster than [D], "
-          f"{(d - d2) * 450 * 1e3:.0f} ms saved per epoch)")
+          f"({verdict})")
 
     print("=== [F] epoch with the dataset resident on the device, no DataLoader ===")
     # Legitimate only because data_augm=False makes transform_train deterministic
