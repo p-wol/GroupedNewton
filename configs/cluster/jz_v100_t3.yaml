@@ -50,7 +50,6 @@ setup:
   - "export PYTHONUNBUFFERED=1"
   - "export HF_HUB_OFFLINE=1"
   - "export TORCH_HOME=$WORK/.cache/torch"
-  - "export $(cat .env | xargs)"
   # compute nodes have no route to the internet: any download attempt hangs until the
   # wall-clock limit rather than failing fast.
 

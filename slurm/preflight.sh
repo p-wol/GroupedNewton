@@ -77,6 +77,19 @@ for l in "$HOME/.local" "$HOME/.conda"; do
     fi
 done
 
+RES="${GRNEWT_RESULTS:-}"
+case "$RES" in
+    "${STORE:-@@none@@}"*|/lustre/fsstor/*)
+        fail "GRNEWT_RESULTS=$RES is under \$STORE, unreachable from compute nodes
+        since 2024-07-22: the job cannot even open its log file. Use \$SCRATCH." ;;
+    /*) pass "GRNEWT_RESULTS=$RES (absolute, outside STORE)" ;;
+    "") fail "GRNEWT_RESULTS is not set" ;;
+    *)  fail "GRNEWT_RESULTS=$RES is not an absolute path" ;;
+esac
+echo "  NOTE  the write test below runs on the FRONT-END. A path writable here can"
+echo "        still be unreachable from a compute node (STORE). Confirm with:"
+echo "          ./slurm/interactive.sh v100 1   then   touch \$GRNEWT_RESULTS/probe"
+
 echo "== 3. python environment =="
 python - <<'PY'
 import sys, importlib
