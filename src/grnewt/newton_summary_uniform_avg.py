@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from .config import HgCfg
-from .hg import compute_Hg
+from .hg import compute_Hg, compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .param_struct import ParamStructure
 
@@ -155,14 +155,21 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         x, y = self.loader_pre_hook(x, y)
 
         ## Compute H, g, order3
-        H, g, order3 = compute_Hg(
+        cp_kwargs = {"noregul": self.cfg.noregul,
+                     "diagonal": self.cfg.diagonal}
+        if self.cfg.hg_batched:
+            cp_Hg = compute_Hg_batched
+            cp_kwargs["chunk_size"] = self.cfg.hg_batched_chunk
+        else:
+            cp_Hg = compute_Hg
+
+        H, g, order3 = cp_Hg(
             self.param_struct,
             self.full_loss,
             x,
             y,
             direction,
-            noregul=self.cfg.noregul,
-            diagonal=False,
+            **cp_kwargs,
         )
 
         # Update the averages of H, g, order3

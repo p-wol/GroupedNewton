@@ -189,11 +189,11 @@ def compute_Hg_batched(
     noregul: bool = False,
     diagonal: bool = False,
     semiH: bool = False,
-    chunk_size: Optional[int] = None,
+    chunk_size: int = -1,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     device, dtype = param_struct.device, param_struct.dtype
     S = param_struct.nb_groups
-    chunk_size = chunk_size or S
+    chunk_size = S if chunk_size == -1 else chunk_size
 
     loss = full_loss(x, y)
     g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)  # (S,), with graph

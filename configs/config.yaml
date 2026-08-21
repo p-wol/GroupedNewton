@@ -17,6 +17,7 @@ defaults:
   # configs/machine/*.yaml (hydra.launcher subtree) is merged on top of it afterwards,
   # so an unknown field there is a composition error rather than a silent no-op.
   - machine: jz_v100_t3
+  - _self_
   - override hydra/launcher: submitit_slurm
 
 # Mandatory, no default: `python main_hydra.py` without a run_id must fail loudly
@@ -109,6 +110,8 @@ optimizer:
             cooldown: 0
             threshold: .9
             factor: .9
+        hg_batched: False
+        hg_batched_chunk: -1
     newtonsto:
         lr_param: .01
         lr_direction: .01

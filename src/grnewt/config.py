@@ -181,6 +181,11 @@ class HgCfg:
     remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA},
                               default=False)
 
+    # --- compuation path ------------------------------------------------------------
+    hg_batched: bool = P("use the batched version of compute_Hg", ALL_NS, default=False)
+    hg_batched_chunk: int = P("chunk_size in the batched version of compute_hg; "
+                                  "-1 = S (partition size)", ALL_NS, default=-1)
+
     # --- bookkeeping ----------------------------------------------------------------
     nologs: bool = P("do not dump the (H, g, lrs) logs", ALL_NS, default=False)
 
