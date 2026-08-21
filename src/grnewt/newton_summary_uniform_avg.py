@@ -165,14 +165,12 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         if self.step_counter % self.cfg.period_hg != 0:
             # If warm-up phase has ended, perform update (else, do nothing)
             if warmup_ended:
-                direction = self.param_struct.reindex(
-                    self.updater.compute_step(), self._dir_perm)
+                direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
                 make_step(direction)
             return
 
         # If we update H, g, order3 and lrs: first compute the direction
-        direction = self.param_struct.reindex(
-            self.updater.compute_step(), self._dir_perm)
+        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
 
         # Compute H, g
         ## Prepare data
@@ -180,8 +178,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         x, y = self.loader_pre_hook(x, y)
 
         ## Compute H, g, order3
-        cp_kwargs = {"noregul": self.cfg.noregul,
-                     "diagonal": self.cfg.diagonal}
+        cp_kwargs = {"noregul": self.cfg.noregul, "diagonal": self.cfg.diagonal}
         if self.cfg.hg_batched:
             cp_Hg = compute_Hg_batched
             cp_kwargs["chunk_size"] = self.cfg.hg_batched_chunk

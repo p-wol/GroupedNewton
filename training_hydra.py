@@ -249,9 +249,7 @@ class Trainer:
         # Single validation boundary. After this line nothing reads a DictConfig:
         # `hg` is a plain, typed, validated HgCfg. Any field the selected optimizer
         # does not read raises here rather than being silently dropped.
-        hg = from_dictconfig(
-            migrate(self.args.optimizer.hg), optimizer_name=args.optimizer.name
-        )
+        hg = from_dictconfig(migrate(self.args.optimizer.hg), optimizer_name=args.optimizer.name)
         self.hg = hg
 
         # Define useful variables
@@ -352,9 +350,7 @@ class Trainer:
                     cfg=hg,
                 )
             else:
-                raise NotImplementedError(
-                    f"Unknown NewtonSummary variant: {args.optimizer.name}."
-                )
+                raise NotImplementedError(f"Unknown NewtonSummary variant: {args.optimizer.name}.")
         elif args.optimizer.name == "NewtonStochasticHv":
             args_nsto = args.optimizer.newtonsto
             optimizer = NewtonStochasticHv(
@@ -546,9 +542,8 @@ class Trainer:
             f_loader_pre_hook = loader_pre_hooks.classification
 
         self.loader_pre_hook = lambda x, y: f_loader_pre_hook(
-                x, y, device=self.device, dtype=self.dtype,
-                non_blocking=self.args.dsloader.non_blocking
-            )
+            x, y, device=self.device, dtype=self.dtype, non_blocking=self.args.dsloader.non_blocking
+        )
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
         self.build_datasets()
@@ -622,10 +617,7 @@ class Trainer:
                 try:
                     metrics_tr = self.step_train()
                 except:
-                    if (
-                        self.args.optimizer.name.find("NewtonSummary") == 0
-                        and not self.hg.nologs
-                    ):
+                    if self.args.optimizer.name.find("NewtonSummary") == 0 and not self.hg.nologs:
                         optim_logs = self.optimizer.logs
 
                         logs_last = {
@@ -685,10 +677,7 @@ class Trainer:
                 f.write(metrics.__repr__() + "\n")
 
             # Logs -- artifacts
-            if (
-                self.args.optimizer.name.find("NewtonSummary") == 0
-                and not self.hg.nologs
-            ):
+            if self.args.optimizer.name.find("NewtonSummary") == 0 and not self.hg.nologs:
                 optim_logs = self.optimizer.logs
 
                 logs_last = {

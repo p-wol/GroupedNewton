@@ -96,7 +96,9 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         # Full loss function w.r.t. the parameters
         def full_loss(*params):
             output = torch.func.functional_call(
-                self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params, strict=False)}, x
+                self.model,
+                {k: p for (k, v), p in zip(self.model.named_parameters(), params, strict=False)},
+                x,
             )
             return self.final_loss(output, y)
 

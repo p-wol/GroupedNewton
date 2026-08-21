@@ -35,9 +35,15 @@ from omegaconf import DictConfig
 def _nvidia_smi() -> str:
     try:
         out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,memory.total,driver_version",
-             "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=30, check=False,
+            [
+                "nvidia-smi",
+                "--query-gpu=index,name,memory.total,driver_version",
+                "--format=csv,noheader",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         return (out.stdout or out.stderr).strip()
     except Exception as exc:  # nvidia-smi absent or hanging
@@ -66,9 +72,7 @@ def probe_environment(output_dir: Path) -> dict:
             "cuda_version": torch.version.cuda,
             "cuda_available": torch.cuda.is_available(),
             "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
-            "device_name": (
-                torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
-            ),
+            "device_name": (torch.cuda.get_device_name(0) if torch.cuda.is_available() else None),
         }
     except Exception as exc:
         env["torch"] = f"<import failed: {exc!r}>"
@@ -76,8 +80,10 @@ def probe_environment(output_dir: Path) -> dict:
     for mod in ("torchvision", "grnewt", "submitit", "hydra"):
         try:
             m = __import__(mod)
-            env[mod] = {"file": getattr(m, "__file__", None),
-                        "version": getattr(m, "__version__", None)}
+            env[mod] = {
+                "file": getattr(m, "__file__", None),
+                "version": getattr(m, "__version__", None),
+            }
         except Exception as exc:
             env[mod] = f"<import failed: {exc!r}>"
 
@@ -95,8 +101,11 @@ def main(cfg: DictConfig):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     env = probe_environment(output_dir)
-    print(f"[grnewt] host={env['hostname']} job={env['slurm'].get('SLURM_JOB_ID', '-')} "
-          f"out={output_dir}", flush=True)
+    print(
+        f"[grnewt] host={env['hostname']} job={env['slurm'].get('SLURM_JOB_ID', '-')} "
+        f"out={output_dir}",
+        flush=True,
+    )
 
     # Fail immediately, not after 40 minutes of CPU training, if a GPU was requested and
     # is not there. This is the single most common consequence of a wrong --gres.
@@ -122,8 +131,7 @@ def main(cfg: DictConfig):
 
     if cfg.dry_run:
         (output_dir / "DRY_RUN_OK").write_text(json.dumps(env, indent=2, default=str))
-        print("[grnewt] dry_run=true: environment probed, exiting before training.",
-              flush=True)
+        print("[grnewt] dry_run=true: environment probed, exiting before training.", flush=True)
         return 0.0
 
     (output_dir / "STARTED").write_text(env["timestamp"])

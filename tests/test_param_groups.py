@@ -27,7 +27,12 @@ def test_dot_full(lst_shapes):
     res_custom = param_groups1.dot(param_groups1.tup_params, param_groups2.tup_params)
     res_pytorch = torch.tensor(
         [
-            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"], strict=False)])
+            sum(
+                [
+                    (p1 * p2).sum()
+                    for p1, p2 in zip(group1["params"], group2["params"], strict=False)
+                ]
+            )
             for group1, group2 in zip(pgroups1, pgroups2, strict=False)
         ]
     )
@@ -98,7 +103,12 @@ def test_dot_partial(lst_shapes, start, end):
     lst_res_pytorch = []
     for group1, group2 in zip(pgroups1[start:end2], pgroups2[start:end2], strict=False):
         lst_res_pytorch.append(
-            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"], strict=False)])
+            sum(
+                [
+                    (p1 * p2).sum()
+                    for p1, p2 in zip(group1["params"], group2["params"], strict=False)
+                ]
+            )
         )
     res_pytorch = torch.tensor(lst_res_pytorch)
 

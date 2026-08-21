@@ -35,9 +35,7 @@ def _avg_harness(period, period_hg=1):
         uniform_avg=types.SimpleNamespace(period=period, warmup=0),
     )
     o.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
-    o.update_uniform_avg = types.MethodType(
-        NewtonSummaryUniformAvg.update_uniform_avg, o
-    )
+    o.update_uniform_avg = types.MethodType(NewtonSummaryUniformAvg.update_uniform_avg, o)
     return o
 
 
@@ -129,17 +127,19 @@ def test_direction_reaches_compute_Hg_in_tup_params_order(f64, name, monkeypatch
 
     X = torch.randn(16, 6)
     Y = torch.randn(16, 6)
-    loader = torch.utils.data.DataLoader(
-        torch.utils.data.TensorDataset(X, Y), batch_size=8
-    )
+    loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(X, Y), batch_size=8)
 
     def full_loss(a, b):
         return ((model(a) - b) ** 2).mean()
 
     updater = optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
     opt = NewtonSummary(
-        pgroups, full_loss, loader, updater,
-        loader_pre_hook=lambda a, b: (a, b), cfg=HgCfg(),
+        pgroups,
+        full_loss,
+        loader,
+        updater,
+        loader_pre_hook=lambda a, b: (a, b),
+        cfg=HgCfg(),
     )
     x, y = next(iter(loader))
     updater.zero_grad()
@@ -353,7 +353,7 @@ def test_deflation_criterion_is_affine_invariant(f64):
     H_t, g_t, d_t = A[:, None] * H * A[None, :], A * g, A * d
 
     def spectrum(H_, d_):
-        K = (H_ / (d_.unsqueeze(1) * d_.unsqueeze(0)))
+        K = H_ / (d_.unsqueeze(1) * d_.unsqueeze(0))
         return _eigh_invariant(0.5 * (K + K.T))
 
     k0, _, n0 = spectrum(H, d)
@@ -432,7 +432,9 @@ def test_invariance_requires_one_scale_per_group_not_per_tensor(f64):
     groups = [[0, 1], [2, 3], [4, 5]]  # one layer (weight + bias) per group
 
     def run(scales):
-        Pt = [(p / a).detach().clone().requires_grad_(True) for p, a in zip(P0, scales, strict=False)]
+        Pt = [
+            (p / a).detach().clone().requires_grad_(True) for p, a in zip(P0, scales, strict=False)
+        ]
         Ut = [a * u for u, a in zip(U0, scales, strict=False)]
         ps = ParamStructure([{"params": [Pt[i] for i in gr]} for gr in groups])
 

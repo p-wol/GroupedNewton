@@ -63,17 +63,33 @@ def main() -> int:
     p.add_argument("--dtype", type=int, default=32, choices=(32, 64))
     p.add_argument("--device", default="cuda")
     p.add_argument("--steps", type=int, default=200)
-    p.add_argument("--deterministic", type=int, default=1,
-                   help="1 reproduces set_seeds(): cudnn.deterministic=True, benchmark=False")
-    p.add_argument("--pin-memory", type=int, default=0,
-                   help="DataLoader(pin_memory=...). Only useful together with "
-                        "--non-blocking 1, and only if the tensor actually transferred "
-                        "is the pinned one (see [E2]).")
-    p.add_argument("--non-blocking", type=int, default=0,
-                   help="use .to(..., non_blocking=True) for the host-to-device copy")
-    p.add_argument("--threads", type=int, default=0,
-                   help="torch.set_num_threads(N); 0 leaves the default. Use 1 to test "
-                        "intra-op thread oversubscription on 3x32x32 tensors.")
+    p.add_argument(
+        "--deterministic",
+        type=int,
+        default=1,
+        help="1 reproduces set_seeds(): cudnn.deterministic=True, benchmark=False",
+    )
+    p.add_argument(
+        "--pin-memory",
+        type=int,
+        default=0,
+        help="DataLoader(pin_memory=...). Only useful together with "
+        "--non-blocking 1, and only if the tensor actually transferred "
+        "is the pinned one (see [E2]).",
+    )
+    p.add_argument(
+        "--non-blocking",
+        type=int,
+        default=0,
+        help="use .to(..., non_blocking=True) for the host-to-device copy",
+    )
+    p.add_argument(
+        "--threads",
+        type=int,
+        default=0,
+        help="torch.set_num_threads(N); 0 leaves the default. Use 1 to test "
+        "intra-op thread oversubscription on 3x32x32 tensors.",
+    )
     args = p.parse_args()
 
     if args.threads > 0:
@@ -94,18 +110,23 @@ def main() -> int:
     if dev.type == "cuda":
         print(f"  gpu                 = {torch.cuda.get_device_name(0)}")
         print(f"  arch_list           = {torch.cuda.get_arch_list()}")
-    print(f"  dtype               = {dtype}, batch_size = {args.batch_size}, "
-          f"workers = {args.workers}, cudnn.deterministic = {args.deterministic}")
+    print(
+        f"  dtype               = {dtype}, batch_size = {args.batch_size}, "
+        f"workers = {args.workers}, cudnn.deterministic = {args.deterministic}"
+    )
 
-    tf = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
-    ])
+    tf = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+        ]
+    )
 
     print("=== [A] dataset construction ===")
     t = time.perf_counter()
-    trainset = torchvision.datasets.CIFAR10(root=args.root, train=True, download=False,
-                                            transform=tf)
+    trainset = torchvision.datasets.CIFAR10(
+        root=args.root, train=True, download=False, transform=tf
+    )
     a = time.perf_counter() - t
     print(f"  {a:.2f} s for {len(trainset)} samples")
 
@@ -115,13 +136,19 @@ def main() -> int:
     for i in range(n):
         trainset[i]
     b = (time.perf_counter() - t) / n
-    print(f"  {b * 1e6:.1f} us/sample  ->  {b * 60000 * 1e3:.0f} ms for the 60000 "
-          f"sample-transforms of one epoch (train+valid+test)")
+    print(
+        f"  {b * 1e6:.1f} us/sample  ->  {b * 60000 * 1e3:.0f} ms for the 60000 "
+        f"sample-transforms of one epoch (train+valid+test)"
+    )
 
-    loader = data.DataLoader(trainset, args.batch_size, shuffle=True,
-                             num_workers=args.workers,
-                             persistent_workers=args.workers > 0,
-                             pin_memory=bool(args.pin_memory))
+    loader = data.DataLoader(
+        trainset,
+        args.batch_size,
+        shuffle=True,
+        num_workers=args.workers,
+        persistent_workers=args.workers > 0,
+        pin_memory=bool(args.pin_memory),
+    )
 
     print("=== [C] passes over the train loader, no model ===")
     # Two passes: with persistent_workers=True the first one pays the spawning of the
@@ -156,14 +183,15 @@ def main() -> int:
         loss = lossf(model(x), y)
         loss.backward()
         opt.step()
-        loss.item()          # the trainer calls .item() every step: this forces a sync
+        loss.item()  # the trainer calls .item() every step: this forces a sync
     torch.cuda.synchronize() if dev.type == "cuda" else None
     d = (time.perf_counter() - t) / args.steps
-    print(f"  {d * 1e3:.2f} ms/step (including the .item() sync)  ->  "
-          f"{d * 450 * 1e3:.0f} ms for 450 steps")
+    print(
+        f"  {d * 1e3:.2f} ms/step (including the .item() sync)  ->  "
+        f"{d * 450 * 1e3:.0f} ms for 450 steps"
+    )
 
-    print(f"  (pin_memory={bool(args.pin_memory)}, "
-          f"non_blocking={bool(args.non_blocking)})")
+    print(f"  (pin_memory={bool(args.pin_memory)}, non_blocking={bool(args.non_blocking)})")
     nbk = bool(args.non_blocking)
 
     print("=== [E] loader + transfer + step, as the trainer runs it ===")
@@ -189,7 +217,7 @@ def main() -> int:
     t = time.perf_counter()
     nb = 0
     for xb, yb in loader:
-        xb = xb.to(dev, non_blocking=nbk).to(dtype)   # DMA the pinned tensor, then cast
+        xb = xb.to(dev, non_blocking=nbk).to(dtype)  # DMA the pinned tensor, then cast
         yb = yb.to(dev, non_blocking=nbk)
         opt.zero_grad(set_to_none=True)
         loss = lossf(model(xb), yb)
@@ -198,8 +226,10 @@ def main() -> int:
         loss.item()
         nb += 1
     e2 = time.perf_counter() - t
-    print(f"  {e2:.2f} s for {nb} batches  ({e2 / nb * 1e3:.2f} ms/batch, "
-          f"{(e - e2) / e * 100:+.0f} % vs [E])")
+    print(
+        f"  {e2:.2f} s for {nb} batches  ({e2 / nb * 1e3:.2f} ms/batch, "
+        f"{(e - e2) / e * 100:+.0f} % vs [E])"
+    )
 
     print("=== [D2] same step WITHOUT the per-step .item() ===")
     # training_hydra.py calls .item() on every iteration (lines 461-463, 520-524), which
@@ -218,18 +248,19 @@ def main() -> int:
         loss = lossf(model(x), y)
         loss.backward()
         opt.step()
-        acc += loss.detach()      # accumulate on the device, read once at the end
+        acc += loss.detach()  # accumulate on the device, read once at the end
     acc.item()
     if dev.type == "cuda":
         torch.cuda.synchronize()
     d2 = (time.perf_counter() - t) / args.steps
     delta = (d - d2) * 450 * 1e3
-    verdict = (f"{(d - d2) / d * 100:.0f} % faster than [D], {delta:.0f} ms saved/epoch"
-               if d2 < d else
-               f"SLOWER than [D] by {(d2 - d) / d * 100:.0f} % -- implausible, "
-               f"this run is contaminated (warm-up or a shared node); discard it")
-    print(f"  {d2 * 1e3:.2f} ms/step  ->  {d2 * 450 * 1e3:.0f} ms for 450 steps "
-          f"({verdict})")
+    verdict = (
+        f"{(d - d2) / d * 100:.0f} % faster than [D], {delta:.0f} ms saved/epoch"
+        if d2 < d
+        else f"SLOWER than [D] by {(d2 - d) / d * 100:.0f} % -- implausible, "
+        f"this run is contaminated (warm-up or a shared node); discard it"
+    )
+    print(f"  {d2 * 1e3:.2f} ms/step  ->  {d2 * 450 * 1e3:.0f} ms for 450 steps ({verdict})")
 
     print("=== [F] epoch with the dataset resident on the device, no DataLoader ===")
     # Legitimate only because data_augm=False makes transform_train deterministic
@@ -242,14 +273,16 @@ def main() -> int:
     try:
         gx = big.to(dev, dtype)
         gy = labels.to(dev)
-        print(f"  one-off preparation: {prep:.1f} s, {gx.numel() * gx.element_size() / 2**20:.0f} MiB on device")
+        print(
+            f"  one-off preparation: {prep:.1f} s, {gx.numel() * gx.element_size() / 2**20:.0f} MiB on device"
+        )
         if dev.type == "cuda":
             torch.cuda.synchronize()
         t = time.perf_counter()
         perm = torch.randperm(gx.shape[0], device=dev)
         nb = 0
         for i in range(0, gx.shape[0], args.batch_size):
-            idx = perm[i:i + args.batch_size]
+            idx = perm[i : i + args.batch_size]
             opt.zero_grad(set_to_none=True)
             loss = lossf(model(gx[idx]), gy[idx])
             loss.backward()
@@ -265,10 +298,14 @@ def main() -> int:
         print(f"  skipped: {exc}")
 
     print("=== reading ===")
-    print(f"  host-side share of [E]: {(e - d * nb) / e * 100:.0f} %  "
-          f"(device work = {d * nb:.2f} s of {e:.2f} s)")
-    print(f"  an epoch also runs valid+test (150 more batches): "
-          f"add roughly {c / nb * 150:.2f} s of loading")
+    print(
+        f"  host-side share of [E]: {(e - d * nb) / e * 100:.0f} %  "
+        f"(device work = {d * nb:.2f} s of {e:.2f} s)"
+    )
+    print(
+        f"  an epoch also runs valid+test (150 more batches): "
+        f"add roughly {c / nb * 150:.2f} s of loading"
+    )
     return 0
 
 

@@ -18,15 +18,26 @@ def create_loaders(args, dct):
     dsloader = args.dsloader
 
     # Create loaders
-    dct["train_loader"] = data.DataLoader(dct["trainset"], args.dataset.batch_size, shuffle=True,
-            num_workers=dsloader.num_workers, persistent_workers=dsloader.num_workers > 0,
-            pin_memory=dsloader.pin_memory)
-    dct["valid_loader"] = data.DataLoader(dct["validset"], args.dataset.batch_size,
-            num_workers=dsloader.num_workers_eval,
-            pin_memory=dsloader.pin_memory)
-    dct["test_loader"] = data.DataLoader(dct["testset"], args.dataset.batch_size,
-            num_workers=dsloader.num_workers_eval,
-            pin_memory=dsloader.pin_memory)
+    dct["train_loader"] = data.DataLoader(
+        dct["trainset"],
+        args.dataset.batch_size,
+        shuffle=True,
+        num_workers=dsloader.num_workers,
+        persistent_workers=dsloader.num_workers > 0,
+        pin_memory=dsloader.pin_memory,
+    )
+    dct["valid_loader"] = data.DataLoader(
+        dct["validset"],
+        args.dataset.batch_size,
+        num_workers=dsloader.num_workers_eval,
+        pin_memory=dsloader.pin_memory,
+    )
+    dct["test_loader"] = data.DataLoader(
+        dct["testset"],
+        args.dataset.batch_size,
+        num_workers=dsloader.num_workers_eval,
+        pin_memory=dsloader.pin_memory,
+    )
 
     return dct
 

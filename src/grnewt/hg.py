@@ -21,7 +21,6 @@ Tunable: chunk_size trades memory for launch efficiency. Peak second-order
 graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
 """
 
-
 import torch
 
 
@@ -100,6 +99,7 @@ def compute_Hg(
 
     return H, g, order3
 
+
 def compute_Hg_fullbatch(
     param_struct,
     full_loss,
@@ -139,6 +139,7 @@ def compute_Hg_fullbatch(
     H.diagonal().mul_(0.5)
 
     return H, g, order3
+
 
 # ---------------------------------------------------------------------------
 # optional fused contraction: out[k, s] = sum_{n in group s} R[k, n] * u[n]

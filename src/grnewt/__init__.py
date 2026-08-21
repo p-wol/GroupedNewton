@@ -1,15 +1,15 @@
 """
 grnewt -- second-order optimization using a partition of the parameters.
- 
+
 Reference implementation for
   Wolinski, "Gathering and Exploiting Higher-Order Information when Training
   Large Structured Models", arXiv:2312.03885.
- 
+
 Public API::
- 
+
     from grnewt import ParamStructure, compute_Hg, nesterov_lrs, NewtonSummary
     from grnewt import partition
- 
+
 The package depends only on torch, numpy and scipy. Models and datasets used
 in the paper's experiments live in `experiments/`, not here.
 """
@@ -19,7 +19,7 @@ from .differential import diff_n, diff_n_fullbatch
 from .fullbatch import fullbatch_gradient
 from .hg import compute_Hg, compute_Hg_batched, compute_Hg_fullbatch
 
-#from .hg_batched import compute_Hg_batched
+# from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .newton_stochastic_hv import NewtonStochasticHv
 from .newton_summary import NewtonSummary
@@ -48,6 +48,7 @@ def __getattr__(name):
 def __dir__():
     return sorted(set(globals()) | {"datasets", "models", "loader_pre_hooks"})
 
+
 __all__ = [
     # subpackages
     "datasets",
@@ -74,4 +75,3 @@ __all__ = [
     # misc
     "__version__",
 ]
-

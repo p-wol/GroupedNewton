@@ -148,9 +148,11 @@ def check_dataset(job_cfg, rep: Report) -> None:
     if target.exists():
         rep.ok(f"{target} found")
     elif hard:
-        rep.bad(f"{target} not found. download=False in datasets.py and compute nodes "
-                f"have no internet: this fails at epoch 0, after the allocation is "
-                f"granted. Fix paths.datasets or dataset.path.")
+        rep.bad(
+            f"{target} not found. download=False in datasets.py and compute nodes "
+            f"have no internet: this fails at epoch 0, after the allocation is "
+            f"granted. Fix paths.datasets or dataset.path."
+        )
     else:
         rep.warn(f"{target} not found; ImageNet layouts vary, check by hand")
 
@@ -158,8 +160,10 @@ def check_dataset(job_cfg, rep: Report) -> None:
 def check_device(job_cfg, rep: Report) -> None:
     dev = int(job_cfg.system.device)
     if dev < -2:
-        rep.bad(f"system.device={dev} is out of range. NB: assign_device() builds a "
-                f"ValueError without raising it, so this returns an int silently.")
+        rep.bad(
+            f"system.device={dev} is out of range. NB: assign_device() builds a "
+            f"ValueError without raising it, so this returns an int silently."
+        )
         return
     if dev == -2:
         rep.ok("system.device=-2 -> CPU, no GPU needed")
@@ -170,12 +174,13 @@ def check_device(job_cfg, rep: Report) -> None:
         rep.warn(f"torch not importable here ({exc!r}); GPU availability not checked")
         return
     if torch.cuda.is_available():
-        rep.ok(f"system.device={dev} and CUDA available "
-               f"({torch.cuda.device_count()} device(s))")
+        rep.ok(f"system.device={dev} and CUDA available ({torch.cuda.device_count()} device(s))")
     else:
-        rep.bad(f"system.device={dev} requires CUDA, unavailable here. Use "
-                f"system.device=-2 for a CPU run. (assign_device() would silently fall "
-                f"back to CPU; main_hydra.py turns that into an error.)")
+        rep.bad(
+            f"system.device={dev} requires CUDA, unavailable here. Use "
+            f"system.device=-2 for a CPU run. (assign_device() would silently fall "
+            f"back to CPU; main_hydra.py turns that into an error.)"
+        )
 
 
 def check_launcher(launcher, rep: Report) -> None:
@@ -190,8 +195,10 @@ def check_launcher(launcher, rep: Report) -> None:
     if not launcher.get("gres") and launcher.get("gpus_per_node") is None:
         rep.bad("no GPU requested (gres and gpus_per_node both empty)")
     if "submitit" not in str(launcher.get("_target_", "")):
-        rep.bad(f"_target_ is {launcher.get('_target_')!r}, not a submitit launcher: "
-                f"'override hydra/launcher' is not applied")
+        rep.bad(
+            f"_target_ is {launcher.get('_target_')!r}, not a submitit launcher: "
+            f"'override hydra/launcher' is not applied"
+        )
     else:
         rep.ok(f"_target_ = {launcher.get('_target_')}")
 
@@ -222,8 +229,10 @@ def check_optimizer_schema(cfg, rep: Report) -> None:
         for line in lines[1:]:
             print(f"        {line}")
         return
-    rep.ok(f"optimizer.hg validates for {name} (partition={hg.partition.value}, "
-           f"nesterov.use={hg.nesterov.use})")
+    rep.ok(
+        f"optimizer.hg validates for {name} (partition={hg.partition.value}, "
+        f"nesterov.use={hg.nesterov.use})"
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -253,10 +262,8 @@ def main(argv: list[str]) -> int:
             print(f"  {n}")
 
     rep = Report()
-    with initialize_config_dir(version_base="1.3", config_dir=config_dir,
-                               job_name="check_config"):
-        cfg = compose(config_name="config", overrides=overrides,
-                      return_hydra_config=True)
+    with initialize_config_dir(version_base="1.3", config_dir=config_dir, job_name="check_config"):
+        cfg = compose(config_name="config", overrides=overrides, return_hydra_config=True)
 
         # the experiment config must resolve on its own
         job_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
@@ -264,8 +271,7 @@ def main(argv: list[str]) -> int:
         OmegaConf.resolve(job_cfg)
 
         mode = forced_mode or detect_mode(cfg)
-        print(f"=== mode: {mode} "
-              f"({'forced' if forced_mode else 'auto-detected'}) ===")
+        print(f"=== mode: {mode} ({'forced' if forced_mode else 'auto-detected'}) ===")
 
         check_paths(job_cfg, rep)
 
@@ -279,7 +285,7 @@ def main(argv: list[str]) -> int:
         if mode == "slurm":
             # the GPU of the compute node, not of this machine: nothing to check here
             launcher = cfg.hydra.launcher
-            OmegaConf.resolve(launcher)   # only here: see detect_mode()
+            OmegaConf.resolve(launcher)  # only here: see detect_mode()
             check_launcher(launcher, rep)
         else:
             print("--- launcher ---")

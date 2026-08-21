@@ -82,8 +82,9 @@ class DampingScheduleCfg:
     pieces at run time, i.e. a malformed value failed after the allocation started.
     """
 
-    use: bool = P("geometrically decay `damping` over the first `epoch` epochs",
-                  ALL_NS, default=False)
+    use: bool = P(
+        "geometrically decay `damping` over the first `epoch` epochs", ALL_NS, default=False
+    )
     final: float = P("target value of `damping` at epoch `epoch`", ALL_NS, default=1.0)
     epoch: int = P("epoch at which `damping` reaches `final`", ALL_NS, default=0)
 
@@ -96,27 +97,38 @@ class DampingScheduleCfg:
 
 @dataclass(kw_only=True, slots=True)
 class UpdaterCfg:
-    name: UpdaterName = P("inner optimizer producing the search direction u", ALL_NS,
-                          default=UpdaterName.SGD)
+    name: UpdaterName = P(
+        "inner optimizer producing the search direction u", ALL_NS, default=UpdaterName.SGD
+    )
     momentum: float = P("momentum of the updater (SGD only)", ALL_NS, default=0.9)
     momentum_damp: float = P("dampening of the updater (SGD only)", ALL_NS, default=0.0)
 
 
 @dataclass(kw_only=True, slots=True)
 class NesterovCfg:
-    use: bool = P("solve the anisotropic cubic subproblem instead of H^{-1} g", ALL_NS,
-                  default=False)
-    damping_int: float = P("lambda_int >= 0; strength of the cubic regularization", ALL_NS,
-                           default=1.0)
-    mom_order3_: float = P("EMA coefficient on order3_ = |order3|^(1/3)", {NS},
-                           default=0.0)
+    use: bool = P(
+        "solve the anisotropic cubic subproblem instead of H^{-1} g", ALL_NS, default=False
+    )
+    damping_int: float = P(
+        "lambda_int >= 0; strength of the cubic regularization", ALL_NS, default=1.0
+    )
+    mom_order3_: float = P("EMA coefficient on order3_ = |order3|^(1/3)", {NS}, default=0.0)
     threshold_D_sing: float = P(
         "relative threshold below which d_i counts as zero; 0.0 is the only "
-        "affine-invariant choice (nesterov.py, Appendix E)", ALL_NS, default=0.0)
-    hard_case_rtol: float = P("relative tolerance defining the near-null eigenspace "
-                              "of K + c x0 I in the hard case", ALL_NS, default=1e-12)
-    refine: bool = P("safeguarded Newton refinement of (r, eta); NOT validated over "
-                     "the fuzz set (STATE.md, N3)", ALL_NS, default=False)
+        "affine-invariant choice (nesterov.py, Appendix E)",
+        ALL_NS,
+        default=0.0,
+    )
+    hard_case_rtol: float = P(
+        "relative tolerance defining the near-null eigenspace of K + c x0 I in the hard case",
+        ALL_NS,
+        default=1e-12,
+    )
+    refine: bool = P(
+        "safeguarded Newton refinement of (r, eta); NOT validated over the fuzz set (STATE.md, N3)",
+        ALL_NS,
+        default=False,
+    )
 
     def __post_init__(self):
         if self.damping_int < 0:
@@ -124,15 +136,20 @@ class NesterovCfg:
         if not 0.0 <= self.mom_order3_ < 1.0:
             raise ValueError(f"nesterov.mom_order3_ must be in [0, 1), got {self.mom_order3_}")
         if not 0.0 <= self.threshold_D_sing < 1.0:
-            raise ValueError("nesterov.threshold_D_sing is a *relative* threshold and must "
-                             f"lie in [0, 1), got {self.threshold_D_sing}")
+            raise ValueError(
+                "nesterov.threshold_D_sing is a *relative* threshold and must "
+                f"lie in [0, 1), got {self.threshold_D_sing}"
+            )
 
 
 @dataclass(kw_only=True, slots=True)
 class UniformAvgCfg:
     period: int = P("Hg-update steps between two swaps of (X^a, X^b)", {NSUA}, default=1)
-    warmup: int = P("Hg-update steps during which H, g, D are averaged but the network "
-                    "is not trained", {NSUA}, default=0)
+    warmup: int = P(
+        "Hg-update steps during which H, g, D are averaged but the network is not trained",
+        {NSUA},
+        default=0,
+    )
 
     def __post_init__(self):
         if self.period < 1:
@@ -147,8 +164,9 @@ class DmpAutoCfg:
     apply_to: str = P("attribute the scheduler acts on", ALL_NS, default="damping")
     patience: int = P("scheduler patience, in epochs", ALL_NS, default=1)
     cooldown: int = P("scheduler cooldown, in epochs", ALL_NS, default=0)
-    threshold: float = P("relative improvement below which a step counts as a plateau",
-                         ALL_NS, default=0.9)
+    threshold: float = P(
+        "relative improvement below which a step counts as a plateau", ALL_NS, default=0.9
+    )
     factor: float = P("multiplicative factor applied on plateau", ALL_NS, default=0.9)
 
 
@@ -157,13 +175,18 @@ class HgCfg:
     """The whole `optimizer.hg` node."""
 
     # --- data used to estimate (gbar, Hbar, order3) ---------------------------------
-    batch_size: int = P("batch size for the (H, g) estimation; -1 = dataset batch size",
-                        ALL_NS, default=-1)
+    batch_size: int = P(
+        "batch size for the (H, g) estimation; -1 = dataset batch size", ALL_NS, default=-1
+    )
     partition: Partition = P("group construction rule", ALL_NS, default=Partition.canonical)
-    partition_arg: int | None = P("integer argument of partition in {blocks, alternate}; "
-                                     "unused otherwise", ALL_NS, default=None)
-    partition_str: str | None = P("string argument of partition in {vgg, perceptron}",
-                                     ALL_NS, default=None)
+    partition_arg: int | None = P(
+        "integer argument of partition in {blocks, alternate}; unused otherwise",
+        ALL_NS,
+        default=None,
+    )
+    partition_str: str | None = P(
+        "string argument of partition in {vgg, perceptron}", ALL_NS, default=None
+    )
 
     # --- the reduced model ----------------------------------------------------------
     diagonal: bool = P("compute only the diagonal of Hbar", {NS, NSUA}, default=False)
@@ -173,26 +196,28 @@ class HgCfg:
     # afterwards. Exposing it was not merely dead: nesterov_lrs starts with
     # H64 = 0.5 * (H64 + H64.T), so a user-supplied triangular Hbar would have
     # had every off-diagonal entry silently halved.
-    noregul: bool = P("bypass every regularization: lrs = Hbar^{-1} gbar", {NS, NSUA},
-                      default=False)
-    ridge: float = P("ridge added to Hbar when nesterov.use is False", {NS, NSFB, NSUA},
-                     default=0.0)
+    noregul: bool = P(
+        "bypass every regularization: lrs = Hbar^{-1} gbar", {NS, NSUA}, default=False
+    )
+    ridge: float = P(
+        "ridge added to Hbar when nesterov.use is False", {NS, NSFB, NSUA}, default=0.0
+    )
 
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
-    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA},
-                       default=1)
+    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA}, default=1)
     mom_lrs: float = P("momentum on the learning rates", {NS, NSUA}, default=0.0)
     movavg: float = P("moving average on (H, g)", {NS}, default=0.0)
-    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", {NS},
-                                default=True)
-    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA},
-                              default=False)
+    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", {NS}, default=True)
+    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA}, default=False)
 
     # --- compuation path ------------------------------------------------------------
     hg_batched: bool = P("use the batched version of compute_Hg", {NSUA}, default=False)
-    hg_batched_chunk: int = P("chunk_size in the batched version of compute_hg; "
-                                  "-1 = S (partition size)", {NSUA}, default=-1)
+    hg_batched_chunk: int = P(
+        "chunk_size in the batched version of compute_hg; -1 = S (partition size)",
+        {NSUA},
+        default=-1,
+    )
 
     # --- bookkeeping ----------------------------------------------------------------
     nologs: bool = P("do not dump the (H, g, lrs) logs", ALL_NS, default=False)
@@ -217,27 +242,29 @@ class HgCfg:
             if self.partition_arg is None:
                 raise ValueError(f"partition={self.partition.value} requires partition_arg")
         elif self.partition_arg is not None:
-            raise ValueError(f"partition_arg is meaningless for partition="
-                             f"{self.partition.value}")
+            raise ValueError(f"partition_arg is meaningless for partition={self.partition.value}")
         if self.partition in (Partition.vgg, Partition.perceptron):
             if self.partition_str is None:
                 raise ValueError(f"partition={self.partition.value} requires partition_str")
         elif self.partition_str is not None:
-            raise ValueError(f"partition_str is meaningless for partition="
-                             f"{self.partition.value}")
+            raise ValueError(f"partition_str is meaningless for partition={self.partition.value}")
         if self.movavg != 0 and self.nesterov.mom_order3_ != 0.0:
             raise ValueError(
                 "movavg != 0 and nesterov.mom_order3_ != 0 are mutually exclusive: "
                 "newton_summary.py recomputes order3_ from the movavg'd order3 and "
-                "discards the mom_order3_ EMA (silently, before 2026-08-21)")
+                "discards the mom_order3_ EMA (silently, before 2026-08-21)"
+            )
         if self.noregul and self.nesterov.use:
-            raise ValueError("noregul=True and nesterov.use=True are mutually exclusive: "
-                             "noregul short-circuits the cubic solver (newton_summary*.py)")
+            raise ValueError(
+                "noregul=True and nesterov.use=True are mutually exclusive: "
+                "noregul short-circuits the cubic solver (newton_summary*.py)"
+            )
 
 
 # ---------------------------------------------------------------------------------
 # Boundary helpers
 # ---------------------------------------------------------------------------------
+
 
 def _walk(cfg, prefix: str = ""):
     """Yield (dotted_path, value, field_object) over a nested dataclass instance."""
@@ -328,15 +355,14 @@ def from_dictconfig(node, *, optimizer_name: str | None = None, strict: bool = T
 
 def markdown_table() -> str:
     """Render the schema as documentation. Generated, therefore never stale."""
-    lines = ["| field | type | default | read by | description |",
-             "|---|---|---|---|---|"]
+    lines = ["| field | type | default | read by | description |", "|---|---|---|---|---|"]
     for path, _, f in _walk(HgCfg()):
         t = f.type if isinstance(f.type, str) else getattr(f.type, "__name__", str(f.type))
         d = f.default if f.default is not dataclasses.MISSING else "-"
         d = d.value if isinstance(d, Enum) else d
         used = f.metadata.get("used_by", frozenset())
         used_s = "all" if used == ALL_NS else ", ".join(sorted(used))
-        lines.append(f"| `{path}` | `{t}` | `{d!r}` | {used_s} | {f.metadata.get('help','')} |")
+        lines.append(f"| `{path}` | `{t}` | `{d!r}` | {used_s} | {f.metadata.get('help', '')} |")
     return "\n".join(lines)
 
 

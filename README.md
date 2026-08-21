@@ -20,12 +20,14 @@ from grnewt.config import HgCfg, NesterovCfg, UpdaterCfg
 # --- user-specific ------------------------------------------------- BEGIN USER
 model = MyModel(...)
 loss_fn = torch.nn.CrossEntropyLoss()
-data_loader = torch.utils.data.DataLoader(...)   # training batches
-hg_loader = torch.utils.data.DataLoader(...)     # batches used to estimate (H, g)
+data_loader = torch.utils.data.DataLoader(...)  # training batches
+hg_loader = torch.utils.data.DataLoader(...)  # batches used to estimate (H, g)
 # --------------------------------------------------------------------- END USER
+
 
 def full_loss(x, target):
     return loss_fn(model(x), target)
+
 
 param_groups, name_groups = grnewt.partition.canonical(model)
 

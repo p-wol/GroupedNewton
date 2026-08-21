@@ -44,9 +44,7 @@ def _problem(seed=0, n=256, d_in=8, d_out=3, width=16):
 
     def epoch_loss():
         with torch.no_grad():
-            return float(
-                sum(full_loss(a, b) * a.size(0) for a, b in loader) / len(ds)
-            )
+            return float(sum(full_loss(a, b) * a.size(0) for a, b in loader) / len(ds))
 
     return model, loader, hg_loader, full_loss, epoch_loss
 
@@ -70,8 +68,12 @@ def test_newton_summary_reduces_the_loss(partition):
         nesterov=NesterovCfg(use=True, damping_int=1.0),
     )
     opt = NewtonSummary(
-        pgroups, full_loss, hg_loader, updater,
-        loader_pre_hook=lambda a, b: (a, b), cfg=cfg,
+        pgroups,
+        full_loss,
+        hg_loader,
+        updater,
+        loader_pre_hook=lambda a, b: (a, b),
+        cfg=cfg,
     )
 
     before = epoch_loss()
@@ -98,8 +100,12 @@ def test_uniform_avg_reduces_the_loss_across_several_periods():
         uniform_avg=UniformAvgCfg(period=3, warmup=3),
     )
     opt = NewtonSummaryUniformAvg(
-        pgroups, full_loss, hg_loader, updater,
-        loader_pre_hook=lambda a, b: (a, b), cfg=cfg,
+        pgroups,
+        full_loss,
+        hg_loader,
+        updater,
+        loader_pre_hook=lambda a, b: (a, b),
+        cfg=cfg,
     )
 
     before = epoch_loss()
@@ -126,8 +132,12 @@ def test_solver_failures_are_reported_not_silent():
     updater = optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
     cfg = HgCfg(period_hg=1, nesterov=NesterovCfg(use=True, damping_int=1.0))
     opt = NewtonSummary(
-        pgroups, full_loss, hg_loader, updater,
-        loader_pre_hook=lambda a, b: (a, b), cfg=cfg,
+        pgroups,
+        full_loss,
+        hg_loader,
+        updater,
+        loader_pre_hook=lambda a, b: (a, b),
+        cfg=cfg,
     )
     for a, b in loader:
         updater.zero_grad()

@@ -100,7 +100,7 @@ class _Secular:
         """t_a >= t0 with h(t_a) > 0 (P6'); None when the construction fails."""
         b1 = abs(float(self.b[0]))
         if self.kappa1 > 0.0:
-            return 0.0                      # x = 0; h(0) = ||b/kappa|| > 0
+            return 0.0  # x = 0; h(0) = ||b/kappa|| > 0
         if b1 == 0.0:
             return None
         t = 0.5 * min(1.0, self.c * b1 / (1.0 + abs(self.k1)))
@@ -288,8 +288,7 @@ def nesterov_lrs(
         raise ValueError(f"damping_int must be >= 0, got {damping_int}.")
 
     device, dtype = H.device, H.dtype
-    logs = {"found": False, "refined": False, "hard_case": False,
-            "M_formable": False, "n_ker_D": 0}
+    logs = {"found": False, "refined": False, "hard_case": False, "M_formable": False, "n_ker_D": 0}
 
     H64, g64, d = _as_f64(H), _as_f64(g), _as_f64(order3_)
     H64 = 0.5 * (H64 + H64.T)
@@ -372,7 +371,7 @@ def nesterov_lrs(
     sec = _Secular(kappa, b, c)
     logs["x0"] = sec.x0
     logs["kappa_min"] = float(kappa[0])
-    logs["H_pd"] = bool(kappa[0] > 0)     # inertia-based, threshold-free
+    logs["H_pd"] = bool(kappa[0] > 0)  # inertia-based, threshold-free
     logs["hard_case"] = False
 
     # -- bracket with a proved sign change --------------------------------
@@ -385,10 +384,14 @@ def nesterov_lrs(
         if not (h_a > 0.0 >= h_b and t_b > t_a):
             # Unreachable if P5/P6' hold.  Fail loudly instead of letting
             # scipy raise from inside brentq.
-            return _ret(None, "bracket_check_failed", r_converged=False,
-                        bracket=(t_a, t_b), h_bracket=(h_a, h_b))
-        t = scipy.optimize.brentq(sec.h, t_a, t_b, xtol=1e-300,
-                                  rtol=8.9e-16, maxiter=200)
+            return _ret(
+                None,
+                "bracket_check_failed",
+                r_converged=False,
+                bracket=(t_a, t_b),
+                h_bracket=(h_a, h_b),
+            )
+        t = scipy.optimize.brentq(sec.h, t_a, t_b, xtol=1e-300, rtol=8.9e-16, maxiter=200)
         t = _polish(sec, t, t_a, t_b)
         r = sec.x_of_t(t)
         y = b / (sec.mu + t)
@@ -413,7 +416,7 @@ def nesterov_lrs(
             y = torch.zeros_like(b)
             if keep.sum() > 0:
                 y[keep] = b_ps / (kappa_ps + c * x0)
-            y[J] = ((max(x0 * x0 - L_ps * L_ps, 0.0)) ** 0.5) / (nJ ** 0.5)
+            y[J] = ((max(x0 * x0 - L_ps * L_ps, 0.0)) ** 0.5) / (nJ**0.5)
             computation = "hard_case_boundary"
         else:
             sec_ps = _Secular(kappa_ps, b_ps, c)
@@ -437,10 +440,14 @@ def nesterov_lrs(
             t_b2 = sec_ps.k1 + c * L_ps
             h_a2, h_b2 = sec_ps.h(t_a2), sec_ps.h(t_b2)
             if not (h_a2 > 0.0 >= h_b2 and t_b2 > t_a2):
-                return _ret(None, "hard_case_bracket_failed", r_converged=False,
-                            bracket=(t_a2, t_b2), h_bracket=(h_a2, h_b2))
-            t2 = scipy.optimize.brentq(sec_ps.h, t_a2, t_b2, xtol=1e-300,
-                                       rtol=8.9e-16, maxiter=200)
+                return _ret(
+                    None,
+                    "hard_case_bracket_failed",
+                    r_converged=False,
+                    bracket=(t_a2, t_b2),
+                    h_bracket=(h_a2, h_b2),
+                )
+            t2 = scipy.optimize.brentq(sec_ps.h, t_a2, t_b2, xtol=1e-300, rtol=8.9e-16, maxiter=200)
             t2 = _polish(sec_ps, t2, t_a2, t_b2)
             r = sec_ps.x_of_t(t2)
             y = torch.zeros_like(b)
@@ -452,8 +459,7 @@ def nesterov_lrs(
     lrs = torch.zeros(S, dtype=torch.float64)
     lrs[Ri] = eta_R
     if Zi.numel() > 0:
-        lrs[Zi] = torch.cholesky_solve((g64[Zi] - H_ZR @ eta_R).unsqueeze(1),
-                                       L_ZZ).squeeze(1)
+        lrs[Zi] = torch.cholesky_solve((g64[Zi] - H_ZR @ eta_R).unsqueeze(1), L_ZZ).squeeze(1)
 
     # Cross-check in the original basis.  Forming K = D_R^{-1} S D_R^{-1}
     # multiplies the spread of the spectrum by cond(D_R)^2, and `eigh` only
@@ -501,8 +507,11 @@ def compute_x0(H, order3_, D_squ=None, damping_int=1.0, threshold_D_sing=0.0, **
         raise ValueError("damping_int must be > 0 to define x0.")
 
     dmax = float(d.max())
-    zero_mask = ((d <= threshold_D_sing * dmax) | (d == 0)) if dmax > 0 \
+    zero_mask = (
+        ((d <= threshold_D_sing * dmax) | (d == 0))
+        if dmax > 0
         else torch.ones_like(d, dtype=torch.bool)
+    )
     Zi = torch.nonzero(zero_mask, as_tuple=True)[0]
     Ri = torch.nonzero(~zero_mask, as_tuple=True)[0]
 
