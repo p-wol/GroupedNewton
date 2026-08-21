@@ -17,7 +17,7 @@ in the paper's experiments live in `experiments/`, not here.
 from . import datasets, models, optimizers, partition
 from .param_struct import ParamStructure
 from .differential import diff_n, diff_n_fullbatch
-from .hg import compute_Hg, compute_Hg_fullbatch
+from .hg import compute_Hg, compute_Hg_fullbatch, compute_Hg_batched
 #from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .newton_stochastic_hv import NewtonStochasticHv
@@ -37,6 +37,7 @@ __all__ = [
     "ParamStructure",
     "compute_Hg",
     "compute_Hg_fullbatch",
+    "compute_Hg_batched",
     "nesterov_lrs",
     "fullbatch_gradient",
     "diff_n",

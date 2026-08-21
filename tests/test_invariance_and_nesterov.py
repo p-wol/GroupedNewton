@@ -156,13 +156,6 @@ def test_solver_handles_indefinite_H(damping_int):
     assert _residual(H, g, D, lrs, damping_int) < 1e-5
 
 
-@pytest.mark.xfail(
-    reason="D_inv = (1/order3_).diag() is built before the singularity check, "
-    "and threshold_D_sing is compared against |order3|^(1/3), so it only "
-    "fires below ~1e-15. A vanishing third derivative (e.g. a final linear "
-    "layer under MSE) produces inf/nan instead of taking the Numerical branch.",
-    strict=False,
-)
 @pytest.mark.parametrize("zero_at", [0, 3])
 def test_solver_survives_a_vanishing_third_derivative(zero_at):
     S = 5

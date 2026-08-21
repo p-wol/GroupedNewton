@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "GroupedNewton"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 description = "Grouped Newton: second-order optimization with a partition of the parameters"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -16,7 +16,6 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
