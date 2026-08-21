@@ -21,7 +21,7 @@ hydra:
         # --- accounting -------------------------------------------------------------------
         # MANDATORY on Jean Zay. IDRIS documents the account as "must be specified":
         # --account=<3-letter project>@v100 for V100 hours. Exported by slurm/submit.sh.
-        account: ${oc.env:JZ_PROJECT}@v100
+        account: ${oc.env:GRNEWT_PROJECT}@v100
 
 
         # --- placement --------------------------------------------------------------------

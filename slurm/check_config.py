@@ -26,7 +26,7 @@ Design notes:
 
 Usage, from the repo root:
     python slurm/check_config.py run_id=check machine=jz_v100_dev optimizer.lr=1e-3,1e-4
-    python slurm/check_config.py --mode=local run_id=check paths=local machine=none
+    python slurm/check_config.py --mode=local run_id=check machine=none
 Exit code 0 = the run would compose and resolve.
 """
 
@@ -196,6 +196,36 @@ def check_launcher(launcher, rep: Report) -> None:
         rep.ok(f"_target_ = {launcher.get('_target_')}")
 
 
+def check_optimizer_schema(cfg, rep: Report) -> None:
+    """Validate `optimizer.hg` against the typed schema, here, on the login node.
+
+    This is the whole point of grnewt/config.py: a type error, an out-of-range value,
+    or a setting the selected optimizer does not read must cost 200 ms here rather
+    than a Slurm allocation. Under the submitit launcher the task function runs on the
+    compute node, so validating inside the trainer is too late.
+    """
+    print("--- optimizer.hg schema ---")
+    name = cfg.optimizer.name
+    if not str(name).startswith("NewtonSummary"):
+        rep.ok(f"optimizer.name={name}: no hg schema to check")
+        return
+    try:
+        from grnewt.config import from_dictconfig, migrate
+    except ImportError as exc:
+        rep.warn(f"grnewt not importable, hg schema unchecked ({exc})")
+        return
+    try:
+        hg = from_dictconfig(migrate(cfg.optimizer.hg), optimizer_name=name)
+    except Exception as exc:
+        lines = str(exc).splitlines() or [repr(exc)]
+        rep.bad(lines[0])
+        for line in lines[1:]:
+            print(f"        {line}")
+        return
+    rep.ok(f"optimizer.hg validates for {name} (partition={hg.partition.value}, "
+           f"nesterov.use={hg.nesterov.use})")
+
+
 def main(argv: list[str]) -> int:
     forced_mode = None
     overrides = []
@@ -244,6 +274,7 @@ def main(argv: list[str]) -> int:
         print(f"  hydra.sweep.dir = {cfg.hydra.sweep.dir}")
 
         check_dataset(job_cfg, rep)
+        check_optimizer_schema(job_cfg, rep)
 
         if mode == "slurm":
             # the GPU of the compute node, not of this machine: nothing to check here

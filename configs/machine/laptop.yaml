@@ -1,5 +1,9 @@
 # @package _global_
 #
+# Two packages in one file, deliberately: `dsloader` is application config read by
+# grnewt.datasets, the rest is launcher config. A single `# @package hydra.launcher`
+# header would send `dsloader` into SlurmQueueConf, where it is an unknown key and a
+# composition-time error (this file used to do exactly that).
 # For local, single-process runs (laptop, or an interactive allocation on Jean Zay).
 #
 # Hydra only *instantiates* a launcher in --multirun; a single run composes this node and
@@ -19,32 +23,34 @@ dsloader:
     pin_memory: True
     non_blocking: True
 
-account: null
-partition: null
-constraint: null
-qos: null
-timeout_min: 60
 
-nodes: 1
-tasks_per_node: 1
-cpus_per_task: null
-gres: null
-gpus_per_node: null
-gpus_per_task: null
-cpus_per_gpu: null
-mem_gb: null
-mem_per_gpu: null
-mem_per_cpu: null
+hydra:
+    launcher:
+        account: null
+        partition: null
+        constraint: null
+        qos: null
+        timeout_min: 60
 
-additional_parameters: {}
-setup: null
+        nodes: 1
+        tasks_per_node: 1
+        cpus_per_task: null
+        gres: null
+        gpus_per_node: null
+        gpus_per_task: null
+        cpus_per_gpu: null
+        mem_gb: null
+        mem_per_gpu: null
+        mem_per_cpu: null
 
-submitit_folder: ${hydra.sweep.dir}/.submitit/%j
-name: ${expe_series}
-stderr_to_stdout: true
-signal_delay_s: 120
-max_num_timeout: 0
-array_parallelism: 1
-comment: null
-exclude: null
+        additional_parameters: {}
+        setup: null
 
+        submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+        name: ${expe_series}
+        stderr_to_stdout: true
+        signal_delay_s: 120
+        max_num_timeout: 0
+        array_parallelism: 1
+        comment: null
+        exclude: null

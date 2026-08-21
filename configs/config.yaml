@@ -1,6 +1,6 @@
 # configs/config.yaml
 #
-# Primary config. Contains NO launcher settings: those live in configs/cluster/*.yaml
+# Primary config. Contains NO launcher settings: those live in configs/machine/*.yaml
 # (package hydra.launcher) and are merged on top of the *typed* schema registered by
 # hydra-submitit-launcher, so that a typo in a field name is a composition-time error
 # instead of a silent no-op.
@@ -9,14 +9,13 @@
 #   1. no `${now:...}` anywhere in a path. The timestamp is `run_id`, supplied on the
 #      command line by slurm/submit.sh, so that the value resolved on the login node and
 #      the value resolved inside the job are the same string by construction.
-#   2. no absolute /gpfswork or /lustre path. All roots come from configs/paths/*.yaml
-#      via $WORK / $SCRATCH / $DSDIR.
+#   2. no absolute /gpfswork or /lustre path. All roots come from the environment,
+#      via $GRNEWT_DATASETS / $GRNEWT_RESULTS (see env.example).
 
 defaults:
   # First: select the typed launcher schema registered by hydra-submitit-launcher.
-  # configs/cluster/*.yaml (package hydra.launcher) is merged on top of it afterwards,
+  # configs/machine/*.yaml (hydra.launcher subtree) is merged on top of it afterwards,
   # so an unknown field there is a composition error rather than a silent no-op.
-  - _self_
   - machine: jz_v100_t3
   - override hydra/launcher: submitit_slurm
 

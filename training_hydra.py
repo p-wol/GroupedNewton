@@ -25,6 +25,7 @@ from grnewt import (
     optimizers,
 )
 from grnewt import partition as build_partition
+from grnewt.config import Partition, UpdaterName, from_dictconfig, migrate
 from grnewt.datasets import (
     build_CIFAR10,
     build_ImageNet,
@@ -245,36 +246,41 @@ class Trainer:
 
     def build_optimizer(self, model):
         args = self.args
-        args_hg = self.args.optimizer.hg
+        # Single validation boundary. After this line nothing reads a DictConfig:
+        # `hg` is a plain, typed, validated HgCfg. Any field the selected optimizer
+        # does not read raises here rather than being silently dropped.
+        hg = from_dictconfig(
+            migrate(self.args.optimizer.hg), optimizer_name=args.optimizer.name
+        )
+        self.hg = hg
 
         # Define useful variables
         def full_loss(x, y):
             return self.loss_fn(self.model(x), y)
 
         # Build data loader for Hg
-        if args_hg.batch_size == -1:
-            hg_batch_size = args.dataset.batch_size
-        else:
-            hg_batch_size = args_hg.batch_size
+        hg_batch_size = args.dataset.batch_size if hg.batch_size == -1 else hg.batch_size
         self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle=True, drop_last=True)
 
         # Build partition
-        if args_hg.partition == "canonical":
+        if hg.partition is Partition.canonical:
             param_groups, name_groups = build_partition.canonical(model)
-        elif args_hg.partition == "wb":
+        elif hg.partition is Partition.wb:
             param_groups, name_groups = build_partition.wb(model)
-        elif args_hg.partition == "trivial":
+        elif hg.partition is Partition.trivial:
             param_groups, name_groups = build_partition.trivial(model)
-        elif args_hg.partition.find("blocks") == 0:
-            param_groups, name_groups = build_partition.blocks(
-                model, int(args_hg.partition[len("blocks-") :])
-            )
-        elif args_hg.partition.find("alternate") == 0:
-            alternate = int(args_hg.partition[len("alternate-") :])
+        elif hg.partition is Partition.blocks:
+            param_groups, name_groups = build_partition.blocks(model, hg.partition_arg)
+        elif hg.partition is Partition.alternate:
+            alternate = hg.partition_arg
             if args.model.name == "Perceptron":
                 nlayers = len(model.layers)
             elif args.model.name == "VGG":
                 nlayers = len(model.features)
+            else:
+                raise NotImplementedError(
+                    f"partition=alternate is not defined for model {args.model.name}."
+                )
             lst_names_w = [
                 [f"{i}.weight" for i in range(nlayers) if i % alternate == r]
                 for r in range(alternate)
@@ -286,36 +292,14 @@ class Trainer:
             param_groups, name_groups = build_partition.names_by_lst(
                 model, lst_names_w + lst_names_b
             )
-        elif args_hg.partition.find("vgg") == 0:
-            partition_args = args_hg.partition[len("vgg-") :]
-            param_groups, name_groups = model.partition(partition_args)
-        elif args_hg.partition.find("perceptron") == 0:
-            partition_args = args_hg.partition[len("perceptron-") :]
-            param_groups, name_groups = model.partition(partition_args)
+        elif hg.partition in (Partition.vgg, Partition.perceptron):
+            param_groups, name_groups = model.partition(hg.partition_str)
         else:
-            raise NotImplementedError("Unknown partition.")
+            raise NotImplementedError(f"Unknown partition: {hg.partition}.")
+
         # param_groups = ParamStructure(pgroups)
 
         print(name_groups)
-
-        # Build parameters for Nesterov
-        dct_nesterov = None
-        if args_hg.nesterov.use:
-            dct_nesterov = {
-                "use": args_hg.nesterov.use,
-                "damping_int": args_hg.nesterov.damping_int,
-                "mom_order3_": args_hg.nesterov.mom_order3_,
-            }
-        self.dct_nesterov = dct_nesterov
-
-        # Build parameters for uniform average
-        dct_uniform_avg = None
-        if args.optimizer.name == "NewtonSummaryUniformAvg":
-            dct_uniform_avg = {
-                "period": args_hg.uniform_avg.period,
-                "warmup": args_hg.uniform_avg.warmup,
-            }
-        self.dct_uniform_avg = dct_uniform_avg
 
         # Build optimizer
         if args.optimizer.name == "SGD":
@@ -328,19 +312,15 @@ class Trainer:
         elif args.optimizer.name == "Adam":
             optimizer = optim.Adam(param_groups, lr=args.optimizer.lr)
         elif args.optimizer.name.find("NewtonSummary") == 0:
-            if args_hg.updater.name == "SGD":
+            if hg.updater.name is UpdaterName.SGD:
                 updater = optimizers.SGDUpdate(
                     model.parameters(),
                     lr=1,
-                    momentum=args_hg.updater.momentum,
-                    dampening=args_hg.updater.momentum_damp,
+                    momentum=hg.updater.momentum,
+                    dampening=hg.updater.momentum_damp,
                 )
-            elif args_hg.updater.name == "Adam":
-                updater = optimizers.AdamUpdate(model.parameters(), lr=1)
             else:
-                raise NotImplementedError(
-                    f"Unknown updater: {args_hg.updater.name}, expected 'SGD' or 'Adam'."
-                )
+                updater = optimizers.AdamUpdate(model.parameters(), lr=1)
 
             if args.optimizer.name == "NewtonSummary":
                 optimizer = NewtonSummary(
@@ -349,15 +329,7 @@ class Trainer:
                     self.hg_loader,
                     updater,
                     loader_pre_hook=self.loader_pre_hook,
-                    damping=args_hg.damping,
-                    period_hg=args_hg.period_hg,
-                    mom_lrs=args_hg.mom_lrs,
-                    dct_nesterov=dct_nesterov,
-                    movavg=args_hg.movavg,
-                    ridge=args_hg.ridge,
-                    remove_negative=args_hg.remove_negative,
-                    maintain_true_lrs=args_hg.maintain_true_lrs,
-                    diagonal=args_hg.diagonal,
+                    cfg=hg,
                 )
             elif args.optimizer.name == "NewtonSummaryFB":
                 optimizer = NewtonSummaryFB(
@@ -367,10 +339,8 @@ class Trainer:
                     self.loss_fn,
                     self.hg_loader,
                     self.train_size,
-                    damping=args_hg.damping,
-                    ridge=args_hg.ridge,
-                    dct_nesterov=dct_nesterov,
                     loader_pre_hook=self.loader_pre_hook,
+                    cfg=hg,
                 )
             elif args.optimizer.name == "NewtonSummaryUniformAvg":
                 optimizer = NewtonSummaryUniformAvg(
@@ -379,13 +349,11 @@ class Trainer:
                     self.hg_loader,
                     updater,
                     loader_pre_hook=self.loader_pre_hook,
-                    damping=args_hg.damping,
-                    period_hg=args_hg.period_hg,
-                    mom_lrs=args_hg.mom_lrs,
-                    ridge=args_hg.ridge,
-                    dct_nesterov=dct_nesterov,
-                    remove_negative=args_hg.remove_negative,
-                    dct_uniform_avg=dct_uniform_avg,
+                    cfg=hg,
+                )
+            else:
+                raise NotImplementedError(
+                    f"Unknown NewtonSummary variant: {args.optimizer.name}."
                 )
         elif args.optimizer.name == "NewtonStochasticHv":
             args_nsto = args.optimizer.newtonsto
@@ -593,9 +561,9 @@ class Trainer:
         self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)
         self.model = self.build_model()
         self.optimizer = self.build_optimizer(self.model)
-        self.use_scheduler = self.args.optimizer.hg.dmp_auto.use
+        self.use_scheduler = self.hg.dmp_auto.use
         if self.use_scheduler and self.args.optimizer.name.find("NewtonSummary") == 0:
-            args_sch = self.args.optimizer.hg.dmp_auto
+            args_sch = self.hg.dmp_auto
             self.scheduler = ReduceDampingOnPlateau(
                 self.optimizer,
                 factor=args_sch.factor,
@@ -619,13 +587,10 @@ class Trainer:
         torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
 
         # Prepare damping schedule
-        damp_sch = self.args.optimizer.hg.damping_schedule
-        if damp_sch != "None":
-            lst = damp_sch.split("-")
-            damp_sch_init = self.args.optimizer.hg.damping
-            damp_sch_final = float(lst[0])
-            damp_sch_epoch = int(lst[1])
-            damp_sch_factor = (damp_sch_final / damp_sch_init) ** (1 / (damp_sch_epoch + 1))
+        damp_sch = self.hg.damping_schedule
+        if damp_sch.use:
+            damp_sch_epoch = damp_sch.epoch
+            damp_sch_factor = (damp_sch.final / self.hg.damping) ** (1 / (damp_sch.epoch + 1))
 
         # Full training procedure
         for epoch in range(self.args.optimizer.epochs):
@@ -663,7 +628,7 @@ class Trainer:
                 except:
                     if (
                         self.args.optimizer.name.find("NewtonSummary") == 0
-                        and not self.args.optimizer.hg.nologs
+                        and not self.hg.nologs
                     ):
                         optim_logs = self.optimizer.logs
 
@@ -726,7 +691,7 @@ class Trainer:
             # Logs -- artifacts
             if (
                 self.args.optimizer.name.find("NewtonSummary") == 0
-                and not self.args.optimizer.hg.nologs
+                and not self.hg.nologs
             ):
                 optim_logs = self.optimizer.logs
 
@@ -756,7 +721,7 @@ class Trainer:
                 )
 
             # Update damping schedule
-            if damp_sch != "None" and self.epoch <= damp_sch_epoch:
+            if damp_sch.use and self.epoch <= damp_sch_epoch:
                 self.optimizer.damping_mul(damp_sch_factor)
 
         """
@@ -789,12 +754,18 @@ class Trainer:
         order3_ = order3.abs().pow(1 / 3)
 
         # Compute lrs
-        if not self.dct_nesterov["use"]:
-            regul_H = self.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
+        if not self.hg.nesterov.use:
+            regul_H = self.hg.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
             lrs = torch.linalg.solve(H + regul_H, g)
         else:
             lrs, lrs_logs = nesterov_lrs(
-                H, g, order3_, damping_int=self.dct_nesterov["damping_int"]
+                H,
+                g,
+                order3_,
+                damping_int=self.hg.nesterov.damping_int,
+                threshold_D_sing=self.hg.nesterov.threshold_D_sing,
+                hard_case_rtol=self.hg.nesterov.hard_case_rtol,
+                refine=self.hg.nesterov.refine,
             )
             for k, v in lrs_logs.items():
                 logs["nesterov." + k] = v

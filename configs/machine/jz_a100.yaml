@@ -1,5 +1,9 @@
-# @package hydra.launcher
+# @package _global_
 #
+# Two packages in one file, deliberately: `dsloader` is application config read by
+# grnewt.datasets, the rest is launcher config. A single `# @package hydra.launcher`
+# header would send `dsloader` into SlurmQueueConf, where it is an unknown key and a
+# composition-time error (this file used to do exactly that).
 # Jean Zay, A100 octo-GPU nodes (64 AMD Milan cores, 8 x A100 80 GB).
 # Three things differ from V100 and each is sufficient to make the job fail:
 #   - accounting type: <project>@a100
@@ -7,41 +11,49 @@
 #     since 2024-10-01), and there is no QoS beyond 20 h on this partition
 #   - the default modules are not compatible: `module load arch/a100` first
 
-account: ${oc.env:GRNEWT_PROJECT}@a100
+dsloader:
+    num_workers: 7
+    num_workers_eval: 3
+    pin_memory: True
+    non_blocking: True
 
-partition: null
-constraint: a100           # -> #SBATCH -C a100, required to reach these nodes
-qos: qos_gpu_a100-t3
-timeout_min: 1150          # < 20 h ceiling
+hydra:
+    launcher:
+        account: ${oc.env:GRNEWT_PROJECT}@a100
 
-nodes: 1
-tasks_per_node: 1
-cpus_per_task: 8           # 64 cores / 8 GPUs
-gres: gpu:1
-gpus_per_node: null
-gpus_per_task: null
-cpus_per_gpu: null
-mem_gb: null
-mem_per_gpu: null
-mem_per_cpu: null
+        partition: null
+        constraint: a100           # -> #SBATCH -C a100, required to reach these nodes
+        qos: qos_gpu_a100-t3
+        timeout_min: 1150          # < 20 h ceiling
 
-additional_parameters:
-  hint: nomultithread
+        nodes: 1
+        tasks_per_node: 1
+        cpus_per_task: 8           # 64 cores / 8 GPUs
+        gres: gpu:1
+        gpus_per_node: null
+        gpus_per_task: null
+        cpus_per_gpu: null
+        mem_gb: null
+        mem_per_gpu: null
+        mem_per_cpu: null
 
-setup:
-  - "module purge"
-  - "module load arch/a100"
-  - "module load pytorch-gpu/py3/2.4.0"
-  - "export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK"
-  - "export PYTHONUNBUFFERED=1"
-  - "export HF_HUB_OFFLINE=1"
-  - "export TORCH_HOME=$WORK/.cache/torch"
+        additional_parameters:
+          hint: nomultithread
 
-submitit_folder: ${hydra.sweep.dir}/.submitit/%j
-name: ${expe_series}
-stderr_to_stdout: true
-signal_delay_s: 120
-max_num_timeout: 0
-array_parallelism: 16
-comment: null
-exclude: null
+        setup:
+          - "module purge"
+          - "module load arch/a100"
+          - "module load pytorch-gpu/py3/2.4.0"
+          - "export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK"
+          - "export PYTHONUNBUFFERED=1"
+          - "export HF_HUB_OFFLINE=1"
+          - "export TORCH_HOME=$WORK/.cache/torch"
+
+        submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+        name: ${expe_series}
+        stderr_to_stdout: true
+        signal_delay_s: 120
+        max_num_timeout: 0
+        array_parallelism: 16
+        comment: null
+        exclude: null

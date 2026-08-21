@@ -3,6 +3,7 @@ import itertools
 import torch
 from torch.utils.data import DataLoader
 
+from .config import HgCfg
 from .hg import compute_Hg
 from .nesterov import nesterov_lrs
 from .param_struct import ParamStructure
@@ -26,77 +27,35 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         updater,
         *,
         loader_pre_hook,
-        damping: float = 1,
-        period_hg: int = 1,
-        mom_lrs: float = 0,
-        ridge: float = 0,
-        dct_nesterov: dict = None,
-        noregul: bool = False,
-        remove_negative: bool = False,
-        dct_uniform_avg=None,
+        cfg: HgCfg,
     ):
         """
         param_groups: param_groups of the model
-        full_loss: full_loss(x, y) = l(m(x), y), where:
-            l: final loss (NLL, MSE...)
-            m: model
-            x: input
-            y: target
-        data_loader: generate the data point for computing H and g
-        damping: "damping" as in Newton's method (can be seen as a correction of the lr)
-        period_hg: number of training steps between each update of (H, g)
-        mom_lrs: momentum for the updates of lrs
-        dct_nesterov: args for Nesterov's cubic regularization procedure
-            'use': True or False
-            'damping_int': float; internal damping: the larger, the stronger the cubic regul.
-        dct_uniform_avg: args for uniform average
-            Idea:
-                update H, g, D in the following way:
-                    X_{t+1} = (t/(t+1))*X_t + (1/(t+1))*x_t
-                for each variable to maintain, update two elements:
-                    X^a and X^b:
-                    beginning: X^a is well-defined, X^b = x_0
-                    for T steps, update and use X^a, and update X^b
-                    at the end: X_a <- X_b; X_b <- x_T
-                    and repeat.
-            'use': True or False
-            'period': int; number of Hg update steps between each change of X^a, X^b.
-            'warmup': int; number of Hg update steps during which H, g, D are updated, but the NN is *not trained*
+        full_loss: full_loss(x, y) = l(m(x), y)
+        data_loader: generates the data points used to estimate H and g
+        cfg: validated `optimizer.hg` node; see grnewt/config.py for every field,
+             its default, and which optimizers read it. Nothing else is read from
+             the config, and every field this optimizer ignores is rejected at
+             composition time by grnewt.config.check_consumed.
         """
         self.fn_data_loader = create_infinite_data_loader(data_loader)
         self.dl_iter = iter(self.fn_data_loader())
         self.full_loss = full_loss
         self.updater = updater
-        self.period_hg = period_hg
-        self.ridge = ridge
         self.loader_pre_hook = loader_pre_hook
-        self.noregul = noregul
-        self.remove_negative = remove_negative
-        self.mom_lrs = mom_lrs
+        self.cfg = cfg
         self.curr_lrs = 0
-        defaults = {"lr": 0, "damping": damping}
-        super().__init__(param_groups, defaults)
+
+        # `damping` is per-parameter-group state, not a hyperparameter of the run:
+        # damping_mul() mutates it. It therefore belongs to torch's `defaults`
+        # mechanism, not to `self.cfg`. Every other field stays in `self.cfg`.
+        super().__init__(param_groups, {"lr": 0, "damping": cfg.damping})
 
         self.param_struct = ParamStructure(param_groups)
         self.device = self.param_struct.device
         self.dtype = self.param_struct.dtype
         self.step_counter = 0
 
-        # Init dct_nesterov
-        if dct_nesterov is None:
-            dct_nesterov = {"use": False}
-        if "mom_order3_" not in dct_nesterov.keys():
-            dct_nesterov["mom_order3_"] = 0.0
-        if dct_nesterov["mom_order3_"] != 0.0:
-            self.order3_ = None
-        self.dct_nesterov = dct_nesterov
-
-        # Init dct_uniform_avg
-        if dct_uniform_avg is None:
-            raise NotImplementedError("TODO: handle case of 'dct_uniform_avg is None'.")
-
-        self.warmup = dct_uniform_avg["warmup"]
-        self.unif_avg_period = dct_uniform_avg["period"]
         self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
 
         self.reset_logs()
@@ -127,7 +86,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         dct_HgD = {"H": H, "g": g, "D": order3}
 
         # Compute the time step of the method "uniform average"
-        t = (self.step_counter // self.period_hg) % self.unif_avg_period
+        t = (self.step_counter // self.cfg.period_hg) % self.cfg.uniform_avg.period
 
         # Time to replace the current moving average
         if t == 0:
@@ -144,8 +103,8 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         # During the first period, both averages "use" and "up" are updated with the same coefficient
         offset_use = (
             0
-            if self.step_counter // self.period_hg < self.unif_avg_period
-            else self.unif_avg_period
+            if self.step_counter // self.cfg.period_hg < self.cfg.uniform_avg.period
+            else self.cfg.uniform_avg.period
         )
 
         # Set up the time coefficients
@@ -168,7 +127,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
     @increment_step
     def step(self):
         # Perform update only if warm-up phase has ended
-        warmup_ended = self.step_counter // self.period_hg >= self.warmup
+        warmup_ended = self.step_counter // self.cfg.period_hg >= self.cfg.uniform_avg.warmup
 
         # Function that performs an update if necessary
         def make_step(direction):
@@ -180,7 +139,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
                         i += 1
 
         # If we do not update H, g, order3 and lrs: just move forward
-        if self.step_counter % self.period_hg != 0:
+        if self.step_counter % self.cfg.period_hg != 0:
             # If warm-up phase has ended, perform update (else, do nothing)
             if warmup_ended:
                 direction = self.updater.compute_step()
@@ -197,7 +156,13 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         ## Compute H, g, order3
         H, g, order3 = compute_Hg(
-            self.param_struct, self.full_loss, x, y, direction, noregul=self.noregul, diagonal=False
+            self.param_struct,
+            self.full_loss,
+            x,
+            y,
+            direction,
+            noregul=self.cfg.noregul,
+            diagonal=False,
         )
 
         # Update the averages of H, g, order3
@@ -216,15 +181,24 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         # Compute lrs
         lrs_found = True
-        if self.noregul or not self.dct_nesterov["use"]:
-            if self.noregul:
+        if self.cfg.noregul or not self.cfg.nesterov.use:
+            if self.cfg.noregul:
                 regul_H = 0
             else:
-                regul_H = self.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
+                regul_H = self.cfg.ridge * torch.eye(
+                    H.size(0), dtype=self.dtype, device=self.device
+                )
             lrs = torch.linalg.solve(H + regul_H, g)
         else:
+            nest = self.cfg.nesterov
             lrs, lrs_logs = nesterov_lrs(
-                H, g, order3_, damping_int=self.dct_nesterov["damping_int"]
+                H,
+                g,
+                order3_,
+                damping_int=nest.damping_int,
+                threshold_D_sing=nest.threshold_D_sing,
+                hard_case_rtol=nest.hard_case_rtol,
+                refine=nest.refine,
             )
 
             for k, v in lrs_logs.items():
@@ -242,10 +216,10 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             lrs = self.curr_lrs
 
         ## Additional operations on the lrs
-        r = self.mom_lrs if self.step_counter > 0 else 0
+        r = self.cfg.mom_lrs if self.step_counter > 0 else 0
         self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
         lrs = self.curr_lrs
-        if self.remove_negative:
+        if self.cfg.remove_negative:
             lrs = lrs.relu()
 
         ## Assign lrs
@@ -270,7 +244,6 @@ def create_infinite_data_loader(data_loader):
     #      the data_loader, then this may fail (possibly batches of irregular sizes)
     def f():
         for dl in itertools.repeat(data_loader):
-            for minibatch in dl:
-                yield minibatch
+            yield from dl
 
     return f

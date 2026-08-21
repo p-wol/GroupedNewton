@@ -30,8 +30,8 @@ elif grep -q 'config_name="config"' main_hydra.py; then
 else
     fail "main_hydra.py: cannot identify config_name -- check it by hand"
 fi
-for f in configs/config.yaml configs/paths/jz.yaml configs/cluster/jz_v100_t3.yaml \
-         configs/cluster/jz_v100_dev.yaml; do
+for f in configs/config.yaml configs/machine/jz_v100_t3.yaml \
+         configs/machine/jz_v100_dev.yaml; do
     if [ -f "$f" ]; then pass "$f"; else fail "$f is missing"; fi
 done
 if grep -q 'override hydra/launcher' configs/config.yaml 2>/dev/null; then

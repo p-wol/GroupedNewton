@@ -1,6 +1,6 @@
 #!/bin/bash
 # slurm/run_lenet_cifar.sh -- LeNet-5 / CIFAR-10, Adam + Nesterov lrs, lr grid.
-# Only experiment parameters here; everything cluster-related is in configs/cluster/.
+# Only experiment parameters here; everything machine-related is in configs/machine/.
 set -euo pipefail
 
 exec "$(dirname "$0")/submit.sh" \
@@ -44,7 +44,8 @@ exec "$(dirname "$0")/submit.sh" \
     "$@"
 
 # Notes:
-#  * dataset.path is no longer passed: it comes from configs/paths/jz.yaml ($DSDIR).
+#  * dataset.path is no longer passed: it comes from ${paths.datasets} in
+#    configs/config.yaml, i.e. $GRNEWT_DATASETS.
 #  * hydra.launcher.* is no longer passed: cluster=<name> selects a validated preset.
 #  * to smoke-test this exact grid without training:
 #        ./slurm/run_lenet_cifar.sh cluster=jz_v100_dev dry_run=true optimizer.epochs=1

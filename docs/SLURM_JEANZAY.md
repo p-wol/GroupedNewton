@@ -5,11 +5,12 @@ Scope: the files below replace the Hydra/Slurm layer only. `training_hydra.py`,
 
 ```
 configs/config.yaml              # primary config; NO launcher settings, NO ${now:}
-configs/paths/{jz,local}.yaml    # $WORK / $SCRATCH / $DSDIR, no hard-coded absolute path
-configs/cluster/jz_v100_t3.yaml  # \
-configs/cluster/jz_v100_dev.yaml #  } package hydra.launcher, merged on the typed
-configs/cluster/jz_a100.yaml     #  } SlurmQueueConf schema -> typos are errors
-configs/cluster/jz_h100.yaml     # /
+                                 # roots come from $GRNEWT_DATASETS / $GRNEWT_RESULTS
+configs/machine/jz_v100_t3.yaml  # \
+configs/machine/jz_v100_dev.yaml #  } package _global_: `dsloader` at top level,
+configs/machine/jz_a100.yaml     #  } Slurm settings under `hydra.launcher`, merged
+configs/machine/jz_h100.yaml     #  } on the typed SlurmQueueConf -> typos are errors
+configs/machine/{laptop,none}.yaml # /
 main_hydra.py                    # env probe, dry_run, failure captured in the job dir
 slurm/preflight.sh               # login-node checks, submits nothing
 slurm/submit.sh                  # the only submission entry point
@@ -17,7 +18,11 @@ slurm/run_lenet_cifar.sh         # example experiment script
 ```
 
 Deleted / superseded: `configs/config_hydra.yaml`, `configs/mlxp.yaml`,
-`configs/mlxpy.yaml`, `run_*_hydra.sh`.
+`configs/mlxpy.yaml`, `run_*_hydra.sh`, and (2026-08-21) the mlxp entry point
+`main.py` / `training.py` with its `run_{bigmlp,lenet,mlp,vgg}_*.sh` scripts, plus the
+`configs/paths/` group -- never wired into the defaults list, and a second mechanism
+($WORK/$DSDIR) competing with what `configs/config.yaml` already does
+($GRNEWT_DATASETS / $GRNEWT_RESULTS).
 
 ---
 
@@ -97,11 +102,14 @@ And on the login node: `sacct -j <id> --format=JobID,State,ExitCode,DerivedExitC
 - **No local/basic launcher config.** Hydra only instantiates a launcher in `--multirun`.
   A single run (`python main_hydra.py run_id=x ...`) on an interactive GPU allocation
   ignores `hydra.launcher` entirely, so there is nothing to configure for it.
-- **`cluster` is a separate group, not `hydra/launcher`.** Defining
+- **`machine` is a separate group, not `hydra/launcher`.** Defining
   `configs/hydra/launcher/jz.yaml` would *replace* the launcher node and lose the schema;
-  merging `configs/cluster/*.yaml` into `# @package hydra.launcher` on top of
-  `override hydra/launcher: submitit_slurm` keeps the typed node, so `qos_gpu-dvv` or
-  `cpu_per_task` fail at composition, on the login node.
+  nesting the Slurm settings under `hydra: launcher:` inside a `# @package _global_` file,
+  on top of `override hydra/launcher: submitit_slurm`, keeps the typed node, so
+  `qos_gpu-dvv` or `cpu_per_task` fail at composition, on the login node.
+  The file must be `# @package _global_`, not `# @package hydra.launcher`: it also carries
+  `dsloader`, application config read by `grnewt.datasets`, which is an unknown key inside
+  `SlurmQueueConf` (this was the bug that broke `machine=laptop` and `machine=none`).
 - **`run_id: ???`.** A missing run id is a hard error, not a silently shared directory.
 - **`max_num_timeout: 0`.** Requeue-on-timeout without checkpoint/resume in the trainer
   restarts from scratch and bills the hours twice. Raise it only after `Trainer` can

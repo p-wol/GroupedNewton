@@ -2,7 +2,7 @@
 # slurm/submit.sh -- single entry point for both Slurm submission and local execution.
 #
 #   ./slurm/submit.sh cluster=jz_v100_dev expe_series=foo optimizer.lr=1e-3,1e-4
-#   GRNEWT_LOCAL=1 ./slurm/submit.sh paths=local cluster=none system.device=-2 ...
+#   GRNEWT_LOCAL=1 ./slurm/submit.sh machine=none system.device=-2 ...
 #
 # Mode:
 #   slurm  -- default when `srun` is on PATH. Composes, then hands the sweep to Hydra's
@@ -40,8 +40,8 @@ fi
 
 if [ "$MODE" = "slurm" ]; then
     # 3-letter IDRIS project code, without the @v100 suffix. Set it in ~/.bashrc.
-    : "${JZ_PROJECT:?set JZ_PROJECT to your 3-letter IDRIS project code}"
-    export JZ_PROJECT
+    : "${GRNEWT_PROJECT:?set GRNEWT_PROJECT to your 3-letter IDRIS project code}"
+    export GRNEWT_PROJECT
     # The environment used to *submit* must be the one the job will use: submitit
     # hardcodes sys.executable of the submitting process into the sbatch script.
     module purge
