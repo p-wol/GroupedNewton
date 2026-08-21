@@ -10,15 +10,6 @@ from .param_struct import ParamStructure
 from .ns_base import NSBase, UpdateInstructions
 
 
-def increment_step(func):
-    def wrapper(self, *args, **kwargs):
-        ret = func(self, *args, **kwargs)
-        self.step_counter += 1
-        return ret
-
-    return wrapper
-
-
 class NewtonSummaryUniformAvg(NSBase):
     def __init__(
         self,

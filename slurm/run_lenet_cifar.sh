@@ -4,7 +4,7 @@
 set -euo pipefail
 
 exec "$(dirname "$0")/submit.sh" \
-    machine=jz_v100_dev \
+    machine=laptop \
     expe_series='LeNet_CIFAR_03_test_ds_optims' \
     seed=571677914 \
     system.dtype=32 \
@@ -21,22 +21,23 @@ exec "$(dirname "$0")/submit.sh" \
     logs_hg.use=False \
     logs_hg.batch_size=1000 \
     optimizer.epochs=5 \
-    optimizer.name='NewtonSummaryUniformAvg' \
+    optimizer.name='NewtonSummaryStaticAvg' \
     optimizer.lr=.003 \
     optimizer.weight_decay=0. \
     optimizer.momentum=.9 \
     optimizer.hg.batch_size=100 \
     optimizer.hg.partition='canonical' \
-    optimizer.hg.damping=.3 \
-    optimizer.hg.period_hg=10 \
+    optimizer.hg.damping=.1 \
+    optimizer.hg.period_hg=3 \
     optimizer.hg.remove_negative=True \
     optimizer.hg.updater.name='SGD' \
     optimizer.hg.updater.momentum=.9 \
     optimizer.hg.updater.momentum_damp=.0 \
     optimizer.hg.nesterov.use=True \
     optimizer.hg.nesterov.damping_int=1. \
-    optimizer.hg.uniform_avg.period=3 \
-    optimizer.hg.uniform_avg.warmup=3 \
+    #optimizer.hg.uniform_avg.period=3 \
+    #optimizer.hg.uniform_avg.warmup=3 \
+    optimizer.hg.static_avg.nsamples=3 \
     optimizer.hg.dmp_auto.use=True \
     optimizer.hg.dmp_auto.patience=2 \
     optimizer.hg.dmp_auto.threshold=.0001 \

@@ -16,6 +16,7 @@ from grnewt import (
     NewtonSummary,
     NewtonSummaryFB,
     NewtonSummaryUniformAvg,
+    NewtonSummaryStaticAvg,
     ParamStructure,
     ReduceDampingOnPlateau,
     compute_Hg_fullbatch,
@@ -342,6 +343,15 @@ class Trainer:
                 )
             elif args.optimizer.name == "NewtonSummaryUniformAvg":
                 optimizer = NewtonSummaryUniformAvg(
+                    param_groups,
+                    full_loss,
+                    self.hg_loader,
+                    updater,
+                    loader_pre_hook=self.loader_pre_hook,
+                    cfg=hg,
+                )
+            elif args.optimizer.name == "NewtonSummaryStaticAvg":
+                optimizer = NewtonSummaryStaticAvg(
                     param_groups,
                     full_loss,
                     self.hg_loader,

@@ -31,10 +31,11 @@ from typing import Any
 NS = "NewtonSummary"
 NSFB = "NewtonSummaryFB"
 NSUA = "NewtonSummaryUniformAvg"
+NSSA = "NewtonSummaryStaticAvg"
 # NewtonSummaryVanilla is deliberately absent: it is reachable from no config file
 # and no launch script (verified 2026-08-21), i.e. dead code. Adding it to ALL_NS
 # would let `used_by` claim a consumer that cannot be selected.
-ALL_NS = frozenset({NS, NSFB, NSUA})
+ALL_NS = frozenset({NS, NSFB, NSUA, NSSA})
 # NewtonStochasticHv IS reachable (training_hydra.py:358) but reads none of the
 # fields below: it takes lr_param/lr_direction/ridge/dct_nesterov directly from
 # args.optimizer.newtonsto. It is therefore deliberately outside ALL_NS, and
@@ -157,6 +158,14 @@ class UniformAvgCfg:
         if self.warmup < 0:
             raise ValueError(f"uniform_avg.warmup must be >= 0, got {self.warmup}")
 
+@dataclass(kw_only=True, slots=True)
+class StaticAvgCfg:
+    nsamples: int = P("Number of samples to estimate E[H], E[g], E[order3]", {NSSA}, default=1)
+
+    def __post_init__(self):
+        if self.nsamples < 1:
+            raise ValueError(f"static_avg.nsamples must be >= 1, got {self.nsamples}")
+
 
 @dataclass(kw_only=True, slots=True)
 class DmpAutoCfg:
@@ -205,11 +214,11 @@ class HgCfg:
 
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
-    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA}, default=1)
+    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA, NSSA}, default=1)
     mom_lrs: float = P("momentum on the learning rates", {NS, NSUA}, default=0.0)
     movavg: float = P("moving average on (H, g)", {NS}, default=0.0)
     maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", {NS}, default=True)
-    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA}, default=False)
+    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA, NSSA}, default=False)
 
     # --- compuation path ------------------------------------------------------------
     hg_batched: bool = P("use the batched version of compute_Hg", {NSUA}, default=False)
@@ -227,6 +236,7 @@ class HgCfg:
     updater: UpdaterCfg = field(default_factory=UpdaterCfg)
     nesterov: NesterovCfg = field(default_factory=NesterovCfg)
     uniform_avg: UniformAvgCfg = field(default_factory=UniformAvgCfg)
+    static_avg: StaticAvgCfg = field(default_factory=StaticAvgCfg)
     dmp_auto: DmpAutoCfg = field(default_factory=DmpAutoCfg)
 
     def __post_init__(self):

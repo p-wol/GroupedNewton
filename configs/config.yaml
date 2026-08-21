@@ -103,6 +103,8 @@ optimizer:
         uniform_avg:
             period: 1
             warmup: 0
+        static_avg:
+            nsamples: 3
         dmp_auto:
             use: False
             apply_to: 'damping'
