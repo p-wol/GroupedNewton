@@ -89,7 +89,7 @@ for expe_name, dct_expe in dct_expes.items():
 
     # Exclude experiments with instabilities
     exclude = False
-    for m1, m2 in zip(lst_metrics[:-1], lst_metrics[1:]):
+    for m1, m2 in zip(lst_metrics[:-1], lst_metrics[1:], strict=False):
         if m2["tr_nll"] >= rate_instability * m1["tr_nll"]:
             exclude = True
             break

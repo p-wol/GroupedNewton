@@ -96,7 +96,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
         # Full loss function w.r.t. the parameters
         def full_loss(*params):
             output = torch.func.functional_call(
-                self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params)}, x
+                self.model, {k: p for (k, v), p in zip(self.model.named_parameters(), params, strict=False)}, x
             )
             return self.final_loss(output, y)
 
@@ -105,7 +105,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
 
         # Update direction: d_{t+1} = d_t - lr_direction * (H d_t - grad)
         with torch.no_grad():
-            for d, g, v in zip(self.curr_direction, grad, vhp):
+            for d, g, v in zip(self.curr_direction, grad, vhp, strict=False):
                 if self.ridge == 0:
                     d.add_(v - g, alpha=-self.lr_direction)
                 else:
@@ -113,7 +113,7 @@ class NewtonStochasticHv(torch.optim.Optimizer):
 
         # Update params
         with torch.no_grad():
-            for p, d in zip(self.tup_params, self.curr_direction):
+            for p, d in zip(self.tup_params, self.curr_direction, strict=False):
                 p.add_(d, alpha=-self.lr_param)
 
         # Store logs

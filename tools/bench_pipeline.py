@@ -35,6 +35,7 @@ import torchvision
 from torch.utils import data
 from torchvision import transforms
 
+
 # Same shapes as grnewt.models.LeNet with args '6-16-120-84-10' on 3x32x32 inputs.
 class LeNet(torch.nn.Module):
     def __init__(self) -> None:

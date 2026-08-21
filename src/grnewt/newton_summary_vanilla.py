@@ -275,7 +275,7 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
             # Assign lrs
             self.logs["lrs_clipped"].append(lrs)
             self.logs["curr_lrs"].append(self.curr_lrs)
-            for group, lr in zip(self.param_groups, lrs):
+            for group, lr in zip(self.param_groups, lrs, strict=False):
                 group["lr"] = group["damping"] * lr.item()
 
             # Store logs

@@ -21,9 +21,23 @@ Tunable: chunk_size trades memory for launch efficiency. Peak second-order
 graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
 """
 
-from typing import Optional
 
 import torch
+
+
+def _scaled_loss(full_loss, weight):
+    """`full_loss` scaled by a per-batch weight.
+
+    A factory, not an inline lambda: an inline closure over the loop variable
+    `x` is a late-binding trap (ruff B023) and a default argument that calls
+    `x.size(0)` is B008. This binds the weight once, explicitly.
+    """
+
+    def loss_x(x_, y_):
+        return full_loss(x_, y_) * weight
+
+    return loss_x
+
 
 def compute_Hg(
     param_struct, full_loss, x, y, direction, *, noregul=False, diagonal=False, semiH=False
@@ -73,8 +87,16 @@ def compute_Hg(
             if not semiH:
                 H[i:, i] = H_i.detach()
 
-    # Build order3
-    order3 = torch.stack(order3_list)
+    # Build order3.
+    # FIX (2026-08-21): with noregul=True the loop above `continue`s before
+    # filling order3_list, so this used to be torch.stack([None, ...]) ->
+    # TypeError.  compute_Hg_batched already returned zeros in that case; the
+    # two paths must agree, and every caller (NewtonSummary, NewtonSummaryFB)
+    # ignores order3 when noregul is set.
+    if noregul:
+        order3 = torch.zeros(nb_groups, device=device, dtype=dtype)
+    else:
+        order3 = torch.stack(order3_list)
 
     return H, g, order3
 
@@ -103,7 +125,7 @@ def compute_Hg_fullbatch(
         # Load samples
         x, y = loader_pre_hook(x, y)
 
-        loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
+        loss_x = _scaled_loss(full_loss, x.size(0) / dataset_size)
         H_, g_, order3_ = compute_Hg(
             param_struct, loss_x, x, y, direction, noregul=noregul, diagonal=diagonal, semiH=True
         )
@@ -170,11 +192,11 @@ def _contract(param_struct, batched, direction, start: int, end: int, k: int) ->
 
     per_tensor = [
         (b.reshape(k, -1) * d.reshape(1, -1)).sum(dim=1)  # (k,)
-        for b, d in zip(batched, dirs)
+        for b, d in zip(batched, dirs, strict=False)
     ]
     cols = [
         torch.stack(per_tensor[i1 - i0 : i2 - i0], dim=0).sum(dim=0)
-        for i1, i2 in zip(gi[start:end], gi[start + 1 : end + 1])
+        for i1, i2 in zip(gi[start:end], gi[start + 1 : end + 1], strict=False)
     ]
     return torch.stack(cols, dim=1)  # (k, end-start)
 
@@ -211,7 +233,15 @@ def compute_Hg_batched(
         hi = min(lo + chunk_size, S)
         k = hi - lo
 
-        end = lo + 1 if diagonal else S
+        # FIX (2026-08-21): this used to be `lo + 1 if diagonal else S`.  The
+        # chunk covers rows lo..hi-1, so with `end = lo + 1` the only available
+        # column was `lo` and the code wrote H[lo+j, lo] onto the diagonal
+        # (silently, when noregul=True) or raised IndexError from the order3
+        # branch (when noregul=False).  `is_grads_batched` differentiates w.r.t.
+        # a FIXED input set, so batching rows lo..hi-1 of a diagonal-only
+        # computation requires the union of their input groups; the wanted
+        # entries are then the diagonal of the (k, k) block.
+        end = hi if diagonal else S
         # keep the triangular restriction: differentiate only w.r.t. groups lo..end-1
         inputs = param_struct.select_params(start=lo, end=end)
 
@@ -232,7 +262,8 @@ def compute_Hg_batched(
         blk = _contract(param_struct, rows, direction, lo, end, k)  # (k, end-lo)
 
         if diagonal:
-            H[torch.arange(lo, hi), torch.arange(lo, hi)] = blk[:, 0].detach()
+            idx = torch.arange(k, device=device)
+            H[torch.arange(lo, hi), torch.arange(lo, hi)] = blk[idx, idx].detach()
         else:
             # blk[j] holds H[lo+j, lo:]; only columns >= lo+j belong to the upper triangle
             for j in range(k):

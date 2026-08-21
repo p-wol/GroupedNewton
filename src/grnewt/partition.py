@@ -26,7 +26,7 @@ def remove_empty(param_groups, name_groups):
     """
     new_param_groups = []
     new_name_groups = []
-    for pg, ng in zip(param_groups, name_groups):
+    for pg, ng in zip(param_groups, name_groups, strict=False):
         if len(pg["params"]) > 0:
             new_param_groups.append(pg)
             new_name_groups.append(ng)

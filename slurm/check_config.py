@@ -77,7 +77,7 @@ def collapse_sweeps(overrides: list[str]) -> tuple[list[str], list[str]]:
         parsed = None
 
     if parsed is not None:
-        for raw, ov in zip(overrides, parsed):
+        for raw, ov in zip(overrides, parsed, strict=False):
             try:
                 if ov.is_sweep_override():
                     first = next(iter(ov.sweep_string_iterator()))

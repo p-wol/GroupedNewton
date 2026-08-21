@@ -32,14 +32,14 @@ def _masked(direction, param_struct, s):
 def _phi(param_struct, full_loss, x, y, v, t):
     """L(theta + t v), evaluated without disturbing the parameters."""
     with torch.no_grad():
-        for p, d in zip(param_struct.tup_params, v):
+        for p, d in zip(param_struct.tup_params, v, strict=False):
             p.add_(d, alpha=t)
     try:
         with torch.no_grad():
             return full_loss(x, y).item()
     finally:
         with torch.no_grad():
-            for p, d in zip(param_struct.tup_params, v):
+            for p, d in zip(param_struct.tup_params, v, strict=False):
                 p.add_(d, alpha=-t)
 
 
@@ -92,7 +92,7 @@ def test_offdiagonal_matches_polarization(mlp, batch, mse, param_struct, directi
         for t in range(s + 1, S):
             vs = _masked(direction, param_struct, s)
             vt = _masked(direction, param_struct, t)
-            vst = tuple(a + b for a, b in zip(vs, vt))
+            vst = tuple(a + b for a, b in zip(vs, vt, strict=False))
             _, dss, _ = _derivs_fd(param_struct, full_loss, x, y, vs)
             _, dtt, _ = _derivs_fd(param_struct, full_loss, x, y, vt)
             _, dstst, _ = _derivs_fd(param_struct, full_loss, x, y, vst)
@@ -195,7 +195,7 @@ def test_direction_is_indexed_in_tup_params_order(uniform_mlp, batch, mse, name)
     as_model_order = tuple(by_struct[id(p)] for p in uniform_mlp.parameters())
 
     is_order_preserved = True
-    for t1, t2 in zip(correct, as_model_order):
+    for t1, t2 in zip(correct, as_model_order, strict=False):
         if (t1 != t2).int().sum() != 0:
             is_order_preserved = False
             break

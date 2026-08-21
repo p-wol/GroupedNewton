@@ -84,7 +84,7 @@ class NewtonSummaryFB(torch.optim.Optimizer):
         lrs = self.compute_lrs(direction)
 
         # Assign lrs
-        for group, lr in zip(self.param_groups, lrs):
+        for group, lr in zip(self.param_groups, lrs, strict=False):
             lr1 = lr.item()
             if self.cfg.remove_negative:
                 lr1 = max(0, lr1)

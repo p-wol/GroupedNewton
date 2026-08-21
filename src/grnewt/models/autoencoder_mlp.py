@@ -25,11 +25,11 @@ class AutoencoderMLP(torch.nn.Module):
         self.first_layer_normal = first_layer_normal
 
         self.layers_enc = torch.nn.ModuleList()
-        for l_in, l_out in zip(layers[:-1], layers[1:]):
+        for l_in, l_out in zip(layers[:-1], layers[1:], strict=False):
             self.layers_enc.append(torch.nn.Linear(l_in, l_out))
 
         self.layers_dec = torch.nn.ModuleList()
-        for l_out, l_in in reversed(list(zip(layers[:-1], layers[1:]))):
+        for l_out, l_in in reversed(list(zip(layers[:-1], layers[1:], strict=False))):
             self.layers_dec.append(torch.nn.Linear(l_in, l_out))
 
         self.reset_parameters()

@@ -54,6 +54,12 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         self.param_struct = ParamStructure(param_groups)
         self.device = self.param_struct.device
         self.dtype = self.param_struct.dtype
+
+        # See ParamStructure.build_reindex.
+        self._dir_perm = self.param_struct.build_reindex(
+            [p for gr in updater.param_groups for p in gr["params"]]
+        )
+
         self.step_counter = 0
 
         self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
@@ -90,7 +96,20 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
 
         # Time to replace the current moving average
         if t == 0:
-            # At init, set the moving averages to zero
+            # At init, set the moving averages to zero.
+            #
+            # FIX (2026-08-21): both assignments below used to store `curr`
+            # ITSELF.  `_use` and `_up` then aliased each other AND the incoming
+            # sample, so the update loop below applied `mul_((n-1)/n)` twice to
+            # one tensor -- and with n = 1 the first `mul_(0)` zeroed `curr`
+            # before `add_((1/n) * curr)` could read it.  Measured effect: the
+            # returned average was exactly 0 at step 0, the two accumulators
+            # stayed aliased for the whole first period, and every later period
+            # silently dropped its first sample while `_up` was biased low by
+            # (P-1)/P.  Since H, g and D all carry the SAME wrong weight W, the
+            # net effect on the step is lambda_eff = W^2 * lambda_int (verified);
+            # in the reference LeNet/CIFAR configuration W cycled through
+            # {3/4, 4/5, 5/6}, i.e. lambda_eff/lambda_int in {0.56, 0.64, 0.69}.
             if self.step_counter == 0:
                 for key, curr in dct_HgD.items():
                     self.dct_HgD_avgs[f"{key}_up"] = torch.zeros_like(curr)
@@ -111,11 +130,15 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         tt_use = offset_use + t + 1
         tt_up = t + 1
 
-        # Update the moving averages
+        # Update the moving averages.
+        # `curr / n` is materialized BEFORE the in-place `mul_`, so the two
+        # accumulators can never read a tensor that the other has just mutated
+        # even if a future refactor reintroduces sharing.
         for key1, curr in dct_HgD.items():
-            for key2, n in zip(["use", "up"], [tt_use, tt_up]):
+            for key2, n in zip(["use", "up"], [tt_use, tt_up], strict=False):
                 key = f"{key1}_{key2}"
-                self.dct_HgD_avgs[key].mul_((n - 1) / n).add_((1 / n) * curr)
+                contrib = curr / n
+                self.dct_HgD_avgs[key].mul_((n - 1) / n).add_(contrib)
 
         # Return the H, g, order3 to use
         H = self.dct_HgD_avgs["H_use"]
@@ -142,12 +165,14 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         if self.step_counter % self.cfg.period_hg != 0:
             # If warm-up phase has ended, perform update (else, do nothing)
             if warmup_ended:
-                direction = self.updater.compute_step()
+                direction = self.param_struct.reindex(
+                    self.updater.compute_step(), self._dir_perm)
                 make_step(direction)
             return
 
         # If we update H, g, order3 and lrs: first compute the direction
-        direction = self.updater.compute_step()
+        direction = self.param_struct.reindex(
+            self.updater.compute_step(), self._dir_perm)
 
         # Compute H, g
         ## Prepare data
@@ -232,7 +257,7 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
         ## Assign lrs
         self.logs["lrs_clipped"].append(lrs)
         self.logs["curr_lrs"].append(self.curr_lrs)
-        for group, lr in zip(self.param_groups, lrs):
+        for group, lr in zip(self.param_groups, lrs, strict=False):
             group["lr"] = group["damping"] * lr.item()
 
         # Store logs of lrs

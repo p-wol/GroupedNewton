@@ -9,8 +9,7 @@ Do not edit by hand: `tests/test_config_schema.py` fails if it drifts.
 | `partition` | `Partition` | `'canonical'` | all | group construction rule |
 | `partition_arg` | `int | None` | `None` | all | integer argument of partition in {blocks, alternate}; unused otherwise |
 | `partition_str` | `str | None` | `None` | all | string argument of partition in {vgg, perceptron} |
-| `diagonal` | `bool` | `False` | NewtonSummary | compute only the diagonal of Hbar |
-| `semiH` | `bool` | `False` | NewtonSummary | compute the non-symmetrized Hbar (compute_Hg(semiH=True)) |
+| `diagonal` | `bool` | `False` | NewtonSummary, NewtonSummaryUniformAvg | compute only the diagonal of Hbar |
 | `noregul` | `bool` | `False` | NewtonSummary, NewtonSummaryUniformAvg | bypass every regularization: lrs = Hbar^{-1} gbar |
 | `ridge` | `float` | `0.0` | all | ridge added to Hbar when nesterov.use is False |
 | `damping` | `float` | `1.0` | all | per-group damping; multiplies the computed lr |
@@ -19,6 +18,8 @@ Do not edit by hand: `tests/test_config_schema.py` fails if it drifts.
 | `movavg` | `float` | `0.0` | NewtonSummary | moving average on (H, g) |
 | `maintain_true_lrs` | `bool` | `True` | NewtonSummary | keep the unclipped lrs as the momentum state |
 | `remove_negative` | `bool` | `False` | NewtonSummary, NewtonSummaryUniformAvg | clamp negative learning rates to zero |
+| `hg_batched` | `bool` | `False` | NewtonSummaryUniformAvg | use the batched version of compute_Hg |
+| `hg_batched_chunk` | `int` | `-1` | NewtonSummaryUniformAvg | chunk_size in the batched version of compute_hg; -1 = S (partition size) |
 | `nologs` | `bool` | `False` | all | do not dump the (H, g, lrs) logs |
 | `damping_schedule.use` | `bool` | `False` | all | geometrically decay `damping` over the first `epoch` epochs |
 | `damping_schedule.final` | `float` | `1.0` | all | target value of `damping` at epoch `epoch` |

@@ -15,43 +15,47 @@ arXiv: [https://arxiv.org/abs/2312.03885](https://arxiv.org/abs/2312.03885)
 ```python
 import torch
 import grnewt
+from grnewt.config import HgCfg, NesterovCfg, UpdaterCfg
 
-# User-specific
-data_loader = torch.utils.data.DataLoader(...)
+# --- user-specific ------------------------------------------------- BEGIN USER
 model = MyModel(...)
-loss_fn = lambda output, target: ...
+loss_fn = torch.nn.CrossEntropyLoss()
+data_loader = torch.utils.data.DataLoader(...)   # training batches
+hg_loader = torch.utils.data.DataLoader(...)     # batches used to estimate (H, g)
+# --------------------------------------------------------------------- END USER
 
-# Create a specific data loader
-hg_loader = torch.utils.data.DataLoader(...)
+def full_loss(x, target):
+    return loss_fn(model(x), target)
 
-# Set some hyperparameters
-damping = 0.1
-damping_int = 10.0
-
-# Prepare the optimizer
-full_loss = lambda x, target: loss_fn(model(x), target)
 param_groups, name_groups = grnewt.partition.canonical(model)
+
+# `updater` produces the direction u. IMPORTANT: it must be built from the SAME
+# parameter list as `param_groups`; NewtonSummary re-indexes its output into
+# ParamStructure order and raises if a parameter is missing.
 updater = grnewt.optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
+
+cfg = HgCfg(
+    damping=0.1,
+    period_hg=10,
+    mom_lrs=0.5,
+    remove_negative=True,
+    updater=UpdaterCfg(momentum=0.9),
+    nesterov=NesterovCfg(use=True, damping_int=10.0),
+)
+
 optimizer = grnewt.NewtonSummary(
     param_groups,
     full_loss,
     hg_loader,
     updater,
-    damping=damping,
-    dct_nesterov={"use": True, "damping_int": damping_int},
-    period_hg=10,
-    mom_lrs=0.5,
-    remove_negative=True,
+    loader_pre_hook=lambda x, y: (x, y),
+    cfg=cfg,
 )
 
-# Optimization process
 for epoch in range(10):
     for x, target in data_loader:
-        optimizer.zero_grad()
-        output = model(x)
-        loss = loss_fn(output, target)
-
-        loss.backward()
+        updater.zero_grad()
+        full_loss(x, target).backward()
         optimizer.step()
 ```
 

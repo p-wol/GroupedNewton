@@ -25,7 +25,7 @@ def expand(overrides: list[str]) -> list[list[str]]:
 
     parsed = OverridesParser.create().parse_overrides(overrides=overrides)
     choices: list[list[str]] = []
-    for raw, ov in zip(overrides, parsed):
+    for raw, ov in zip(overrides, parsed, strict=False):
         if ov.is_sweep_override():
             key = ov.get_key_element()
             choices.append([f"{key}={v}" for v in ov.sweep_string_iterator()])

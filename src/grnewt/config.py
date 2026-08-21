@@ -35,6 +35,10 @@ NSUA = "NewtonSummaryUniformAvg"
 # and no launch script (verified 2026-08-21), i.e. dead code. Adding it to ALL_NS
 # would let `used_by` claim a consumer that cannot be selected.
 ALL_NS = frozenset({NS, NSFB, NSUA})
+# NewtonStochasticHv IS reachable (training_hydra.py:358) but reads none of the
+# fields below: it takes lr_param/lr_direction/ridge/dct_nesterov directly from
+# args.optimizer.newtonsto. It is therefore deliberately outside ALL_NS, and
+# check_consumed() must not be called with it.
 
 
 def P(help: str, used_by, **kw: Any) -> Any:
@@ -162,9 +166,13 @@ class HgCfg:
                                      ALL_NS, default=None)
 
     # --- the reduced model ----------------------------------------------------------
-    diagonal: bool = P("compute only the diagonal of Hbar", {NS}, default=False)
-    semiH: bool = P("compute the non-symmetrized Hbar (compute_Hg(semiH=True))", {NS},
-                    default=False)
+    diagonal: bool = P("compute only the diagonal of Hbar", {NS, NSUA}, default=False)
+    # `semiH` was REMOVED (2026-08-21). No optimizer ever forwarded it to
+    # compute_Hg (verified by grep); the only caller that sets semiH=True is
+    # compute_Hg_fullbatch, internally and unconditionally, and it symmetrizes
+    # afterwards. Exposing it was not merely dead: nesterov_lrs starts with
+    # H64 = 0.5 * (H64 + H64.T), so a user-supplied triangular Hbar would have
+    # had every off-diagonal entry silently halved.
     noregul: bool = P("bypass every regularization: lrs = Hbar^{-1} gbar", {NS, NSUA},
                       default=False)
     ridge: float = P("ridge added to Hbar when nesterov.use is False", {NS, NSFB, NSUA},
@@ -182,9 +190,9 @@ class HgCfg:
                               default=False)
 
     # --- compuation path ------------------------------------------------------------
-    hg_batched: bool = P("use the batched version of compute_Hg", ALL_NS, default=False)
+    hg_batched: bool = P("use the batched version of compute_Hg", {NSUA}, default=False)
     hg_batched_chunk: int = P("chunk_size in the batched version of compute_hg; "
-                                  "-1 = S (partition size)", ALL_NS, default=-1)
+                                  "-1 = S (partition size)", {NSUA}, default=-1)
 
     # --- bookkeeping ----------------------------------------------------------------
     nologs: bool = P("do not dump the (H, g, lrs) logs", ALL_NS, default=False)
@@ -217,6 +225,11 @@ class HgCfg:
         elif self.partition_str is not None:
             raise ValueError(f"partition_str is meaningless for partition="
                              f"{self.partition.value}")
+        if self.movavg != 0 and self.nesterov.mom_order3_ != 0.0:
+            raise ValueError(
+                "movavg != 0 and nesterov.mom_order3_ != 0 are mutually exclusive: "
+                "newton_summary.py recomputes order3_ from the movavg'd order3 and "
+                "discards the mom_order3_ EMA (silently, before 2026-08-21)")
         if self.noregul and self.nesterov.use:
             raise ValueError("noregul=True and nesterov.use=True are mutually exclusive: "
                              "noregul short-circuits the cubic solver (newton_summary*.py)")

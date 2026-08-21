@@ -2,6 +2,20 @@ import copy
 from itertools import combinations_with_replacement
 
 
+def _scaled_loss(full_loss, weight):
+    """`full_loss` scaled by a per-batch weight.
+
+    A factory, not an inline lambda: an inline closure over the loop variable
+    `x` is a late-binding trap (ruff B023) and a default argument that calls
+    `x.size(0)` is B008. This binds the weight once, explicitly.
+    """
+
+    def loss_x(x_, y_):
+        return full_loss(x_, y_) * weight
+
+    return loss_x
+
+
 def diff_n(param_struct, order, full_loss, x, y, direction):
     # Define useful variables
     device = param_struct.device
@@ -56,7 +70,7 @@ def diff_n_fullbatch(
         # Load samples
         x, y = loader_pre_hook(x, y)
 
-        loss_x = lambda x_, y_: full_loss(x_, y_) * x.size(0) / dataset_size
+        loss_x = _scaled_loss(full_loss, x.size(0) / dataset_size)
         lst_results_ = diff_n(param_struct, order, loss_x, x, y, direction)
 
         if lst_results is None:

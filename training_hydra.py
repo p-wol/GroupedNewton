@@ -369,16 +369,12 @@ class Trainer:
                 ridge=args_nsto.ridge,
             )
         elif args.optimizer.name == "KFAC":
-            optimizer = KFACOptimizer(
-                self.model,
-                lr=args.optimizer.lr,
-                momentum=args.optimizer.momentum,
-                stat_decay=args.optimizer.kfac.stat_decay,
-                damping=args.optimizer.kfac.damping,
-                kl_clip=args.optimizer.kfac.kl_clip,
-                weight_decay=args.optimizer.kfac.weight_decay,
-                TCov=args.optimizer.kfac.tcov,
-                TInv=args.optimizer.kfac.tinv,
+            # FIX (2026-08-21): `from kfac.optimizers import KFACOptimizer` is
+            # commented out at the top of this file, so this branch was a
+            # NameError, not a NotImplementedError.
+            raise NotImplementedError(
+                "optimizer.name=KFAC requires the `kfac` package and the import "
+                "at the top of training_hydra.py, both currently absent."
             )
         elif args.optimizer.name == "LBFGS":
             if args.optimizer.lbfgs.line_search_fn == "none":
@@ -550,7 +546,7 @@ class Trainer:
             f_loader_pre_hook = loader_pre_hooks.classification
 
         self.loader_pre_hook = lambda x, y: f_loader_pre_hook(
-                x, y, device=self.device, dtype=self.dtype, 
+                x, y, device=self.device, dtype=self.dtype,
                 non_blocking=self.args.dsloader.non_blocking
             )
 

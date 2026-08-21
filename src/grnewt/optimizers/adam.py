@@ -1,5 +1,4 @@
 # mypy: allow-untyped-defs
-from typing import Optional, Union
 
 import torch
 from torch import Tensor
@@ -10,7 +9,7 @@ class AdamUpdate(Optimizer):
     def __init__(
         self,
         params,
-        lr: Union[float, Tensor] = 1e-3,
+        lr: float | Tensor = 1e-3,
         betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-8,
         weight_decay: float = 0,
@@ -179,13 +178,13 @@ def adam(
     max_exp_avg_sqs: list[Tensor],
     state_steps: list[Tensor],
     updates: list[Tensor],
-    grad_scale: Optional[Tensor],
-    found_inf: Optional[Tensor],
+    grad_scale: Tensor | None,
+    found_inf: Tensor | None,
     *,
     amsgrad: bool,
     beta1: float,
     beta2: float,
-    lr: Union[float, Tensor],
+    lr: float | Tensor,
     weight_decay: float,
     eps: float,
     maximize: bool,

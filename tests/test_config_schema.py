@@ -94,7 +94,7 @@ def test_schema_accepts_the_shipped_config_and_defaults_agree():
 
     default = HgCfg()
     differing = [
-        p for (p, v, _), (_, d, _) in zip(_walk(cfg), _walk(default)) if v != d
+        p for (p, v, _), (_, d, _) in zip(_walk(cfg), _walk(default), strict=False) if v != d
     ]
     assert not differing, (
         "configs/config.yaml and grnewt/config.py disagree on the default of: "
@@ -215,5 +215,5 @@ def test_optimizer_builds_from_the_default_config_and_steps():
         full_loss(xb, yb).backward()
         opt.step()
     after = [p.detach().clone() for p in model.parameters()]
-    assert any(not torch.equal(a, b) for a, b in zip(before, after))
+    assert any(not torch.equal(a, b) for a, b in zip(before, after, strict=False))
     assert all(torch.isfinite(p).all() for p in after)

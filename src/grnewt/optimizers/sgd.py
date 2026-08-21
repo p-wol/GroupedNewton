@@ -1,4 +1,3 @@
-from typing import Optional
 
 import torch
 from torch import Tensor
@@ -84,7 +83,7 @@ class SGDUpdate(Optimizer):
         for group in self.param_groups:
             params: list[Tensor] = []
             grads: list[Tensor] = []
-            momentum_buffer_list: list[Optional[Tensor]] = []
+            momentum_buffer_list: list[Tensor | None] = []
             updates: list[Tensor] = []
 
             has_sparse_grad = self._init_group(group, params, grads, momentum_buffer_list, updates)
@@ -107,11 +106,11 @@ class SGDUpdate(Optimizer):
 
             if group["momentum"] != 0:
                 # update momentum_buffers in state
-                for p, momentum_buffer in zip(params, momentum_buffer_list):
+                for p, momentum_buffer in zip(params, momentum_buffer_list, strict=False):
                     state = self.state[p]
                     state["momentum_buffer"] = momentum_buffer
 
-            for p, update in zip(params, updates):
+            for p, update in zip(params, updates, strict=False):
                 state = self.state[p]
                 state["update"] = update
 
@@ -137,13 +136,13 @@ class SGDUpdate(Optimizer):
 def sgd(
     params: list[Tensor],
     d_p_list: list[Tensor],
-    momentum_buffer_list: list[Optional[Tensor]],
+    momentum_buffer_list: list[Tensor | None],
     updates: list[Tensor],
     # kwonly args with defaults are not supported by functions compiled with torchscript issue #70627
     # setting this as kwarg for now as functional API is compiled by torch/distributed/optim
     has_sparse_grad: bool = False,
-    grad_scale: Optional[Tensor] = None,
-    found_inf: Optional[Tensor] = None,
+    grad_scale: Tensor | None = None,
+    found_inf: Tensor | None = None,
     *,
     weight_decay: float,
     momentum: float,

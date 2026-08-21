@@ -111,6 +111,74 @@ class _Secular:
         return self.k1 + self.c * self.phi(t_a)
 
 
+def _eigh_invariant(K, rtol=1e-8, max_passes=8):
+    """`torch.linalg.eigh(K)` with the dominant block peeled off until the
+    absolute error floor is small compared with the smallest |kappa_j|.
+
+    Why.  `eigh` guarantees only an ABSOLUTE accuracy ~eps*||K|| on every
+    eigenvalue.  A group nearly in ker(D) makes K_ss = S_ss / d_s^2 enormous, so
+    ||K|| is set by that single direction and every small kappa_j -- in
+    particular kappa_min, which fixes the pole x0 = -kappa_min/c -- is destroyed.
+    When the root r_* sits close to x0 (the near-hard regime, which is the usual
+    one for an indefinite Hbar) the whole step inherits that error.  Measured on
+    a 5x5 instance with cond(D_R)^2 = 8.5e16: plain `eigh` gives kappa_min with
+    9.7e-4 relative error against an 80-digit reference, and the returned r falls
+    BELOW x0, i.e. M(r) is indefinite and lrs is not a minimiser at all.
+
+    Why this is not a threshold on d.  K = D_R^{-1} S D_R^{-1} is EXACTLY
+    invariant under the group of Appendix E: Hbar -> J^2 Hbar J^2 and D -> J^2 D
+    give (J^2 D)^{-1}(J^2 Hbar J^2)(J^2 D)^{-1} = K.  So is b = Q^T D_R^{-1}
+    ghat_R.  Every decision below is a function of the spectrum of K alone, hence
+    exactly invariant -- unlike `threshold_D_sing`, which acts on d and is not
+    (STATE.md D3).
+
+    How.  The dominant eigendirection is well separated, so `eigh` returns it to
+    full RELATIVE accuracy.  Peel it off, project K onto the orthogonal
+    complement, and re-diagonalise: the restricted block has a norm smaller by
+    the separation ratio, so its error floor drops accordingly.  Repeat while it
+    still dominates.  Cost: at most `max_passes` extra O(S^3) factorizations of a
+    shrinking matrix.  On the instance above kappa_min goes from 9.7e-4 to
+    9.5e-16 relative error, and every other eigenvalue with it.
+    """
+    S = K.shape[0]
+    eps = torch.finfo(K.dtype).eps
+    kept_vals, kept_vecs = [], []
+    B = torch.eye(S, dtype=K.dtype, device=K.device)
+    Kc = K
+    n_passes = 0
+    for _ in range(max_passes):
+        kap, Q = torch.linalg.eigh(Kc)
+        if kap.numel() <= 1:
+            kept_vals.append(kap)
+            kept_vecs.append(B @ Q)
+            break
+        nrm = float(kap.abs().max())
+        small = float(kap.abs().min())
+        if small == 0.0 or eps * nrm <= rtol * small:
+            kept_vals.append(kap)
+            kept_vecs.append(B @ Q)
+            break
+        j = int(kap.abs().argmax())
+        keep = torch.ones(kap.numel(), dtype=torch.bool, device=K.device)
+        keep[j] = False
+        BQ = B @ Q
+        kept_vals.append(kap[j : j + 1])
+        kept_vecs.append(BQ[:, j : j + 1])
+        B = BQ[:, keep]
+        Kc = B.T @ K @ B
+        Kc = 0.5 * (Kc + Kc.T)
+        n_passes += 1
+    else:  # pragma: no cover - max_passes exhausted
+        kap, Q = torch.linalg.eigh(Kc)
+        kept_vals.append(kap)
+        kept_vecs.append(B @ Q)
+
+    vals = torch.cat(kept_vals)
+    vecs = torch.cat(kept_vecs, dim=1)
+    order = torch.argsort(vals)
+    return vals[order], vecs[:, order], n_passes
+
+
 def _refine_in_original_basis(H, g, d, c, r, n=4, tol=1e-14):
     """Safeguarded Newton on h_c(x) = ||D M(x)^{-1} g|| - x, evaluated by a
     Cholesky factorization of M(x) = H + c x D^2.
@@ -297,7 +365,8 @@ def nesterov_lrs(
     # -- invariant variables of Appendix D --------------------------------
     K = Sc / (d_R.unsqueeze(1) * d_R.unsqueeze(0))
     K = 0.5 * (K + K.T)
-    kappa, Q = torch.linalg.eigh(K)
+    kappa, Q, n_defl = _eigh_invariant(K)
+    logs["n_deflations"] = n_defl
     b = Q.T @ (g_hat_R / d_R)
 
     sec = _Secular(kappa, b, c)
@@ -348,9 +417,24 @@ def nesterov_lrs(
             computation = "hard_case_boundary"
         else:
             sec_ps = _Secular(kappa_ps, b_ps, c)
-            # bracket in the ORIGINAL shift variable of sec_ps
-            t_a2 = kappa_ps[0].item() + c * x0
-            t_b2 = kappa_ps[0].item() + c * L_ps
+            # Bracket in the shift variable OF sec_ps: t = sec_ps.k1 + c x, with
+            # sec_ps.k1 = min(kappa_ps[0], 0).
+            #
+            # FIX (2026-08-21): these two lines used kappa_ps[0] as the shift.
+            # That agrees with sec_ps only when kappa_ps[0] <= 0.  In the
+            # commonest hard case -- kappa[0] < 0 simple, next eigenvalue > 0 --
+            # kappa_ps[0] > 0 and both endpoints were displaced right by
+            # kappa_ps[0], destroying the sign change.  Counterexample:
+            # H = diag(-1, 2, 3), D = I, g = (0, 20, 20), damping_int = 1 has the
+            # unique PSD-certified solution r_* = 5.4748607547663, eta =
+            # (0, 4.2216979, 3.4858811); the old code returned
+            # ("hard_case_bracket_failed", lrs = None).
+            #
+            # With the correct shift the signs are provable again:
+            #   h(t_a2) = phi(x0) - x0 = L_ps - x0 > 0   (branch condition), and
+            #   h(t_b2) = phi(L_ps) - L_ps <= 0          (phi non-increasing).
+            t_a2 = sec_ps.k1 + c * x0
+            t_b2 = sec_ps.k1 + c * L_ps
             h_a2, h_b2 = sec_ps.h(t_a2), sec_ps.h(t_b2)
             if not (h_a2 > 0.0 >= h_b2 and t_b2 > t_a2):
                 return _ret(None, "hard_case_bracket_failed", r_converged=False,
@@ -441,7 +525,8 @@ def compute_x0(H, order3_, D_squ=None, damping_int=1.0, threshold_D_sing=0.0, **
 
     d_R = d[Ri]
     K = Sc / (d_R.unsqueeze(1) * d_R.unsqueeze(0))
-    kappa_min = float(torch.linalg.eigvalsh(0.5 * (K + K.T))[0])
+    # same deflation as nesterov_lrs, so that the two never disagree on x0
+    kappa_min = float(_eigh_invariant(0.5 * (K + K.T))[0][0])
     logs["found"] = True
     logs["computation"] = "secular" if Zi.numel() == 0 else "secular_schur"
     logs["H_pd"] = bool(kappa_min > 0)

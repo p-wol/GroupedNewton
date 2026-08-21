@@ -46,7 +46,7 @@ def read_metrics(path: Path) -> list[dict]:
 def epoch_durations(rows: list[dict]) -> list[float]:
     rows = sorted((r for r in rows if "time" in r and "epoch" in r),
                   key=lambda r: r["epoch"])
-    return [b["time"] - a["time"] for a, b in zip(rows, rows[1:])]
+    return [b["time"] - a["time"] for a, b in zip(rows, rows[1:], strict=False)]
 
 
 def read_overrides(job_dir: Path) -> list[str]:

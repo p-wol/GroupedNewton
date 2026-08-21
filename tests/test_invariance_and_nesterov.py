@@ -38,11 +38,11 @@ class Reparam(torch.nn.Module):
         self.scales = list(scales)
         self.tilde = torch.nn.ParameterList(
             torch.nn.Parameter(p.detach().clone() / a)
-            for (_, p), a in zip(base.named_parameters(), self.scales)
+            for (_, p), a in zip(base.named_parameters(), self.scales, strict=False)
         )
 
     def forward(self, x):
-        params = {n: a * p for n, a, p in zip(self.names, self.scales, self.tilde)}
+        params = {n: a * p for n, a, p in zip(self.names, self.scales, self.tilde, strict=False)}
         return torch.func.functional_call(self._base[0], params, (x,))
 
 
@@ -72,7 +72,7 @@ def test_Hg_scaling_laws(mlp, batch, mse, scales):
 
     tilde = Reparam(mlp, a.tolist()).to(x.device)
     ps_t = ParamStructure(build_partition.canonical(tilde)[0])
-    u_t = tuple(ai * ui for ai, ui in zip(a, u))
+    u_t = tuple(ai * ui for ai, ui in zip(a, u, strict=False))
     H_t, g_t, o3_t = compute_Hg(ps_t, mse(tilde), x, y, u_t)
 
     A = a.pow(2)

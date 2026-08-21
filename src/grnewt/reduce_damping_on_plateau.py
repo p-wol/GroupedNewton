@@ -1,3 +1,5 @@
+import warnings
+
 from torch import inf
 from torch.optim import Optimizer
 
@@ -115,7 +117,15 @@ class ReduceDampingOnPlateau:
         if epoch is None:
             epoch = self.last_epoch + 1
         else:
-            warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+            # FIX (2026-08-21): `warnings` and EPOCH_DEPRECATION_WARNING were both
+            # undefined names inherited from torch's ReduceLROnPlateau, so any
+            # call with an explicit `epoch` raised NameError.
+            warnings.warn(
+                "The `epoch` argument is deprecated and will be removed; "
+                "ReduceDampingOnPlateau counts epochs itself.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.last_epoch = epoch
 
         if self.is_better(current, self.best):

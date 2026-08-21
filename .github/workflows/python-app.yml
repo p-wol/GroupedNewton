@@ -36,7 +36,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.9", "3.11", "3.12"]
+        # 3.9 was in this list against `requires-python = ">=3.10"` in
+        # pyproject.toml, so `pip install -e .` could not resolve and the job was
+        # unconditionally red. src/grnewt/config.py needs 3.10 anyway (`int | None`,
+        # dataclass slots=True/kw_only=True).
+        python-version: ["3.10", "3.11", "3.12"]
         include:
           # one macOS job: catches accelerate/BLAS differences in linalg.solve
           - os: macos-latest
@@ -81,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.10"
           cache: pip
       - run: |
           python -m pip install --upgrade pip
@@ -128,6 +132,38 @@ jobs:
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[dev,experiments]"
       - run: pytest -q -m slow tests/test_smoke_training.py
+
+  test-cuda:
+    # Self-hosted GPU runner. `conftest.py` already parameterizes `device` over
+    # cuda when it is available, so this job needs no test changes -- only a
+    # runner. GATED on a repository label so that the absence of the runner
+    # cannot turn the default CI red while the Jean Zay self-hosted-runner
+    # question (STATE.md) is still open:
+    #   - is a self-hosted runner permitted on the IDRIS side?
+    #   - does the `prepost` partition allow the outbound connection the runner
+    #     needs, and for how long?
+    # Remove the `if:` once both are answered.
+    if: contains(github.event.pull_request.labels.*.name, 'ci-gpu')
+    runs-on: [self-hosted, linux, cuda]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          # NO --index-url here: this job WANTS the CUDA wheels.
+          pip install torch
+          pip install -e ".[dev]"
+      - name: Record the environment
+        run: |
+          python -c "import torch; print(torch.__version__, torch.version.cuda)"
+          python -c "import torch; assert torch.cuda.is_available(), 'no CUDA device'"
+          nvidia-smi
+      - name: Test
+        run: pytest -q -m "not slow"
+      - name: Test (slow, end-to-end)
+        run: pytest -q -m slow
 
   build:
     # No torch here: `build` only needs the build backend, not the runtime deps.

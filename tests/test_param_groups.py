@@ -27,8 +27,8 @@ def test_dot_full(lst_shapes):
     res_custom = param_groups1.dot(param_groups1.tup_params, param_groups2.tup_params)
     res_pytorch = torch.tensor(
         [
-            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"])])
-            for group1, group2 in zip(pgroups1, pgroups2)
+            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"], strict=False)])
+            for group1, group2 in zip(pgroups1, pgroups2, strict=False)
         ]
     )
 
@@ -60,7 +60,7 @@ def test_select(lst_shapes, start, end):
 
     end2 = end if end is not None else len(lst_shapes)
     res_pytorch = tuple(p for group in pgroups[start:end2] for p in group["params"])
-    for p1, p2 in zip(res_custom, res_pytorch):
+    for p1, p2 in zip(res_custom, res_pytorch, strict=False):
         assert torch.allclose(p1, p2)
 
 
@@ -96,9 +96,9 @@ def test_dot_partial(lst_shapes, start, end):
 
     end2 = end if end is not None else len(lst_shapes)
     lst_res_pytorch = []
-    for group1, group2 in zip(pgroups1[start:end2], pgroups2[start:end2]):
+    for group1, group2 in zip(pgroups1[start:end2], pgroups2[start:end2], strict=False):
         lst_res_pytorch.append(
-            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"])])
+            sum([(p1 * p2).sum() for p1, p2 in zip(group1["params"], group2["params"], strict=False)])
         )
     res_pytorch = torch.tensor(lst_res_pytorch)
 

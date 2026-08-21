@@ -54,7 +54,7 @@ class MLP(torch.nn.Module):
         super().__init__()
         self.act = act
         self.layers = torch.nn.ModuleList(
-            torch.nn.Linear(a, b, bias=bias) for a, b in zip(widths[:-1], widths[1:])
+            torch.nn.Linear(a, b, bias=bias) for a, b in zip(widths[:-1], widths[1:], strict=False)
         )
 
     def forward(self, x):

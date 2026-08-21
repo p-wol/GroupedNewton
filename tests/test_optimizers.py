@@ -17,7 +17,7 @@ class Perceptron(torch.nn.Module):
         gain = torch.nn.init.calculate_gain(act_name)
 
         self.layers = torch.nn.ModuleList()
-        for l_in, l_out in zip(layers[:-1], layers[1:]):
+        for l_in, l_out in zip(layers[:-1], layers[1:], strict=False):
             self.layers.append(torch.nn.Linear(l_in, l_out))
             with torch.no_grad():
                 self.layers[-1].weight.mul_(gain)
@@ -148,5 +148,5 @@ def test_compute_step_returns_a_positive_direction(f64, model, dataset, Cl_Updat
 
     updater = Cl_Update(model.parameters(), lr=1.0)
     direction = updater.compute_step()
-    for p, d in zip(model.parameters(), direction):
+    for p, d in zip(model.parameters(), direction, strict=False):
         assert (p.grad * d).sum() > 0, "direction must be aligned with +grad"

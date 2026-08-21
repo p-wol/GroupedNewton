@@ -1,5 +1,4 @@
 import itertools
-from typing import Optional
 
 import torch
 from torch import Tensor
@@ -45,6 +44,12 @@ class NewtonSummary(torch.optim.Optimizer):
         self.device = self.param_struct.device
         self.dtype = self.param_struct.dtype
 
+        # `updater` is built from model.parameters(); `param_struct` is in
+        # partition order. See ParamStructure.build_reindex.
+        self._dir_perm = self.param_struct.build_reindex(
+            [p for gr in updater.param_groups for p in gr["params"]]
+        )
+
         self.step_counter = 0
 
         if cfg.nesterov.mom_order3_ != 0.0:
@@ -77,7 +82,7 @@ class NewtonSummary(torch.optim.Optimizer):
             group["lr"] *= factor
 
     def step(self):
-        direction = self.updater.compute_step()
+        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
 
         # Compute H, g
         perform_update = True
@@ -177,7 +182,7 @@ class NewtonSummary(torch.optim.Optimizer):
             # Assign lrs
             self.logs["lrs_clipped"].append(lrs)
             self.logs["curr_lrs"].append(self.curr_lrs)
-            for group, lr in zip(self.param_groups, lrs):
+            for group, lr in zip(self.param_groups, lrs, strict=False):
                 group["lr"] = group["damping"] * lr.item()
 
             # Store logs
@@ -216,7 +221,7 @@ def create_infinite_data_loader(data_loader):
 def update_momentum_buffers(
     params: list[Tensor],
     d_p_list: list[Tensor],
-    momentum_buffer_list: list[Optional[Tensor]],
+    momentum_buffer_list: list[Tensor | None],
     *,
     momentum: float,
     momentum_damp: float,

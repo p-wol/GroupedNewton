@@ -29,7 +29,7 @@ class Perceptron(torch.nn.Module):
         self.classification = classification
 
         self.layers = torch.nn.ModuleList()
-        for l_in, l_out in zip(layers[:-1], layers[1:]):
+        for l_in, l_out in zip(layers[:-1], layers[1:], strict=False):
             self.layers.append(torch.nn.Linear(l_in, l_out))
         self.nb_layers = len(self.layers)
 
