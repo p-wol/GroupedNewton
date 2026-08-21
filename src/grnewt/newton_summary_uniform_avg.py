@@ -93,12 +93,12 @@ class NewtonSummaryUniformAvg(torch.optim.Optimizer):
             # At init, set the moving averages to zero
             if self.step_counter == 0:
                 for key, curr in dct_HgD.items():
-                    self.dct_HgD_avgs[f"{key}_up"] = curr.clone()
+                    self.dct_HgD_avgs[f"{key}_up"] = torch.zeros_like(curr)
 
             # Replace the current moving average by the next one and set the other to zero
             for key, curr in dct_HgD.items():
                 self.dct_HgD_avgs[f"{key}_use"] = self.dct_HgD_avgs[f"{key}_up"]
-                self.dct_HgD_avgs[f"{key}_up"] = curr.clone()
+                self.dct_HgD_avgs[f"{key}_up"] = torch.zeros_like(curr)
 
         # During the first period, both averages "use" and "up" are updated with the same coefficient
         offset_use = (
