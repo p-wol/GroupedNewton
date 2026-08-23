@@ -410,8 +410,6 @@ class Trainer:
                     torch.tensor([0], dtype=self.dtype, device=self.device)
                     for i in range(len(self.topk_acc))
                 ]
-            # B007 is a false positive here: `i` is read after the loop, as the
-            # batch count used to average cum_pen / cum_nll / cum_loss.
             for i, (images, labels) in enumerate(loader):  # noqa: B007
                 # Convert torch tensor to Variable
                 images, labels = self.loader_pre_hook(images, labels)
