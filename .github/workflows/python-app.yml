@@ -29,6 +29,7 @@ jobs:
       - run: pipx install ruff==0.6.9        # pinned: an upstream release must not turn CI red
       - run: ruff check .
       - run: ruff format --check .
+      - run: sudo apt-get install -y shellcheck && shellcheck slurm/*.sh
 
   test:
     runs-on: ${{ matrix.os }}
