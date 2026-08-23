@@ -73,10 +73,12 @@ class SGDUpdate(Optimizer):
             closure (Callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
-        loss = None
+        # `closure` is re-evaluated for its side effect on the gradients only.
+        # `compute_step` returns the update tensors, never a loss, so the value
+        # is deliberately discarded -- see the docstring.
         if closure is not None:
             with torch.enable_grad():
-                loss = closure()
+                closure()
 
         lst_updates = []
         for group in self.param_groups:

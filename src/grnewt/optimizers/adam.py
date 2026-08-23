@@ -111,10 +111,12 @@ class AdamUpdate(Optimizer):
         """
         self._cuda_graph_capture_health_check()
 
-        loss = None
+        # `closure` is re-evaluated for its side effect on the gradients only.
+        # `compute_step` returns the update tensors, never a loss, so the value
+        # is deliberately discarded -- see the docstring.
         if closure is not None:
             with torch.enable_grad():
-                loss = closure()
+                closure()
 
         lst_updates = []
         for group in self.param_groups:
@@ -165,7 +167,7 @@ class AdamUpdate(Optimizer):
         with torch.no_grad():
             j = 0
             for group in self.param_groups:
-                for i, param in enumerate(group["params"]):
+                for param in group["params"]:
                     param.sub_(tup_updates[j])
                     j += 1
 

@@ -26,7 +26,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pipx install ruff==0.6.9        # pinned: an upstream release must not turn CI red
+      # PINNED, and the pin must match the ruff you run locally: `ruff format` is
+      # version-sensitive (0.6.9 and 0.16.4 disagree on assert-message wrapping and
+      # on blank lines after a signature), so a stale pin turns `format --check`
+      # red on a correctly formatted tree. Bump this and `pyproject.toml`
+      # together, in a formatting-only commit.
+      - run: pipx install ruff==0.16.4
       - run: ruff check .
       - run: ruff format --check .
 

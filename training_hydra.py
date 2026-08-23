@@ -43,7 +43,8 @@ def set_seeds(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+    np.random.seed(seed)  # noqa: NPY002 -- seeds the legacy global RNG on purpose:
+    # grnewt.datasets and third-party code still call np.random.* directly.
     random.seed(seed)
 
 
@@ -409,7 +410,9 @@ class Trainer:
                     torch.tensor([0], dtype=self.dtype, device=self.device)
                     for i in range(len(self.topk_acc))
                 ]
-            for i, (images, labels) in enumerate(loader):
+            # B007 is a false positive here: `i` is read after the loop, as the
+            # batch count used to average cum_pen / cum_nll / cum_loss.
+            for i, (images, labels) in enumerate(loader):  # noqa: B007
                 # Convert torch tensor to Variable
                 images, labels = self.loader_pre_hook(images, labels)
 
@@ -419,9 +422,9 @@ class Trainer:
                 pen = torch.zeros((), dtype=self.dtype, device=self.device)
                 loss = nll + pen
 
-                cum_nll += nll.detach()
-                cum_pen += pen.detach()
-                cum_loss += loss.detach()
+                cum_nll += nll.detach() * labels.size(0)
+                cum_pen += pen.detach() * labels.size(0)
+                cum_loss += loss.detach() * labels.size(0)
 
                 total += labels.size(0)
 
@@ -435,9 +438,9 @@ class Trainer:
                         correct[idk] += tmp_correct[:k].reshape(-1).float().sum(0, keepdim=True)
 
             # Compute performance
-            mean_pen = cum_pen.item() / (i + 1)
-            mean_nll = cum_nll.item() / (i + 1)
-            mean_loss = cum_loss.item() / (i + 1)
+            mean_pen = cum_pen.item() / total
+            mean_nll = cum_nll.item() / total
+            mean_loss = cum_loss.item() / total
 
             metrics = {"nll": mean_nll, "pen": mean_pen, "loss": mean_loss}
 
@@ -466,7 +469,8 @@ class Trainer:
             ]
         self.idx_substep = 0
         self.logs_nlls = []
-        for i, (images, labels) in enumerate(self.train_loader):
+        # same as above: `i` is the batch count read after the loop.
+        for i, (images, labels) in enumerate(self.train_loader):  # noqa: B007
             # Convert torch tensor to Variable
             images, labels = self.loader_pre_hook(images, labels)
 

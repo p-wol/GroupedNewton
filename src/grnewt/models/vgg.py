@@ -9,7 +9,7 @@ class VGG(nn.Module):
     def __init__(
         self,
         cfg_type,
-        fc_sizes=[4096, 4096],
+        fc_sizes=(4096, 4096),
         image_size=224,
         num_classes=1000,
         scaling=False,
@@ -36,7 +36,7 @@ class VGG(nn.Module):
 
         self.avgpool = nn.AdaptiveAvgPool2d((fc_multiplier, fc_multiplier))
 
-        fc_sizes = fc_sizes + [num_classes]
+        fc_sizes = list(fc_sizes) + [num_classes]
         last_sz = fc_sizes[0]
         self.classifier = nn.ModuleList([nn.Linear(512 * fc_multiplier**2, last_sz)])
         for fc_sz in fc_sizes[1:]:
