@@ -34,8 +34,6 @@ class NewtonSummaryStaticAvg(NSBase):
                 loader_pre_hook=loader_pre_hook, cfg=cfg)
 
         self.nsamples = cfg.static_avg.nsamples
-        print("### WARNING ### the default config for nsamples is not overriden: to investigate")
-        print(self.nsamples)
 
     def compute_avg_Hg(self, direction):
         # If we do not update H, g, order3 and lrs: just move forward

@@ -1,12 +1,11 @@
 import itertools
 import dataclasses
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass
 
 import torch
 from torch.utils.data import DataLoader
 
 from .config import HgCfg
-from .hg import compute_Hg, compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .param_struct import ParamStructure
 
@@ -91,7 +90,7 @@ class NSBase(torch.optim.Optimizer):
             group["lr"] *= factor
 
     def compute_avg_Hg(self, direction):
-        NotImplemented
+        raise NotImplementedError
 
     @increment_step
     def step(self):

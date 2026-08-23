@@ -198,7 +198,7 @@ class HgCfg:
     )
 
     # --- the reduced model ----------------------------------------------------------
-    diagonal: bool = P("compute only the diagonal of Hbar", {NS, NSUA}, default=False)
+    diagonal: bool = P("compute only the diagonal of Hbar", ALL_NS, default=False)
     # `semiH` was REMOVED (2026-08-21). No optimizer ever forwarded it to
     # compute_Hg (verified by grep); the only caller that sets semiH=True is
     # compute_Hg_fullbatch, internally and unconditionally, and it symmetrizes
@@ -206,25 +206,25 @@ class HgCfg:
     # H64 = 0.5 * (H64 + H64.T), so a user-supplied triangular Hbar would have
     # had every off-diagonal entry silently halved.
     noregul: bool = P(
-        "bypass every regularization: lrs = Hbar^{-1} gbar", {NS, NSUA}, default=False
+        "bypass every regularization: lrs = Hbar^{-1} gbar", ALL_NS, default=False
     )
     ridge: float = P(
-        "ridge added to Hbar when nesterov.use is False", {NS, NSFB, NSUA}, default=0.0
+        "ridge added to Hbar when nesterov.use is False", ALL_NS, default=0.0
     )
 
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
-    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA, NSSA}, default=1)
-    mom_lrs: float = P("momentum on the learning rates", {NS, NSUA}, default=0.0)
-    movavg: float = P("moving average on (H, g)", {NS}, default=0.0)
-    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", {NS}, default=True)
-    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA, NSSA}, default=False)
+    period_hg: int = P("training steps between two recomputations of (H, g)", ALL_NS, default=1)
+    mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
+    movavg: float = P("moving average on (H, g)", ALL_NS, default=0.0)
+    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", ALL_NS, default=True)
+    remove_negative: bool = P("clamp negative learning rates to zero", ALL_NS, default=False)
 
     # --- compuation path ------------------------------------------------------------
-    hg_batched: bool = P("use the batched version of compute_Hg", {NSUA}, default=False)
+    hg_batched: bool = P("use the batched version of compute_Hg", ALL_NS, default=False)
     hg_batched_chunk: int = P(
         "chunk_size in the batched version of compute_hg; -1 = S (partition size)",
-        {NSUA},
+        ALL_NS,
         default=-1,
     )
 
