@@ -143,7 +143,6 @@ def create_infinite_data_loader(data_loader):
     #      the data_loader, then this may fail (possibly batches of irregular sizes)
     def f():
         for dl in itertools.repeat(data_loader):
-            for minibatch in dl:
-                yield minibatch
+            yield from dl
 
     return f

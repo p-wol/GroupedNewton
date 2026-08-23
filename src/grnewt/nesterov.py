@@ -332,7 +332,7 @@ def nesterov_lrs(
         keep = ~J
         # zeroing b[J] perturbs ||b|| by a relative amount <= hard_case_rtol
         b_ps, kappa_ps = b[keep], kappa[keep]
-        x0, t0 = sec.x0, sec.t0
+        x0 = sec.x0
         if keep.sum() == 0:
             L_ps = 0.0
         else:

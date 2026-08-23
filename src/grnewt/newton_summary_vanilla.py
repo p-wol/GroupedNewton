@@ -116,8 +116,6 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
                 params_with_grad.append(p)
                 d_p_list.append(p.grad)
 
-                state = self.state[p]
-
     def step(self):
         direction = self.updater.compute_step()
 
@@ -295,7 +293,6 @@ class NewtonSummaryVanilla(torch.optim.Optimizer):
             i = 0
             for group in self.param_groups:
                 for p in group["params"]:
-                    state = self.state[p]
                     p.add_(direction[i], alpha=-group["lr"])
 
                     i += 1
@@ -308,7 +305,6 @@ def create_infinite_data_loader(data_loader):
     #      the data_loader, then this may fail (possibly batches of irregular sizes)
     def f():
         for dl in itertools.repeat(data_loader):
-            for minibatch in dl:
-                yield minibatch
+            yield from dl
 
     return f

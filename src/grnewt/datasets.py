@@ -201,27 +201,27 @@ def build_toy_regression(args, dct):
 
     teacher = Perceptron(
         layers, act_function, scaling=False, sigma_w=sigma_w, sigma_b=sigma_b, classification=False
-    )
+    ).to(dtype=dct["dtype"], device=dct["device"])
     with torch.no_grad():
+        # FIX (2026-08-22): the targets used to be `torch.randn(..., out_size)`,
+        # i.e. INDEPENDENT of the inputs -- the teacher was constructed from
+        # `args.dataset.teacher.{args, act_function, sigma_w, sigma_b}` and then
+        # discarded. `ToyRegression` was therefore a regression on pure noise,
+        # with no teacher-student structure at all, and `out_size` was only ever
+        # used to size the noise. ruff flagged it as F841 on `teacher`.
         tv_in = torch.randn(
             args.dataset.train_size + args.dataset.valid_size,
             in_size,
             dtype=dct["dtype"],
             device=dct["device"],
         )
-        tv_out = torch.randn(
-            args.dataset.train_size + args.dataset.valid_size,
-            out_size,
-            dtype=dct["dtype"],
-            device=dct["device"],
-        )
+        tv_out = teacher(tv_in)
 
         test_in = torch.randn(
             args.dataset.test_size, in_size, dtype=dct["dtype"], device=dct["device"]
         )
-        test_out = torch.randn(
-            args.dataset.test_size, out_size, dtype=dct["dtype"], device=dct["device"]
-        )
+        test_out = teacher(test_in)
+        assert tv_out.shape[1] == out_size
 
     dct["tvsize"] = args.dataset.train_size + args.dataset.valid_size
     dct["test_size"] = args.dataset.test_size
@@ -238,22 +238,11 @@ def build_toy_regression(args, dct):
 
 
 def build_None(args, dct):
-    args_teacher = args.dataset.teacher
-    model_args = args_teacher.args
-    act_function = args_teacher.act_function
-    sigma_w = args_teacher.sigma_w
-    sigma_b = args_teacher.sigma_b
-    if "*" in model_args:
-        n_layers = int(model_args[: model_args.find("*")])
-        n_neurons = int(model_args[model_args.find("*") + 1 :])
-        model_args = "-".join([str(n_neurons) for i in range(n_layers)])
-    layers = [int(s) for s in model_args.split("-")]
-    in_size = layers[0]
-    out_size = layers[-1]
+    """Two dummy samples: for models that carry their own objective (Rosenbrock).
 
-    teacher = Perceptron(
-        layers, act_function, scaling=False, sigma_w=sigma_w, sigma_b=sigma_b, classification=False
-    )
+    The teacher-construction block that used to sit here was copy-pasted from
+    `build_toy_regression` and was pure dead code -- nothing below reads it.
+    """
     with torch.no_grad():
         tv_in = torch.zeros(2, 1, dtype=dct["dtype"], device=dct["device"])
         tv_out = torch.zeros(2, 1, dtype=dct["dtype"], device=dct["device"])

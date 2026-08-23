@@ -42,7 +42,8 @@ def set_seeds(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+    np.random.seed(seed)  # noqa: NPY002 -- seeds the legacy global RNG on purpose:
+    # grnewt.datasets and third-party code still call np.random.* directly.
     random.seed(seed)
 
 
@@ -449,7 +450,9 @@ class Trainer:
                     torch.tensor([0], dtype=self.dtype, device=self.device)
                     for i in range(len(self.topk_acc))
                 ]
-            for i, (images, labels) in enumerate(loader):
+            # B007 is a false positive here: `i` is read after the loop, as the
+            # batch count used to average cum_pen / cum_nll / cum_loss.
+            for i, (images, labels) in enumerate(loader):  # noqa: B007
                 # Convert torch tensor to Variable
                 images, labels = self.loader_pre_hook(images, labels)
 
@@ -506,7 +509,8 @@ class Trainer:
             ]
         self.idx_substep = 0
         self.logs_nlls = []
-        for i, (images, labels) in enumerate(self.train_loader):
+        # same as above: `i` is the batch count read after the loop.
+        for i, (images, labels) in enumerate(self.train_loader):  # noqa: B007
             # Convert torch tensor to Variable
             images, labels = self.loader_pre_hook(images, labels)
 

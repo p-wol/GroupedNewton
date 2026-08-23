@@ -4,8 +4,6 @@ from itertools import combinations_with_replacement
 
 def diff_n(param_struct, order, full_loss, x, y, direction):
     # Define useful variables
-    device = param_struct.device
-    dtype = param_struct.dtype
     nb_groups = param_struct.nb_groups
 
     # Initialize tensors
@@ -45,9 +43,6 @@ def diff_n_fullbatch(
     loader_pre_hook=lambda *args: args,
 ):
     # Define useful variables
-    device = param_struct.device
-    dtype = param_struct.dtype
-    nb_groups = param_struct.nb_groups
 
     # Initialize tensors
     lst_results = None
@@ -63,7 +58,7 @@ def diff_n_fullbatch(
             lst_results = copy.deepcopy(lst_results_)
         else:
             for d in range(order + 1):
-                for k, v in lst_results_[d].items():
+                for k in lst_results_[d]:
                     lst_results[d][k].add_(lst_results_[d][k])
 
     return lst_results

@@ -36,7 +36,7 @@ dev = [
   "pytest-timeout>=2.2",
   "pytest-xdist>=3.5",
   "nbmake>=1.5",
-  "ruff>=0.6",
+  "ruff==0.16.4",   # exact: `ruff format` output is version-dependent
 ]
 experiments = [
   "torchvision>=0.15.1",
