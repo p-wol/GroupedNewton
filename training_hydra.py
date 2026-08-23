@@ -462,9 +462,9 @@ class Trainer:
                 pen = torch.zeros((), dtype=self.dtype, device=self.device)
                 loss = nll + pen
 
-                cum_nll += nll.detach()
-                cum_pen += pen.detach()
-                cum_loss += loss.detach()
+                cum_nll += nll.detach() * labels.size(0)
+                cum_pen += pen.detach() * labels.size(0)
+                cum_loss += loss.detach() * labels.size(0)
 
                 total += labels.size(0)
 
@@ -478,9 +478,9 @@ class Trainer:
                         correct[idk] += tmp_correct[:k].reshape(-1).float().sum(0, keepdim=True)
 
             # Compute performance
-            mean_pen = cum_pen.item() / (i + 1)
-            mean_nll = cum_nll.item() / (i + 1)
-            mean_loss = cum_loss.item() / (i + 1)
+            mean_pen = cum_pen.item() / total
+            mean_nll = cum_nll.item() / total
+            mean_loss = cum_loss.item() / total
 
             metrics = {"nll": mean_nll, "pen": mean_pen, "loss": mean_loss}
 
