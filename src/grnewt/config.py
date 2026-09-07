@@ -28,13 +28,14 @@ from enum import Enum
 from typing import Any
 
 # Optimizer names, as used by `args.optimizer.name`.
-NS = "NewtonSummary"
 NSFB = "NewtonSummaryFB"
 NSUA = "NewtonSummaryUniformAvg"
+NSSA = "NewtonSummaryStaticAvg"
+NSMA = "NewtonSummaryMovexpAvg"
 # NewtonSummaryVanilla is deliberately absent: it is reachable from no config file
 # and no launch script (verified 2026-08-21), i.e. dead code. Adding it to ALL_NS
 # would let `used_by` claim a consumer that cannot be selected.
-ALL_NS = frozenset({NS, NSFB, NSUA})
+ALL_NS = frozenset({NSFB, NSUA, NSSA, NSMA})
 # NewtonStochasticHv IS reachable (training_hydra.py:358) but reads none of the
 # fields below: it takes lr_param/lr_direction/ridge/dct_nesterov directly from
 # args.optimizer.newtonsto. It is therefore deliberately outside ALL_NS, and
@@ -112,7 +113,6 @@ class NesterovCfg:
     damping_int: float = P(
         "lambda_int >= 0; strength of the cubic regularization", ALL_NS, default=1.0
     )
-    mom_order3_: float = P("EMA coefficient on order3_ = |order3|^(1/3)", {NS}, default=0.0)
     threshold_D_sing: float = P(
         "relative threshold below which d_i counts as zero; 0.0 is the only "
         "affine-invariant choice (nesterov.py, Appendix E)",
@@ -133,8 +133,6 @@ class NesterovCfg:
     def __post_init__(self):
         if self.damping_int < 0:
             raise ValueError(f"nesterov.damping_int must be >= 0, got {self.damping_int}")
-        if not 0.0 <= self.mom_order3_ < 1.0:
-            raise ValueError(f"nesterov.mom_order3_ must be in [0, 1), got {self.mom_order3_}")
         if not 0.0 <= self.threshold_D_sing < 1.0:
             raise ValueError(
                 "nesterov.threshold_D_sing is a *relative* threshold and must "
@@ -157,6 +155,21 @@ class UniformAvgCfg:
         if self.warmup < 0:
             raise ValueError(f"uniform_avg.warmup must be >= 0, got {self.warmup}")
 
+@dataclass(kw_only=True, slots=True)
+class StaticAvgCfg:
+    nsamples: int = P("Number of samples to estimate E[H], E[g], E[order3]", {NSSA}, default=1)
+
+    def __post_init__(self):
+        if self.nsamples < 1:
+            raise ValueError(f"static_avg.nsamples must be >= 1, got {self.nsamples}")
+
+@dataclass(kw_only=True, slots=True)
+class MovexpAvgCfg:
+    movavg: float = P("Exponential moving average update coefficient to estimage E[H], E[g], E[order3]", {NSMA}, default=.1)
+
+    def __post_init__(self):
+        if self.movavg < 0 or self.movavg > 1:
+            raise ValueError(f"movexp_avg.movavg must be in [0, 1], got {self.movavg}")
 
 @dataclass(kw_only=True, slots=True)
 class DmpAutoCfg:
@@ -189,7 +202,7 @@ class HgCfg:
     )
 
     # --- the reduced model ----------------------------------------------------------
-    diagonal: bool = P("compute only the diagonal of Hbar", {NS, NSUA}, default=False)
+    diagonal: bool = P("compute only the diagonal of Hbar", ALL_NS, default=False)
     # `semiH` was REMOVED (2026-08-21). No optimizer ever forwarded it to
     # compute_Hg (verified by grep); the only caller that sets semiH=True is
     # compute_Hg_fullbatch, internally and unconditionally, and it symmetrizes
@@ -197,25 +210,26 @@ class HgCfg:
     # H64 = 0.5 * (H64 + H64.T), so a user-supplied triangular Hbar would have
     # had every off-diagonal entry silently halved.
     noregul: bool = P(
-        "bypass every regularization: lrs = Hbar^{-1} gbar", {NS, NSUA}, default=False
+        "bypass every regularization: lrs = Hbar^{-1} gbar", ALL_NS, default=False
     )
     ridge: float = P(
-        "ridge added to Hbar when nesterov.use is False", {NS, NSFB, NSUA}, default=0.0
+        "ridge added to Hbar when nesterov.use is False", ALL_NS, default=0.0
     )
 
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
-    period_hg: int = P("training steps between two recomputations of (H, g)", {NS, NSUA}, default=1)
-    mom_lrs: float = P("momentum on the learning rates", {NS, NSUA}, default=0.0)
-    movavg: float = P("moving average on (H, g)", {NS}, default=0.0)
-    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", {NS}, default=True)
-    remove_negative: bool = P("clamp negative learning rates to zero", {NS, NSUA}, default=False)
+    period_hg: int = P("training steps between two recomputations of (H, g)", ALL_NS, default=1)
+    normalize_dirs: bool = P("normalize each proposition of 'direction' (on each subset of params)  before computing Hbar and gbar", ALL_NS, default=False)
+    mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
+    movavg: float = P("moving average on (H, g)", {NSFB}, default=0.0)
+    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", ALL_NS, default=True)
+    remove_negative: bool = P("clamp negative learning rates to zero", ALL_NS, default=False)
 
     # --- compuation path ------------------------------------------------------------
-    hg_batched: bool = P("use the batched version of compute_Hg", {NSUA}, default=False)
+    hg_batched: bool = P("use the batched version of compute_Hg", ALL_NS, default=False)
     hg_batched_chunk: int = P(
         "chunk_size in the batched version of compute_hg; -1 = S (partition size)",
-        {NSUA},
+        ALL_NS,
         default=-1,
     )
 
@@ -227,6 +241,8 @@ class HgCfg:
     updater: UpdaterCfg = field(default_factory=UpdaterCfg)
     nesterov: NesterovCfg = field(default_factory=NesterovCfg)
     uniform_avg: UniformAvgCfg = field(default_factory=UniformAvgCfg)
+    static_avg: StaticAvgCfg = field(default_factory=StaticAvgCfg)
+    movexp_avg: MovexpAvgCfg = field(default_factory=MovexpAvgCfg)
     dmp_auto: DmpAutoCfg = field(default_factory=DmpAutoCfg)
 
     def __post_init__(self):
@@ -248,12 +264,6 @@ class HgCfg:
                 raise ValueError(f"partition={self.partition.value} requires partition_str")
         elif self.partition_str is not None:
             raise ValueError(f"partition_str is meaningless for partition={self.partition.value}")
-        if self.movavg != 0 and self.nesterov.mom_order3_ != 0.0:
-            raise ValueError(
-                "movavg != 0 and nesterov.mom_order3_ != 0 are mutually exclusive: "
-                "newton_summary.py recomputes order3_ from the movavg'd order3 and "
-                "discards the mom_order3_ EMA (silently, before 2026-08-21)"
-            )
         if self.noregul and self.nesterov.use:
             raise ValueError(
                 "noregul=True and nesterov.use=True are mutually exclusive: "

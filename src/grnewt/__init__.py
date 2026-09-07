@@ -7,7 +7,7 @@ Reference implementation for
 
 Public API::
 
-    from grnewt import ParamStructure, compute_Hg, nesterov_lrs, NewtonSummary
+    from grnewt import ParamStructure, compute_Hg, nesterov_lrs, NewtonSummaryMovexpAvg
     from grnewt import partition
 
 The package depends only on torch, numpy and scipy. Models and datasets used
@@ -22,9 +22,10 @@ from .hg import compute_Hg, compute_Hg_batched, compute_Hg_fullbatch
 # from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
 from .newton_stochastic_hv import NewtonStochasticHv
-from .newton_summary import NewtonSummary
 from .newton_summary_fb import NewtonSummaryFB
 from .newton_summary_uniform_avg import NewtonSummaryUniformAvg
+from .newton_summary_static_avg import NewtonSummaryStaticAvg
+from .newton_summary_movexp_avg import NewtonSummaryMovexpAvg
 from .newton_summary_vanilla import NewtonSummaryVanilla
 from .param_struct import ParamStructure
 from .reduce_damping_on_plateau import ReduceDampingOnPlateau
@@ -66,9 +67,10 @@ __all__ = [
     "diff_n",
     "diff_n_fullbatch",
     # optimizers
-    "NewtonSummary",
     "NewtonSummaryFB",
     "NewtonSummaryUniformAvg",
+    "NewtonSummaryStaticAvg",
+    "NewtonSummaryMovexpAvg",
     "NewtonSummaryVanilla",
     "NewtonStochasticHv",
     "ReduceDampingOnPlateau",

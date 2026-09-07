@@ -158,20 +158,6 @@ def test_legacy_damping_schedule_still_works(legacy, use, final, epoch):
 # ---------------------------------------------------------------- ignored settings
 
 
-def test_setting_ignored_by_the_selected_optimizer_is_reported():
-    """`movavg` is read by NewtonSummary only. Setting it under UniformAvg is an error.
-
-    Before the schema this was a silent no-op: the call site simply did not forward it.
-    """
-    node = OmegaConf.create({"movavg": 0.9})
-    assert check_consumed(from_dictconfig(node), "NewtonSummary") == []
-    problems = check_consumed(from_dictconfig(node), "NewtonSummaryUniformAvg")
-    assert len(problems) == 1 and "movavg" in problems[0]
-
-    with pytest.raises(ValueError, match="silently ignored"):
-        from_dictconfig(node, optimizer_name="NewtonSummaryUniformAvg")
-
-
 def test_default_config_is_consumed_by_every_optimizer():
     """An all-defaults config must never trip the detector, whatever the optimizer."""
     for name in sorted(ALL_NS):

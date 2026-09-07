@@ -86,6 +86,7 @@ optimizer:
         damping: 1.
         damping_schedule: 'None'
         period_hg: 1
+        normalize_dirs: False
         mom_lrs: 0.
         movavg: 0.
         maintain_true_lrs: True
@@ -98,11 +99,14 @@ optimizer:
         nesterov:
             use: False
             damping_int: 1.
-            mom_order3_: 0.
         remove_negative: False
         uniform_avg:
             period: 1
             warmup: 0
+        static_avg:
+            nsamples: 1
+        movexp_avg:
+            movavg: .1
         dmp_auto:
             use: False
             apply_to: 'damping'

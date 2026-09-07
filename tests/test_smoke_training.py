@@ -15,7 +15,7 @@ tests structurally cannot see:
 import pytest
 import torch
 
-from grnewt import NewtonSummary, NewtonSummaryUniformAvg, optimizers
+from grnewt import NewtonSummaryMovexpAvg, NewtonSummaryUniformAvg, optimizers
 from grnewt import partition as build_partition
 from grnewt.config import HgCfg, NesterovCfg, UniformAvgCfg
 
@@ -67,7 +67,7 @@ def test_newton_summary_reduces_the_loss(partition):
         remove_negative=True,
         nesterov=NesterovCfg(use=True, damping_int=1.0),
     )
-    opt = NewtonSummary(
+    opt = NewtonSummaryMovexpAvg(
         pgroups,
         full_loss,
         hg_loader,
@@ -131,7 +131,7 @@ def test_solver_failures_are_reported_not_silent():
     pgroups, _ = build_partition.canonical(model)
     updater = optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
     cfg = HgCfg(period_hg=1, nesterov=NesterovCfg(use=True, damping_int=1.0))
-    opt = NewtonSummary(
+    opt = NewtonSummaryMovexpAvg(
         pgroups,
         full_loss,
         hg_loader,
