@@ -31,11 +31,6 @@ from .param_struct import ParamStructure
 from .reduce_damping_on_plateau import ReduceDampingOnPlateau
 
 
-# `datasets` needs torchvision and `models` pulls it in transitively; both belong
-# to the `experiments` extra. Importing them eagerly made `import grnewt` fail on
-# a `pip install -e ".[dev]"` environment -- i.e. on every CI `test` job -- which
-# contradicts this module's own docstring. Deferring them keeps `grnewt.datasets`
-# and `grnewt.models` working as attributes for anyone who has the extra.
 def __getattr__(name):
     if name in ("datasets", "models", "loader_pre_hooks"):
         import importlib

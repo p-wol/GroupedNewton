@@ -1,35 +1,9 @@
-"""
-hg_batched_v2.py -- batched drop-in for grnewt.hg.compute_Hg.
-
-Written against the actual grnewt API (ParamStructure / dercon), NOT EXECUTED
-(no torch in the authoring environment). Run `test_matches_reference()` first.
-
-Same signature and same return convention as grnewt.hg.compute_Hg:
-    H[i, j]   = u_i^T H_ij u_j
-    g[i]      = <u_i, grad_i>
-    order3[i] = D^3 L[u_i, u_i, u_i]
-
-What changes vs. the original:
-  * the `for i in range(nb_groups)` loop is chunked and vmapped via
-    is_grads_batched, which keeps the existing triangular input restriction
-    (inputs = groups i..S-1) that torch.func.jvp would throw away;
-  * order3 is obtained from the SAME batched second-order graph;
-  * no per-iteration .item(): H and order3 are assembled on device and
-    synchronised once.
-
-Tunable: chunk_size trades memory for launch efficiency. Peak second-order
-graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
-"""
-
 import torch
 
 
 def _scaled_loss(full_loss, weight):
-    """`full_loss` scaled by a per-batch weight.
-
-    A factory, not an inline lambda: an inline closure over the loop variable
-    `x` is a late-binding trap (ruff B023) and a default argument that calls
-    `x.size(0)` is B008. This binds the weight once, explicitly.
+    """
+    `full_loss` scaled by a per-batch weight.
     """
 
     def loss_x(x_, y_):
@@ -86,12 +60,6 @@ def compute_Hg(
             if not semiH:
                 H[i:, i] = H_i.detach()
 
-    # Build order3.
-    # FIX (2026-08-21): with noregul=True the loop above `continue`s before
-    # filling order3_list, so this used to be torch.stack([None, ...]) ->
-    # TypeError.  compute_Hg_batched already returned zeros in that case; the
-    # two paths must agree, and every caller (NewtonSummary, NewtonSummaryFB)
-    # ignores order3 when noregul is set.
     if noregul:
         order3 = torch.zeros(nb_groups, device=device, dtype=dtype)
     else:
@@ -141,6 +109,28 @@ def compute_Hg_fullbatch(
     return H, g, order3
 
 
+"""
+batched drop-in for grnewt.hg.compute_Hg.
+
+Written against the actual grnewt API (ParamStructure / dercon), NOT EXECUTED
+(no torch in the authoring environment). Run `test_matches_reference()` first.
+
+Same signature and same return convention as grnewt.hg.compute_Hg:
+    H[i, j]   = u_i^T H_ij u_j
+    g[i]      = <u_i, grad_i>
+    order3[i] = D^3 L[u_i, u_i, u_i]
+
+What changes vs. the original:
+  * the `for i in range(nb_groups)` loop is chunked and vmapped via
+    is_grads_batched, which keeps the existing triangular input restriction
+    (inputs = groups i..S-1) that torch.func.jvp would throw away;
+  * order3 is obtained from the SAME batched second-order graph;
+  * no per-iteration .item(): H and order3 are assembled on device and
+    synchronised once.
+
+Tunable: chunk_size trades memory for launch efficiency. Peak second-order
+graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
+"""
 # ---------------------------------------------------------------------------
 # optional fused contraction: out[k, s] = sum_{n in group s} R[k, n] * u[n]
 # ---------------------------------------------------------------------------

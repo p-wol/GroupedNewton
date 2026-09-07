@@ -3,11 +3,8 @@ from itertools import combinations_with_replacement
 
 
 def _scaled_loss(full_loss, weight):
-    """`full_loss` scaled by a per-batch weight.
-
-    A factory, not an inline lambda: an inline closure over the loop variable
-    `x` is a late-binding trap (ruff B023) and a default argument that calls
-    `x.size(0)` is B008. This binds the weight once, explicitly.
+    """
+    `full_loss` scaled by a per-batch weight.
     """
 
     def loss_x(x_, y_):

@@ -214,12 +214,6 @@ def build_toy_regression(args, dct):
         layers, act_function, scaling=False, sigma_w=sigma_w, sigma_b=sigma_b, classification=False
     ).to(dtype=dct["dtype"], device=dct["device"])
     with torch.no_grad():
-        # FIX (2026-08-22): the targets used to be `torch.randn(..., out_size)`,
-        # i.e. INDEPENDENT of the inputs -- the teacher was constructed from
-        # `args.dataset.teacher.{args, act_function, sigma_w, sigma_b}` and then
-        # discarded. `ToyRegression` was therefore a regression on pure noise,
-        # with no teacher-student structure at all, and `out_size` was only ever
-        # used to size the noise. ruff flagged it as F841 on `teacher`.
         tv_in = torch.randn(
             args.dataset.train_size + args.dataset.valid_size,
             in_size,

@@ -2,22 +2,7 @@
 
 Single source of truth for every hyperparameter of the NewtonSummary family: name,
 type, default, one-line description, and *which optimizers actually read it*.
-Adding a hyperparameter costs one line here plus its use site; nothing else.
-
-Three properties this buys, none of which the plain YAML tree has:
-
-  1. Type validation at composition time.  `optimizer.hg.period_hg=abc` currently
-     composes to the string 'abc' and fails (or silently misbehaves) inside the job;
-     with the schema it is a ValidationError on the login node.
-  2. Cross-field validation, in `__post_init__`, in one place instead of scattered
-     `if` statements across training_hydra.py and each optimizer.
-  3. Detection of settings that the selected optimizer *ignores* (`used_by`).  Today
-     `optimizer.hg.ridge` is honoured by NewtonSummary and silently dropped by
-     NewtonSummaryUniformAvg, because the call site does not forward it.
-
-Import cost: dataclasses + enum + omegaconf.  `grnewt` itself does not import
-omegaconf; only `check_consumed`/`from_dictconfig` do, lazily, so the package stays
-usable without the `experiments` extra.
+Adding a hyperparameter costs one line here plus its use site.
 """
 
 from __future__ import annotations
@@ -32,14 +17,7 @@ NSFB = "NewtonSummaryFB"
 NSUA = "NewtonSummaryUniformAvg"
 NSSA = "NewtonSummaryStaticAvg"
 NSMA = "NewtonSummaryMovexpAvg"
-# NewtonSummaryVanilla is deliberately absent: it is reachable from no config file
-# and no launch script (verified 2026-08-21), i.e. dead code. Adding it to ALL_NS
-# would let `used_by` claim a consumer that cannot be selected.
 ALL_NS = frozenset({NSFB, NSUA, NSSA, NSMA})
-# NewtonStochasticHv IS reachable (training_hydra.py:358) but reads none of the
-# fields below: it takes lr_param/lr_direction/ridge/dct_nesterov directly from
-# args.optimizer.newtonsto. It is therefore deliberately outside ALL_NS, and
-# check_consumed() must not be called with it.
 
 
 def P(help: str, used_by, **kw: Any) -> Any:
@@ -203,12 +181,6 @@ class HgCfg:
 
     # --- the reduced model ----------------------------------------------------------
     diagonal: bool = P("compute only the diagonal of Hbar", ALL_NS, default=False)
-    # `semiH` was REMOVED (2026-08-21). No optimizer ever forwarded it to
-    # compute_Hg (verified by grep); the only caller that sets semiH=True is
-    # compute_Hg_fullbatch, internally and unconditionally, and it symmetrizes
-    # afterwards. Exposing it was not merely dead: nesterov_lrs starts with
-    # H64 = 0.5 * (H64 + H64.T), so a user-supplied triangular Hbar would have
-    # had every off-diagonal entry silently halved.
     noregul: bool = P(
         "bypass every regularization: lrs = Hbar^{-1} gbar", ALL_NS, default=False
     )
