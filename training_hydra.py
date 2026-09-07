@@ -13,10 +13,10 @@ from torch.utils import data
 # from kfac.optimizers import KFACOptimizer
 from grnewt import (
     NewtonStochasticHv,
-    NewtonSummary,
     NewtonSummaryFB,
     NewtonSummaryUniformAvg,
     NewtonSummaryStaticAvg,
+    NewtonSummaryMovexpAvg,
     ParamStructure,
     ReduceDampingOnPlateau,
     compute_Hg_fullbatch,
@@ -321,16 +321,7 @@ class Trainer:
             else:
                 updater = optimizers.AdamUpdate(model.parameters(), lr=1)
 
-            if args.optimizer.name == "NewtonSummary":
-                optimizer = NewtonSummary(
-                    param_groups,
-                    full_loss,
-                    self.hg_loader,
-                    updater,
-                    loader_pre_hook=self.loader_pre_hook,
-                    cfg=hg,
-                )
-            elif args.optimizer.name == "NewtonSummaryFB":
+            if args.optimizer.name == "NewtonSummaryFB":
                 optimizer = NewtonSummaryFB(
                     param_groups,
                     full_loss,
@@ -351,6 +342,15 @@ class Trainer:
                     cfg=hg,
                 )
             elif args.optimizer.name == "NewtonSummaryStaticAvg":
+                optimizer = NewtonSummaryStaticAvg(
+                    param_groups,
+                    full_loss,
+                    self.hg_loader,
+                    updater,
+                    loader_pre_hook=self.loader_pre_hook,
+                    cfg=hg,
+                )
+            elif args.optimizer.name == "NewtonSummaryMovexpAvg":
                 optimizer = NewtonSummaryStaticAvg(
                     param_groups,
                     full_loss,

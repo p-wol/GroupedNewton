@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from grnewt import (
-    NewtonSummary,
+    NewtonSummaryMovexpAvg,
     ParamStructure,
     compute_Hg,
     compute_Hg_batched,
@@ -110,7 +110,7 @@ def test_direction_reaches_compute_Hg_in_tup_params_order(f64, name, monkeypatch
     `ParamStructure.dot` contracts with `(p1 * p2).sum()`, which BROADCASTS, so
     a permuted `direction` produces a silently wrong Hbar instead of raising.
     """
-    import grnewt.newton_summary as ns
+    import grnewt.newton_summary_movexp_avg as ns
 
     model = _uniform_mlp()
     pgroups, _ = PARTITIONS[name](model)
@@ -133,7 +133,7 @@ def test_direction_reaches_compute_Hg_in_tup_params_order(f64, name, monkeypatch
         return ((model(a) - b) ** 2).mean()
 
     updater = optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
-    opt = NewtonSummary(
+    opt = NewtonSummaryMovexpAvg(
         pgroups,
         full_loss,
         loader,

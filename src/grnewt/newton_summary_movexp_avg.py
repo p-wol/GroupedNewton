@@ -48,19 +48,19 @@ class NewtonSummaryMovexpAvg(NSBase):
                 self.dct_HgD_avgs[f"{key}"] = torch.zeros_like(curr)
 
         # Update the moving averages
+        r = self.movavg
         for key, curr in dct_HgD.items():
             self.dct_HgD_avgs[f"{key}"] = (1 - r) * self.dct_HgD_avgs[f"{key}"] + r * dct_HgD[f"{key}"]
 
         # Remove the bias (Adam-like)
         t = self.step_counter // self.cfg.period_hg
-        r = self.movavg
         for key, curr in dct_HgD.items():
-            self.dct_HgD[f"{key}"] = self.dct_HgD[f"{key}"] / (1 - (1 - r)**t)
+            dct_HgD[f"{key}"] = self.dct_HgD_avgs[f"{key}"] / (1 - (1 - r)**(t + 1))
         
         # Return the H, g, order3 to use
-        H = self.dct_HgD["H_use"]
-        g = self.dct_HgD["g_use"]
-        order3 = self.dct_HgD["D_use"]
+        H = dct_HgD["H"]
+        g = dct_HgD["g"]
+        order3 = dct_HgD["D"]
 
         return H, g, order3
 

@@ -98,7 +98,6 @@ optimizer:
         nesterov:
             use: False
             damping_int: 1.
-            mom_order3_: 0.
         remove_negative: False
         uniform_avg:
             period: 1
