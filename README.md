@@ -41,7 +41,7 @@ cfg = HgCfg(
     period_hg=10,
     remove_negative=True,
     updater=UpdaterCfg(momentum=0.9),
-    uniform_avg=UniformAvgCfg(perdiod=3, warmup=3),
+    uniform_avg=UniformAvgCfg(period=3, warmup=3),
     nesterov=NesterovCfg(use=True, damping_int=10.0),
 )
 
