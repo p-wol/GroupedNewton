@@ -131,5 +131,5 @@ class NewtonSummaryUniformAvg(NSBase):
         # Update the averages of H, g, order3
         H, g, order3 = self.update_uniform_avg(H, g, order3)
 
-        return H, g, order3, UpdateInstructions(recompute_lrs=True, do_update=warmup_ended)
+        return H, g, order3, UpdateInstructions(recompute_lrs=warmup_ended, do_update=warmup_ended)
 
