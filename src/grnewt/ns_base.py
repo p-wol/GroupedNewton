@@ -51,6 +51,7 @@ class NSBase(torch.optim.Optimizer):
         self.loader_pre_hook = loader_pre_hook
         self.cfg = cfg
         self.curr_lrs = 0
+        self.dir_norm = None
 
         # `damping` is per-parameter-group state, not a hyperparameter of the run:
         # damping_mul() mutates it. It therefore belongs to torch's `defaults`
@@ -97,6 +98,8 @@ class NSBase(torch.optim.Optimizer):
             if n > 0:
                 d.div_(n)
 
+        return norm
+
     def compute_avg_Hg(self, direction):
         raise NotImplementedError
 
@@ -115,11 +118,25 @@ class NSBase(torch.optim.Optimizer):
         direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
 
         # Normalize if required
+        #direction_normed = tuple(d.clone() for d in direction)
         if self.cfg.normalize_dirs:
-            self.normalize_dirs_(direction)
+            #self.dir_norm = self.normalize_dirs_(direction_normed)
+            self.dir_norm = self.normalize_dirs_(direction)
 
         # Compute the averages of H, g, order3
+        #H, g, order3, update_instr = self.compute_avg_Hg(direction_normed)
         H, g, order3, update_instr = self.compute_avg_Hg(direction)
+
+        # XXX: if all non-Hg updates normalize the direction, then, as the norm
+        #      of direction decreases, our method will *overshoot* the objective
+        #      for lrs. Unresolved issue.
+        """
+        # Recompute the direction by taking into account the norms
+        if self.cfg.normalize_dirs and not update_instr.recompute_lrs:
+            for d, n in zip(direction, self.dir_norm, strict=True):
+                if n > 0:
+                    d.div_(n)
+        """
 
         ### If we do not need to recompute the lrs ###
         if not update_instr.recompute_lrs:
