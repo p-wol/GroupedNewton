@@ -32,10 +32,11 @@ NS = "NewtonSummary"
 NSFB = "NewtonSummaryFB"
 NSUA = "NewtonSummaryUniformAvg"
 NSSA = "NewtonSummaryStaticAvg"
+NSMA = "NewtonSummaryMovexpAvg"
 # NewtonSummaryVanilla is deliberately absent: it is reachable from no config file
 # and no launch script (verified 2026-08-21), i.e. dead code. Adding it to ALL_NS
 # would let `used_by` claim a consumer that cannot be selected.
-ALL_NS = frozenset({NS, NSFB, NSUA, NSSA})
+ALL_NS = frozenset({NS, NSFB, NSUA, NSSA, NSMA})
 # NewtonStochasticHv IS reachable (training_hydra.py:358) but reads none of the
 # fields below: it takes lr_param/lr_direction/ridge/dct_nesterov directly from
 # args.optimizer.newtonsto. It is therefore deliberately outside ALL_NS, and
@@ -166,6 +167,13 @@ class StaticAvgCfg:
         if self.nsamples < 1:
             raise ValueError(f"static_avg.nsamples must be >= 1, got {self.nsamples}")
 
+@dataclass(kw_only=True, slots=True)
+class MovexpAvgCfg:
+    movavg: float = P("Exponential moving average update coefficient to estimage E[H], E[g], E[order3]", {NSMA}, default=.1)
+
+    def __post_init__(self):
+        if self.movavg < 0 or self.movavg > 1:
+            raise ValueError(f"movexp_avg.movavg must be in [0, 1], got {self.movavg}")
 
 @dataclass(kw_only=True, slots=True)
 class DmpAutoCfg:
@@ -216,7 +224,7 @@ class HgCfg:
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
     period_hg: int = P("training steps between two recomputations of (H, g)", ALL_NS, default=1)
     mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
-    movavg: float = P("moving average on (H, g)", ALL_NS, default=0.0)
+    movavg: float = P("moving average on (H, g)", {NS, NSFB, NSMA}, default=0.0)
     maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", ALL_NS, default=True)
     remove_negative: bool = P("clamp negative learning rates to zero", ALL_NS, default=False)
 
@@ -237,6 +245,7 @@ class HgCfg:
     nesterov: NesterovCfg = field(default_factory=NesterovCfg)
     uniform_avg: UniformAvgCfg = field(default_factory=UniformAvgCfg)
     static_avg: StaticAvgCfg = field(default_factory=StaticAvgCfg)
+    movexp_avg: MovexpAvgCfg = field(default_factory=MovexpAvgCfg)
     dmp_auto: DmpAutoCfg = field(default_factory=DmpAutoCfg)
 
     def __post_init__(self):

@@ -80,5 +80,3 @@ class NewtonSummaryStaticAvg(NSBase):
         avg_order3.div_(self.nsamples)
 
         return avg_H, avg_g, avg_order3, UpdateInstructions(recompute_lrs=True, do_update=True)
-
-

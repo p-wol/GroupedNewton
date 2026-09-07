@@ -112,15 +112,18 @@ class NSBase(torch.optim.Optimizer):
             order3_ = order3.abs().pow(1 / 3)
 
             lrs_found = True
-            if self.cfg.noregul or not self.cfg.nesterov.use:
-                if self.cfg.noregul:
-                    regul_H = 0
-                else:
-                    regul_H = self.cfg.ridge * torch.eye(
-                        H.size(0), dtype=self.dtype, device=self.device
-                    )
+            if self.cfg.noregul:
+                # no regularization
+                lrs = torch.linalg.solve(H, g)
+            elif not self.cfg.nesterov.use:
+                # with regularization, but no Nesterov cubic regul
+                # => Tikhonov regularization
+                regul_H = self.cfg.ridge * torch.eye(
+                    H.size(0), dtype=self.dtype, device=self.device
+                )
                 lrs = torch.linalg.solve(H + regul_H, g)
             else:
+                # regularization with Nesterov cubic
                 nest = self.cfg.nesterov
                 lrs, lrs_logs = nesterov_lrs(
                     H,

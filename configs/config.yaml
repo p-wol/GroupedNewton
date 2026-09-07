@@ -104,7 +104,9 @@ optimizer:
             period: 1
             warmup: 0
         static_avg:
-            nsamples: 3
+            nsamples: 1
+        movexp_avg:
+            movavg: .1
         dmp_auto:
             use: False
             apply_to: 'damping'
