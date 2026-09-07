@@ -219,6 +219,7 @@ class HgCfg:
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
     period_hg: int = P("training steps between two recomputations of (H, g)", ALL_NS, default=1)
+    normalize_dirs: bool = P("normalize each proposition of 'direction' (on each subset of params)  before computing Hbar and gbar", ALL_NS, default=False)
     mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
     movavg: float = P("moving average on (H, g)", {NSFB}, default=0.0)
     maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", ALL_NS, default=True)

@@ -89,6 +89,14 @@ class NSBase(torch.optim.Optimizer):
             group["damping"] *= factor
             group["lr"] *= factor
 
+    def normalize_dirs_(self, direction):
+        norm = self.param_struct.squared_norm(direction).sqrt()
+        norm = self.param_struct.expand_src_as_params(norm)
+
+        for d, n in zip(direction, norm, strict=True):
+            if n > 0:
+                d.div_(n)
+
     def compute_avg_Hg(self, direction):
         raise NotImplementedError
 
@@ -105,6 +113,10 @@ class NSBase(torch.optim.Optimizer):
 
         # Compute the direction
         direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
+
+        # Normalize if required
+        if self.cfg.normalize_dirs:
+            self.normalize_dirs_(direction)
 
         # Compute the averages of H, g, order3
         H, g, order3, update_instr = self.compute_avg_Hg(direction)

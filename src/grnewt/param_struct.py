@@ -89,6 +89,19 @@ class ParamStructure:
         else:
             raise NotImplementedError(f"Unknown dct_type: {dst_type}.")
 
+    def squared_norm(self, x):
+        return self.dot(x, x)
+
+    def expand_src_as_params(self, src):
+        """
+        For an input src = (t1, t2, ..., tS),
+        build a tuple (t1, t1, t1, t2, t2, ..., tS), where each ts is duplicated
+        ns times, where ns is the number of tensor parameters in group s.
+        """
+        lst_groups = [[t]*len(group["params"]) for t, group in zip(src, self.pgroups, strict=True)]
+
+        return tuple(t for g in lst_groups for t in g)
+
     def dercon(self, gpar, gdir, start, end, *, detach):
         # Returns zero tensors if gpar does not require grad
         if not gpar.requires_grad:

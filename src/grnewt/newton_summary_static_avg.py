@@ -43,7 +43,7 @@ class NewtonSummaryStaticAvg(NSBase):
         avg_H = None
         avg_g = None
         avg_order3 = None
-        for i in range(self.nsamples):
+        for _ in range(self.nsamples):
             # Compute H, g
             ## Prepare data
             x, y = next(self.dl_iter)

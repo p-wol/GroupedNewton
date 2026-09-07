@@ -86,6 +86,7 @@ optimizer:
         damping: 1.
         damping_schedule: 'None'
         period_hg: 1
+        normalize_dirs: False
         mom_lrs: 0.
         movavg: 0.
         maintain_true_lrs: True
