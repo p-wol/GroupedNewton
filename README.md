@@ -15,7 +15,7 @@ arXiv: [https://arxiv.org/abs/2312.03885](https://arxiv.org/abs/2312.03885)
 ```python
 import torch
 import grnewt
-from grnewt.config import HgCfg, NesterovCfg, UpdaterCfg
+from grnewt.config import HgCfg, NesterovCfg, UpdaterCfg, UniformAvgCfg
 
 # --- user-specific ------------------------------------------------- BEGIN USER
 model = MyModel(...)
@@ -39,13 +39,13 @@ updater = grnewt.optimizers.SGDUpdate(model.parameters(), lr=1, momentum=0.9)
 cfg = HgCfg(
     damping=0.1,
     period_hg=10,
-    mom_lrs=0.5,
     remove_negative=True,
     updater=UpdaterCfg(momentum=0.9),
+    uniform_avg=UniformAvgCfg(perdiod=3, warmup=3)
     nesterov=NesterovCfg(use=True, damping_int=10.0),
 )
 
-optimizer = grnewt.NewtonSummary(
+optimizer = grnewt.NewtonSummaryStaticAvg(
     param_groups,
     full_loss,
     hg_loader,
