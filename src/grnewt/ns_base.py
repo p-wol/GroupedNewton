@@ -94,82 +94,7 @@ class NSBase(torch.optim.Optimizer):
 
     @increment_step
     def step(self):
-        # Compute the direction
-        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
-
-        # Compute the averages of H, g, order3
-        H, g, order3, update_instr = self.compute_avg_Hg(direction)
-
-        # Store logs of H, g, order3
-        # XXX: warning: the number of elements in the list may be unpredictible, to FIX
-        if H is not None: self.logs["H"].append(H)
-        if g is not None: self.logs["g"].append(g)
-        if order3 is not None: self.logs["order3"].append(order3)
-
-        # Compute lrs if self.compute_avg_Hg says so
-        if update_instr.recompute_lrs:
-            # Compute order3_
-            order3_ = order3.abs().pow(1 / 3)
-
-            lrs_found = True
-            if self.cfg.noregul:
-                # no regularization
-                lrs = torch.linalg.solve(H, g)
-            elif not self.cfg.nesterov.use:
-                # with regularization, but no Nesterov cubic regul
-                # => Tikhonov regularization
-                regul_H = self.cfg.ridge * torch.eye(
-                    H.size(0), dtype=self.dtype, device=self.device
-                )
-                lrs = torch.linalg.solve(H + regul_H, g)
-            else:
-                # regularization with Nesterov cubic
-                nest = self.cfg.nesterov
-                lrs, lrs_logs = nesterov_lrs(
-                    H,
-                    g,
-                    order3_,
-                    damping_int=nest.damping_int,
-                    threshold_D_sing=nest.threshold_D_sing,
-                    hard_case_rtol=nest.hard_case_rtol,
-                    refine=nest.refine,
-                )
-
-                for k, v in lrs_logs.items():
-                    kk = "nesterov." + k
-                    if kk not in self.logs.keys():
-                        self.logs[kk] = []
-                    self.logs[kk].append(v)
-
-                if not lrs_logs["found"]:
-                    lrs_found = False
-                    print("Nesterov did not converge: lr not updated during this step.")
-                    # TODO: throw warning?
-
-            if not lrs_found:
-                lrs = self.curr_lrs
-
-            ## Additional operations on the lrs
-            r = self.cfg.mom_lrs if self.step_counter > 0 else 0
-            self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-            lrs = self.curr_lrs
-            if self.cfg.remove_negative:
-                lrs = lrs.relu()
-
-            ## Assign lrs
-            self.logs["lrs_clipped"].append(lrs)
-            self.logs["curr_lrs"].append(self.curr_lrs)
-            for group, lr in zip(self.param_groups, lrs, strict=False):
-                group["lr"] = group["damping"] * lr.item()
-
-        # Store logs of lrs
-        self.logs["lrs"].append(
-            torch.tensor(
-                [group["lr"] for group in self.param_groups], device=self.device, dtype=self.dtype
-            )
-        )
-
-        # Function that performs an update if necessary
+        # Function that performs an update
         def make_step(direction):
             with torch.no_grad():
                 i = 0
@@ -178,7 +103,89 @@ class NSBase(torch.optim.Optimizer):
                         p.add_(direction[i], alpha=-group["lr"])
                         i += 1
 
-        # Perform update if self.compute_avg_Hg says so
+        # Compute the direction
+        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
+
+        # Compute the averages of H, g, order3
+        H, g, order3, update_instr = self.compute_avg_Hg(direction)
+
+        ### If we do not need to recompute the lrs ###
+        if not update_instr.recompute_lrs:
+            # Do immediately an update if necessary, then end step
+            if update_instr.do_update:
+                make_step(direction)
+            return
+
+        ### Now, we know that update_instr.recompute_lrs is True ###
+        ### => compute the lrs                                   ###
+
+        # Store logs of H, g, order3
+        self.logs["H"].append(H)
+        self.logs["g"].append(g)
+        self.logs["order3"].append(order3)
+
+        # Compute order3_
+        order3_ = order3.abs().pow(1 / 3)
+
+        lrs_found = True
+        if self.cfg.noregul:
+            # no regularization
+            lrs = torch.linalg.solve(H, g)
+        elif not self.cfg.nesterov.use:
+            # with regularization, but no Nesterov cubic regul
+            # => Tikhonov regularization
+            regul_H = self.cfg.ridge * torch.eye(
+                H.size(0), dtype=self.dtype, device=self.device
+            )
+            lrs = torch.linalg.solve(H + regul_H, g)
+        else:
+            # regularization with Nesterov cubic
+            nest = self.cfg.nesterov
+            lrs, lrs_logs = nesterov_lrs(
+                H,
+                g,
+                order3_,
+                damping_int=nest.damping_int,
+                threshold_D_sing=nest.threshold_D_sing,
+                hard_case_rtol=nest.hard_case_rtol,
+                refine=nest.refine,
+            )
+
+            for k, v in lrs_logs.items():
+                kk = "nesterov." + k
+                if kk not in self.logs.keys():
+                    self.logs[kk] = []
+                self.logs[kk].append(v)
+
+            if not lrs_logs["found"]:
+                lrs_found = False
+                print("Nesterov did not converge: lr not updated during this step.")
+                # TODO: throw warning?
+
+        if not lrs_found:
+            lrs = self.curr_lrs
+
+        ## Additional operations on the lrs
+        r = self.cfg.mom_lrs if self.step_counter > 0 else 0
+        self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
+        lrs = self.curr_lrs
+        if self.cfg.remove_negative:
+            lrs = lrs.relu()
+
+        ## Assign lrs
+        self.logs["lrs_clipped"].append(lrs)
+        self.logs["curr_lrs"].append(self.curr_lrs)
+        for group, lr in zip(self.param_groups, lrs, strict=False):
+            group["lr"] = group["damping"] * lr.item()
+
+        # Store logs of lrs
+        self.logs["lrs"].append(
+            torch.tensor(
+                [group["lr"] for group in self.param_groups], device=self.device, dtype=self.dtype
+            )
+        )
+
+        ### To finish: perform update if necessary ###
         if update_instr.do_update:
             make_step(direction)
 
