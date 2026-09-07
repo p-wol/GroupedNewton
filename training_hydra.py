@@ -14,9 +14,9 @@ from torch.utils import data
 from grnewt import (
     NewtonStochasticHv,
     NewtonSummaryFB,
-    NewtonSummaryUniformAvg,
-    NewtonSummaryStaticAvg,
     NewtonSummaryMovexpAvg,
+    NewtonSummaryStaticAvg,
+    NewtonSummaryUniformAvg,
     ParamStructure,
     ReduceDampingOnPlateau,
     compute_Hg_fullbatch,
@@ -352,7 +352,7 @@ class Trainer:
                     cfg=hg,
                 )
             elif args.optimizer.name == "NewtonSummaryMovexpAvg":
-                optimizer = NewtonSummaryStaticAvg(
+                optimizer = NewtonSummaryMovexpAvg(
                     param_groups,
                     full_loss,
                     self.hg_loader,

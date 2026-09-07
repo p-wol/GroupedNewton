@@ -1,12 +1,9 @@
-import itertools
 
 import torch
 from torch.utils.data import DataLoader
 
 from .config import HgCfg
 from .hg import compute_Hg, compute_Hg_batched
-from .nesterov import nesterov_lrs
-from .param_struct import ParamStructure
 from .ns_base import NSBase, UpdateInstructions
 
 
@@ -30,7 +27,7 @@ class NewtonSummaryUniformAvg(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        super().__init__(param_groups, full_loss, data_loader, updater, 
+        super().__init__(param_groups, full_loss, data_loader, updater,
                 loader_pre_hook=loader_pre_hook, cfg=cfg)
 
         self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}

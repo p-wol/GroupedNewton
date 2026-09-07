@@ -1,12 +1,9 @@
-import itertools
 
 import torch
 from torch.utils.data import DataLoader
 
 from .config import HgCfg
 from .hg import compute_Hg, compute_Hg_batched
-from .nesterov import nesterov_lrs
-from .param_struct import ParamStructure
 from .ns_base import NSBase, UpdateInstructions
 
 
@@ -30,7 +27,7 @@ class NewtonSummaryMovexpAvg(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        super().__init__(param_groups, full_loss, data_loader, updater, 
+        super().__init__(param_groups, full_loss, data_loader, updater,
                 loader_pre_hook=loader_pre_hook, cfg=cfg)
 
         self.movavg = cfg.movexp_avg.movavg
@@ -49,14 +46,14 @@ class NewtonSummaryMovexpAvg(NSBase):
 
         # Update the moving averages
         r = self.movavg
-        for key, curr in dct_HgD.items():
+        for key, _curr in dct_HgD.items():
             self.dct_HgD_avgs[f"{key}"] = (1 - r) * self.dct_HgD_avgs[f"{key}"] + r * dct_HgD[f"{key}"]
 
         # Remove the bias (Adam-like)
         t = self.step_counter // self.cfg.period_hg
-        for key, curr in dct_HgD.items():
+        for key, _curr in dct_HgD.items():
             dct_HgD[f"{key}"] = self.dct_HgD_avgs[f"{key}"] / (1 - (1 - r)**(t + 1))
-        
+
         # Return the H, g, order3 to use
         H = dct_HgD["H"]
         g = dct_HgD["g"]

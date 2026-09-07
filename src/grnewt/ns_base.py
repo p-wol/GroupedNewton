@@ -1,5 +1,4 @@
 import itertools
-import dataclasses
 from dataclasses import dataclass
 
 import torch
