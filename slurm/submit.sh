@@ -23,17 +23,48 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if [ -f .env ]; then
-    while IFS='=' read -r env_key env_val; do
-        env_key="${env_key#"${env_key%%[![:space:]]*}"}"   # ltrim
-        env_key="${env_key%"${env_key##*[![:space:]]}"}"   # rtrim
-        case "$env_key" in "" | \#*) continue ;; esac
-        export "$env_key=$env_val"
-    done < .env
-else
+# --- .env ---------------------------------------------------------------------------
+# Read line by line rather than `export $(sed ... | xargs)`: xargs word-splits on every
+# space, so a path containing one silently became two exports and `set -e` killed the
+# script with a message about an identifier rather than about configuration.
+#
+# Accepted on the left-hand side, because both conventions are in use in the wild and
+# the old xargs pipeline tolerated the first one by accident (`export` became a separate
+# word and `export export` is a harmless no-op):
+#     KEY=value
+#     export KEY=value
+# Surrounding single or double quotes on the value are stripped, as a shell would.
+# `env.example` documents the bare form; that is the one to write in new files.
+if [ ! -f .env ]; then
     echo "submit.sh: no .env at $PWD; copy env.example and fill it in." >&2
     exit 1
 fi
+env_lineno=0
+# `|| [ -n "$env_key" ]` so that a last line without a trailing newline is not dropped.
+while IFS='=' read -r env_key env_val || [ -n "$env_key" ]; do
+    env_lineno=$((env_lineno + 1))
+    env_key="${env_key%$'\r'}"; env_val="${env_val%$'\r'}"        # CRLF
+    env_key="${env_key#"${env_key%%[![:space:]]*}"}"               # ltrim
+    env_key="${env_key%"${env_key##*[![:space:]]}"}"               # rtrim
+    case "$env_key" in "" | \#*) continue ;; esac
+    env_key="${env_key#export }"                                   # `export KEY=value`
+    env_key="${env_key#"${env_key%%[![:space:]]*}"}"
+    case "$env_val" in
+        \"*\") env_val="${env_val#\"}"; env_val="${env_val%\"}" ;;
+        \'*\') env_val="${env_val#\'}"; env_val="${env_val%\'}" ;;
+    esac
+    case "$env_key" in
+        [A-Za-z_]*) : ;;
+        *) echo "submit.sh: .env line $env_lineno: '$env_key' is not a variable name" >&2
+           exit 1 ;;
+    esac
+    case "$env_key" in
+        *[!A-Za-z0-9_]*)
+           echo "submit.sh: .env line $env_lineno: '$env_key' is not a variable name" >&2
+           exit 1 ;;
+    esac
+    export "$env_key=$env_val"
+done < .env
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 export HYDRA_FULL_ERROR=1
 export OC_CAUSE=1
