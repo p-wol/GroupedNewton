@@ -12,7 +12,7 @@ class NewtonSummaryFB(NSBase):
         param_groups,
         full_loss,
         model,
-        final_loss,
+        loss_fn,
         train_loader: DataLoader,
         train_size: int,
         *,
@@ -28,22 +28,24 @@ class NewtonSummaryFB(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        updater = FBGDUpdate(model, train_loader, train_size, loader_pre_hook=loader_pre_hook)
+        updater = FBGDUpdate(model, loss_fn, train_loader, train_size, loader_pre_hook=loader_pre_hook)
 
         super().__init__(
-            param_groups, full_loss, data_loader, updater, loader_pre_hook=loader_pre_hook, cfg=cfg
+            param_groups, full_loss, train_loader, updater, loader_pre_hook=loader_pre_hook, cfg=cfg
         )
 
+        self.train_loader = train_loader
         self.train_size = train_size
+        self.loader_pre_hook = loader_pre_hook
 
     def compute_avg_Hg(self, direction):
         avg_H = None
         avg_g = None
         avg_order3 = None
-        for x, y in train_loader:
+        for x, y in self.train_loader:
             # Compute H, g
             ## Prepare data
-            x, y = loader_pre_hook(x, y)
+            x, y = self.loader_pre_hook(x, y)
 
             ## Compute H, g, order3
             cp_kwargs = {"noregul": self.cfg.noregul, "diagonal": self.cfg.diagonal}

@@ -44,6 +44,7 @@ class NSBase(torch.optim.Optimizer):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
+        # XXX: data_loader is not necessarily used... (e.g., NewtonSummaryFB)
         self.fn_data_loader = create_infinite_data_loader(data_loader)
         self.dl_iter = iter(self.fn_data_loader())
         self.full_loss = full_loss

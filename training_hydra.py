@@ -617,9 +617,7 @@ class Trainer:
 
             # Training step
             if self.args.optimizer.name == "NewtonSummaryFB":
-                self.model.train()
-                self.optimizer.step()
-                self.model.eval()
+                self.step_train_fb()
 
                 metrics_tr = self.test_model(self.train_loader, "tr")
             elif self.args.optimizer.name == "LBFGS":
@@ -714,8 +712,9 @@ class Trainer:
                 torch.save(logs_last, f"{self.path_artifacts}/Hg_logs_last.{self.epoch:05}.pkl")
                 torch.save(logs_mean, f"{self.path_artifacts}/Hg_logs_mean.{self.epoch:05}.pkl")
                 torch.save(logs_total, f"{self.path_artifacts}/Hg_logs_total.{self.epoch:05}.pkl")
-                nlls = torch.stack(self.logs_nlls).cpu()
-                torch.save(nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.pkl")
+                if not self.args.optimizer.name == "NewtonSummaryFB":
+                    nlls = torch.stack(self.logs_nlls).cpu()
+                    torch.save(nlls, f"{self.path_artifacts}/nlls_logs_total.{self.epoch:05}.pkl")
 
                 self.optimizer.reset_logs()
             elif self.args.optimizer.name == "NewtonSummaryFB":
