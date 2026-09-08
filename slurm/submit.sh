@@ -23,7 +23,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export $(sed '/^#/d; /^[[:space:]]*$/d' .env | xargs)
+if [ -f .env ]; then
+    while IFS='=' read -r env_key env_val; do
+        env_key="${env_key#"${env_key%%[![:space:]]*}"}"   # ltrim
+        env_key="${env_key%"${env_key##*[![:space:]]}"}"   # rtrim
+        case "$env_key" in "" | \#*) continue ;; esac
+        export "$env_key=$env_val"
+    done < .env
+else
+    echo "submit.sh: no .env at $PWD; copy env.example and fill it in." >&2
+    exit 1
+fi
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 export HYDRA_FULL_ERROR=1
 export OC_CAUSE=1

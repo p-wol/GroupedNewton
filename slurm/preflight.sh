@@ -12,7 +12,10 @@
 #   * fixed a command-substitution bug: backticks inside a double-quoted echo were
 #     executing sacctmgr instead of printing it.
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || {
+    echo "FATAL: cannot cd to the repository root" >&2
+    exit 1
+}
 ok=0; ko=0
 pass() { echo "  PASS  $1"; ok=$((ok+1)); }
 fail() { echo "  FAIL  $1"; ko=$((ko+1)); }
@@ -50,7 +53,7 @@ if command -v idrproj >/dev/null 2>&1; then
     echo "  --- idrproj (check the code and the @v100/@a100/@h100 hours you own) ---"
     idrproj 2>&1 | sed 's/^/      /'
 else
-    echo '      (idrproj not found; try idracct, or: sacctmgr show assoc user=$USER)'
+    echo "      (idrproj not found; try idracct, or: sacctmgr show assoc user=${USER:-<you>})"
 fi
 
 echo "== 2. disk spaces =="
@@ -121,8 +124,14 @@ rm -f /tmp/grnewt_launcher.$$
 
 echo "== 5. dataset =="
 if [ -n "${DSDIR:-}" ]; then
-    ls "$DSDIR" 2>/dev/null | grep -i -E 'cifar|mnist|imagenet' | sed 's/^/      /' \
-        || echo "      (nothing matching cifar/mnist/imagenet directly under \$DSDIR)"
+    shopt -s nullglob nocaseglob
+    ds_hits=("$DSDIR"/*cifar* "$DSDIR"/*mnist* "$DSDIR"/*imagenet*)
+    shopt -u nullglob nocaseglob
+    if [ ${#ds_hits[@]} -gt 0 ]; then
+        for ds_p in "${ds_hits[@]}"; do printf '      %s\n' "${ds_p##*/}"; done
+    else
+        echo "      (nothing matching cifar/mnist/imagenet directly under \$DSDIR)"
+    fi
     echo "      torchvision expects <root>/cifar-10-batches-py and <root>/MNIST/raw."
     echo "      download=False in datasets.py, and compute nodes have no internet:"
     echo "      a wrong root fails at epoch 0, after the allocation is granted."
