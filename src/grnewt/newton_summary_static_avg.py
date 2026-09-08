@@ -1,4 +1,3 @@
-
 from torch.utils.data import DataLoader
 
 from .config import HgCfg
@@ -26,8 +25,9 @@ class NewtonSummaryStaticAvg(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        super().__init__(param_groups, full_loss, data_loader, updater,
-                loader_pre_hook=loader_pre_hook, cfg=cfg)
+        super().__init__(
+            param_groups, full_loss, data_loader, updater, loader_pre_hook=loader_pre_hook, cfg=cfg
+        )
 
         self.nsamples = cfg.static_avg.nsamples
 

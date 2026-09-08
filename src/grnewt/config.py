@@ -133,6 +133,7 @@ class UniformAvgCfg:
         if self.warmup < 0:
             raise ValueError(f"uniform_avg.warmup must be >= 0, got {self.warmup}")
 
+
 @dataclass(kw_only=True, slots=True)
 class StaticAvgCfg:
     nsamples: int = P("Number of samples to estimate E[H], E[g], E[order3]", {NSSA}, default=1)
@@ -141,13 +142,19 @@ class StaticAvgCfg:
         if self.nsamples < 1:
             raise ValueError(f"static_avg.nsamples must be >= 1, got {self.nsamples}")
 
+
 @dataclass(kw_only=True, slots=True)
 class MovexpAvgCfg:
-    movavg: float = P("Exponential moving average update coefficient to estimage E[H], E[g], E[order3]", {NSMA}, default=.1)
+    movavg: float = P(
+        "Exponential moving average update coefficient to estimage E[H], E[g], E[order3]",
+        {NSMA},
+        default=0.1,
+    )
 
     def __post_init__(self):
         if self.movavg < 0 or self.movavg > 1:
             raise ValueError(f"movexp_avg.movavg must be in [0, 1], got {self.movavg}")
+
 
 @dataclass(kw_only=True, slots=True)
 class DmpAutoCfg:
@@ -181,20 +188,22 @@ class HgCfg:
 
     # --- the reduced model ----------------------------------------------------------
     diagonal: bool = P("compute only the diagonal of Hbar", ALL_NS, default=False)
-    noregul: bool = P(
-        "bypass every regularization: lrs = Hbar^{-1} gbar", ALL_NS, default=False
-    )
-    ridge: float = P(
-        "ridge added to Hbar when nesterov.use is False", ALL_NS, default=0.0
-    )
+    noregul: bool = P("bypass every regularization: lrs = Hbar^{-1} gbar", ALL_NS, default=False)
+    ridge: float = P("ridge added to Hbar when nesterov.use is False", ALL_NS, default=0.0)
 
     # --- step size ------------------------------------------------------------------
     damping: float = P("per-group damping; multiplies the computed lr", ALL_NS, default=1.0)
     period_hg: int = P("training steps between two recomputations of (H, g)", ALL_NS, default=1)
-    normalize_dirs: bool = P("normalize each proposition of 'direction' (on each subset of params)  before computing Hbar and gbar", ALL_NS, default=False)
+    normalize_dirs: bool = P(
+        "normalize each proposition of 'direction' (on each subset of params)  before computing Hbar and gbar",
+        ALL_NS,
+        default=False,
+    )
     mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
     movavg: float = P("moving average on (H, g)", {NSFB}, default=0.0)
-    maintain_true_lrs: bool = P("keep the unclipped lrs as the momentum state", ALL_NS, default=True)
+    maintain_true_lrs: bool = P(
+        "keep the unclipped lrs as the momentum state", ALL_NS, default=True
+    )
     remove_negative: bool = P("clamp negative learning rates to zero", ALL_NS, default=False)
 
     # --- compuation path ------------------------------------------------------------

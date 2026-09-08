@@ -98,7 +98,9 @@ class ParamStructure:
         build a tuple (t1, t1, t1, t2, t2, ..., tS), where each ts is duplicated
         ns times, where ns is the number of tensor parameters in group s.
         """
-        lst_groups = [[t]*len(group["params"]) for t, group in zip(src, self.pgroups, strict=True)]
+        lst_groups = [
+            [t] * len(group["params"]) for t, group in zip(src, self.pgroups, strict=True)
+        ]
 
         return tuple(t for g in lst_groups for t in g)
 

@@ -1,4 +1,3 @@
-
 import torch
 from torch.utils.data import DataLoader
 
@@ -27,8 +26,9 @@ class NewtonSummaryUniformAvg(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        super().__init__(param_groups, full_loss, data_loader, updater,
-                loader_pre_hook=loader_pre_hook, cfg=cfg)
+        super().__init__(
+            param_groups, full_loss, data_loader, updater, loader_pre_hook=loader_pre_hook, cfg=cfg
+        )
 
         self.dct_HgD_avgs = {k: None for k in ["H_use", "H_up", "g_use", "g_up", "D_use", "D_up"]}
 
@@ -129,4 +129,3 @@ class NewtonSummaryUniformAvg(NSBase):
         H, g, order3 = self.update_uniform_avg(H, g, order3)
 
         return H, g, order3, UpdateInstructions(recompute_lrs=warmup_ended, do_update=warmup_ended)
-

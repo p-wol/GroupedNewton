@@ -14,6 +14,7 @@ class UpdateInstructions:
     recompute_lrs: bool
     do_update: bool
 
+
 def increment_step(func):
     def wrapper(self, *args, **kwargs):
         ret = func(self, *args, **kwargs)
@@ -117,13 +118,13 @@ class NSBase(torch.optim.Optimizer):
         direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
 
         # Normalize if required
-        #direction_normed = tuple(d.clone() for d in direction)
+        # direction_normed = tuple(d.clone() for d in direction)
         if self.cfg.normalize_dirs:
-            #self.dir_norm = self.normalize_dirs_(direction_normed)
+            # self.dir_norm = self.normalize_dirs_(direction_normed)
             self.dir_norm = self.normalize_dirs_(direction)
 
         # Compute the averages of H, g, order3
-        #H, g, order3, update_instr = self.compute_avg_Hg(direction_normed)
+        # H, g, order3, update_instr = self.compute_avg_Hg(direction_normed)
         H, g, order3, update_instr = self.compute_avg_Hg(direction)
 
         # XXX: if all non-Hg updates normalize the direction, then, as the norm
@@ -162,9 +163,7 @@ class NSBase(torch.optim.Optimizer):
         elif not self.cfg.nesterov.use:
             # with regularization, but no Nesterov cubic regul
             # => Tikhonov regularization
-            regul_H = self.cfg.ridge * torch.eye(
-                H.size(0), dtype=self.dtype, device=self.device
-            )
+            regul_H = self.cfg.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
             lrs = torch.linalg.solve(H + regul_H, g)
         else:
             # regularization with Nesterov cubic
@@ -226,4 +225,3 @@ def create_infinite_data_loader(data_loader):
             yield from dl
 
     return f
-
