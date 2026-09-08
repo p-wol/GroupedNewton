@@ -88,7 +88,6 @@ optimizer:
         period_hg: 1
         normalize_dirs: False
         mom_lrs: 0.
-        movavg: 0.
         maintain_true_lrs: True
         ridge: 0
         nologs: False

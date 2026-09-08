@@ -328,7 +328,7 @@ class Trainer:
                     full_loss,
                     self.model,
                     self.loss_fn,
-                    self.hg_loader,
+                    self.train_loader,
                     self.train_size,
                     loader_pre_hook=self.loader_pre_hook,
                     cfg=hg,
@@ -462,6 +462,12 @@ class Trainer:
             metrics = {(dsname + "_" + k): v for k, v in metrics.items()}
 
             return metrics
+
+    def step_train_fb(self):
+        self.model.train()
+        self.optimizer.zero_grad()
+        self.optimizer.step()
+        self.model.eval()
 
     def step_train(self):
         self.model.train()
