@@ -119,9 +119,9 @@ def test_direction_reaches_compute_Hg_in_tup_params_order(f64, name, monkeypatch
     seen = {}
     orig = ns.compute_Hg
 
-    def spy(param_struct, full_loss, x, y, direction, **kw):
+    def spy(param_struct, loss, direction, **kw):
         seen["direction"] = direction
-        return orig(param_struct, full_loss, x, y, direction, **kw)
+        return orig(param_struct, loss, direction, **kw)
 
     monkeypatch.setattr(ns, "compute_Hg", spy)
 
@@ -197,14 +197,15 @@ def test_hg_reference_and_batched_agree(f64, noregul, diagonal, chunk_size):
     ps = ParamStructure(build_partition.canonical(model)[0])
     x, y = torch.randn(12, 5), torch.randn(12, 5)
 
-    def loss(a, b):
+    def full_loss(a, b):
         return ((model(a) - b) ** 2).mean()
 
     u = tuple(torch.randn_like(p) for p in ps.tup_params)
     kw = dict(noregul=noregul, diagonal=diagonal)
 
-    H0, g0, o0 = compute_Hg(ps, loss, x, y, u, **kw)
-    H1, g1, o1 = compute_Hg_batched(ps, loss, x, y, u, chunk_size=chunk_size, **kw)
+    loss = full_loss(x, y)
+    H0, g0, o0 = compute_Hg(ps, loss, u, **kw)
+    H1, g1, o1 = compute_Hg_batched(ps, loss, u, chunk_size=chunk_size, **kw)
 
     assert torch.allclose(g0, g1, rtol=1e-9, atol=1e-12)
     assert torch.allclose(H0, H1, rtol=1e-8, atol=1e-11)
@@ -212,7 +213,7 @@ def test_hg_reference_and_batched_agree(f64, noregul, diagonal, chunk_size):
 
     if diagonal:
         # the entries actually written must be Hbar_ss, not Hbar_s0
-        H_full, _, _ = compute_Hg(ps, loss, x, y, u, noregul=noregul, diagonal=False)
+        H_full, _, _ = compute_Hg(ps, loss, u, noregul=noregul, diagonal=False)
         assert torch.allclose(H1.diagonal(), H_full.diagonal(), rtol=1e-8, atol=1e-11)
 
 
@@ -377,12 +378,13 @@ def _summaries(base, names, params, groups, u, x, y):
     pgroups = [{"params": [params[i] for i in gr]} for gr in groups]
     ps = ParamStructure(pgroups)
 
-    def loss(a, b):
+    def full_loss(a, b):
         out = torch.func.functional_call(base, dict(zip(names, params, strict=False)), (a,))
         return ((out - b) ** 2).mean()
 
     uu = tuple(u[i] for gr in groups for i in gr)
-    return compute_Hg(ps, loss, x, y, uu)
+    loss = full_loss(x, y)
+    return compute_Hg(ps, loss, uu)
 
 
 def test_subsetwise_orthogonal_reparameterization_leaves_the_step_unchanged(f64):
@@ -404,12 +406,13 @@ def test_subsetwise_orthogonal_reparameterization_leaves_the_step_unchanged(f64)
     U1 = [q.T @ u for q, u in zip(Q, U0, strict=False)]
     ps1 = ParamStructure([{"params": [p]} for p in P1])
 
-    def loss1(a, b):
+    def full_loss1(a, b):
         real = [q @ p for q, p in zip(Q, P1, strict=False)]
         out = torch.func.functional_call(base, dict(zip(names, real, strict=False)), (a,))
         return ((out - b) ** 2).mean()
 
-    H1, g1, o1 = compute_Hg(ps1, loss1, x, y, tuple(U1))
+    loss = full_loss1(x, y)
+    H1, g1, o1 = compute_Hg(ps1, loss, tuple(U1))
 
     assert torch.allclose(g1, g0, rtol=1e-9, atol=1e-12)
     assert torch.allclose(H1, H0, rtol=1e-9, atol=1e-12)
@@ -438,13 +441,14 @@ def test_invariance_requires_one_scale_per_group_not_per_tensor(f64):
         Ut = [a * u for u, a in zip(U0, scales, strict=False)]
         ps = ParamStructure([{"params": [Pt[i] for i in gr]} for gr in groups])
 
-        def loss(a_, b_):
+        def full_loss(a_, b_):
             real = [s * p for s, p in zip(scales, Pt, strict=False)]
             out = torch.func.functional_call(base, dict(zip(names, real, strict=False)), (a_,))
             return ((out - b_) ** 2).mean()
 
         uu = tuple(Ut[i] for gr in groups for i in gr)
-        H, g, o = compute_Hg(ps, loss, x, y, uu)
+        loss = full_loss(x, y)
+        H, g, o = compute_Hg(ps, loss, uu)
         e, log = nesterov_lrs(H, g, o.abs().pow(1 / 3), damping_int=1.0)
         assert log["found"]
         return e

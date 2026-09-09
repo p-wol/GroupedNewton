@@ -45,11 +45,10 @@ def linear(fan_in, fan_out):
     return torch.nn.Linear(fan_in, fan_out)
 
 
-def _compute_Hg_pytorch(full_loss, x, y, tup_params):
+def _compute_Hg_pytorch(loss, tup_params):
     D = len(tup_params)
 
     # Order 1
-    loss = full_loss(x, y)
     g2_tup = torch.autograd.grad(loss, tup_params, create_graph=True, materialize_grads=True)
     g2_tup = tuple(g.sum() for g in g2_tup)
     g2 = torch.stack([g.detach() for g in g2_tup])
@@ -98,10 +97,11 @@ def test_Hg_polynomial_canonical(polynomial, degree):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = tuple([torch.tensor(1.0)] * (degree + 1))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     # Compute the derivatives with pytorch
-    H2, g2, order32_ = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32_ = _compute_Hg_pytorch(loss, param_struct.tup_params)
     order32 = torch.zeros(degree + 1)
     for i in range(degree + 1):
         order32[i] = order32_[i, i, i]
@@ -124,10 +124,11 @@ def test_Hg_polynomial_canonical_with_loss(polynomial, degree):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = tuple([torch.tensor(1.0)] * (degree + 1))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     # Compute the derivatives with pytorch
-    H2, g2, order32_ = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32_ = _compute_Hg_pytorch(loss, param_struct.tup_params)
     order32 = torch.zeros(degree + 1)
     for i in range(degree + 1):
         order32[i] = order32_[i, i, i]
@@ -150,10 +151,11 @@ def test_Hg_polynomial_trivial(polynomial, degree):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = tuple([torch.tensor(1.0)] * (degree + 1))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     # Compute the derivatives with pytorch
-    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32 = _compute_Hg_pytorch(loss, param_struct.tup_params)
     g2 = torch.sum(g2, (0,), keepdim=True)
     H2 = torch.sum(H2, (0, 1), keepdim=True)
     order32 = torch.sum(order32).unsqueeze(dim=0)
@@ -176,14 +178,15 @@ def test_Hg_polynomial_trivial_with_loss(polynomial, degree):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = tuple([torch.tensor(1.0)] * (degree + 1))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     H1p, g1p, order31p = compute_Hg(
-        ParamStructure(build_partition.canonical(polynomial)[0]), full_loss, x, y, direction
+        ParamStructure(build_partition.canonical(polynomial)[0]), loss, direction
     )
 
     # Compute the derivatives with pytorch
-    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32 = _compute_Hg_pytorch(loss, param_struct.tup_params)
     g2 = torch.sum(g2, (0,), keepdim=True)
     H2 = torch.sum(H2, (0, 1), keepdim=True)
     order32 = torch.sum(order32).unsqueeze(dim=0)
@@ -206,10 +209,11 @@ def test_Hg_linear_canonical(linear, fan_in, fan_out):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = (torch.ones(fan_out, fan_in), torch.ones(fan_out))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     # Compute the derivatives with pytorch
-    H2, g2, order32_ = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32_ = _compute_Hg_pytorch(loss, param_struct.tup_params)
     order32 = torch.zeros(2)
     for i in range(2):
         order32[i] = order32_[i, i, i]
@@ -232,10 +236,11 @@ def test_Hg_linear_trivial(linear, fan_in, fan_out):
 
     # Compute the derivatives with the custom functions of grnewt
     direction = (torch.ones(fan_out, fan_in), torch.ones(fan_out))
-    H1, g1, order31 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, order31 = compute_Hg(param_struct, loss, direction)
 
     # Compute the derivatives with pytorch
-    H2, g2, order32 = _compute_Hg_pytorch(full_loss, x, y, param_struct.tup_params)
+    H2, g2, order32 = _compute_Hg_pytorch(loss, param_struct.tup_params)
     g2 = torch.sum(g2, (0,), keepdim=True)
     H2 = torch.sum(H2, (0, 1), keepdim=True)
     order32 = torch.sum(order32).unsqueeze(dim=0)

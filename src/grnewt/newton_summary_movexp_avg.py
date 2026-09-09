@@ -72,6 +72,7 @@ class NewtonSummaryMovexpAvg(NSBase):
         ## Prepare data
         x, y = next(self.dl_iter)
         x, y = self.loader_pre_hook(x, y)
+        loss = self.full_loss(x, y)
 
         ## Compute H, g, order3
         cp_kwargs = {"noregul": self.cfg.noregul, "diagonal": self.cfg.diagonal}
@@ -83,9 +84,7 @@ class NewtonSummaryMovexpAvg(NSBase):
 
         H, g, order3 = cp_Hg(
             self.param_struct,
-            self.full_loss,
-            x,
-            y,
+            loss,
             direction,
             **cp_kwargs,
         )

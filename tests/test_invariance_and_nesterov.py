@@ -68,12 +68,16 @@ def test_Hg_scaling_laws(mlp, batch, mse, scales):
 
     ps = ParamStructure(build_partition.canonical(mlp)[0])
     u = tuple(torch.randn_like(p) for p in ps.tup_params)
-    H, g, o3 = compute_Hg(ps, mse(mlp), x, y, u)
+    full_loss = mse(mlp)
+    loss = full_loss(x, y)
+    H, g, o3 = compute_Hg(ps, loss, u)
 
     tilde = Reparam(mlp, a.tolist()).to(x.device)
     ps_t = ParamStructure(build_partition.canonical(tilde)[0])
     u_t = tuple(ai * ui for ai, ui in zip(a, u, strict=False))
-    H_t, g_t, o3_t = compute_Hg(ps_t, mse(tilde), x, y, u_t)
+    full_loss = mse(tilde)
+    loss = full_loss(x, y)
+    H_t, g_t, o3_t = compute_Hg(ps_t, loss, u_t)
 
     A = a.pow(2)
     assert torch.allclose(g_t, A * g, rtol=1e-8, atol=1e-11)
@@ -90,7 +94,9 @@ def test_lrs_are_invariant(mlp, batch, mse, scales, damping_int):
 
     ps = ParamStructure(build_partition.canonical(mlp)[0])
     u = tuple(torch.randn_like(p) for p in ps.tup_params)
-    H, g, o3 = compute_Hg(ps, mse(mlp), x, y, u)
+    full_loss = mse(mlp)
+    loss = full_loss(x, y)
+    H, g, o3 = compute_Hg(ps, loss, u)
 
     A = a.pow(2)
     H_t, g_t, o3_t = A[:, None] * H * A[None, :], A * g, a.pow(6) * o3

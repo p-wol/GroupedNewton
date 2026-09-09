@@ -28,8 +28,9 @@ def test_match_hg_vs_hg_batched(f64, build, chunk_size: int = 2):
     # NOTE: direction must be ordered like ps.tup_params, not model.parameters()
     direction = tuple(torch.randn_like(p) for p in ps.tup_params)
 
-    H0, g0, o0 = compute_Hg(ps, full_loss, x, yt, direction)
-    H1, g1, o1 = compute_Hg_batched(ps, full_loss, x, yt, direction, chunk_size=chunk_size)
+    loss = full_loss(x, yt)
+    H0, g0, o0 = compute_Hg(ps, loss, direction)
+    H1, g1, o1 = compute_Hg_batched(ps, loss, direction, chunk_size=chunk_size)
 
     """
     print(f"{build.__name__:<10} S={ps.nb_groups}  "

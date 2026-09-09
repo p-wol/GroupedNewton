@@ -68,7 +68,8 @@ def test_gbar_and_diagonal_match_finite_differences(mlp, batch, mse, param_struc
     t -> L(theta + t P_s u) at t = 0."""
     x, y = batch(mlp)
     full_loss = mse(mlp)
-    H, g, order3 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H, g, order3 = compute_Hg(param_struct, loss, direction)
 
     for s in range(param_struct.nb_groups):
         v = _masked(direction, param_struct, s)
@@ -86,7 +87,8 @@ def test_offdiagonal_matches_polarization(mlp, batch, mse, param_struct, directi
 
     x, y = batch(mlp)
     full_loss = mse(mlp)
-    H, _, _ = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H, _, _ = compute_Hg(param_struct, loss, direction)
 
     for s in range(S):
         for t in range(s + 1, S):
@@ -117,7 +119,8 @@ def test_quadratic_oracle(f64, device):
     def full_loss(x_, y_):
         return model(x_).mean()
 
-    H, g, order3 = compute_Hg(ps, full_loss, x, None, direction)
+    loss = full_loss(x, None)
+    H, g, order3 = compute_Hg(ps, loss, direction)
 
     n = sum(sizes)
     idx = [0] + list(torch.cumsum(torch.tensor(sizes), 0).tolist())
@@ -138,7 +141,9 @@ def test_quadratic_oracle(f64, device):
 
 def test_H_is_symmetric(mlp, batch, mse, param_struct, direction):
     x, y = batch(mlp)
-    H, _, _ = compute_Hg(param_struct, mse(mlp), x, y, direction)
+    full_loss = mse(mlp)
+    loss = full_loss(x, y)
+    H, _, _ = compute_Hg(param_struct, loss, direction)
     assert torch.allclose(H, H.T, atol=1e-12)
 
 
@@ -147,9 +152,10 @@ def test_homogeneity_in_the_direction(mlp, batch, mse, param_struct, direction, 
     """gbar is degree 1, Hbar degree 2, order3 degree 3 in u."""
     x, y = batch(mlp)
     full_loss = mse(mlp)
-    H1, g1, o1 = compute_Hg(param_struct, full_loss, x, y, direction)
+    loss = full_loss(x, y)
+    H1, g1, o1 = compute_Hg(param_struct, loss, direction)
     scaled = tuple(c * d for d in direction)
-    H2, g2, o2 = compute_Hg(param_struct, full_loss, x, y, scaled)
+    H2, g2, o2 = compute_Hg(param_struct, loss, scaled)
 
     assert torch.allclose(g2, c * g1, rtol=1e-9, atol=1e-11)
     assert torch.allclose(H2, c**2 * H1, rtol=1e-9, atol=1e-11)
@@ -166,9 +172,10 @@ def test_trivial_partition_is_the_total_sum(mlp, batch, mse):
     ps_tri = ParamStructure(build_partition.trivial(mlp)[0])
     assert ps_can.tup_params == ps_tri.tup_params  # same order, so one direction
     direction = tuple(torch.randn_like(p) for p in ps_can.tup_params)
+    loss = full_loss(x, y)
 
-    Hc, gc, _ = compute_Hg(ps_can, full_loss, x, y, direction)
-    Ht, gt, _ = compute_Hg(ps_tri, full_loss, x, y, direction)
+    Hc, gc, _ = compute_Hg(ps_can, loss, direction)
+    Ht, gt, _ = compute_Hg(ps_tri, loss, direction)
 
     assert gt.item() == pytest.approx(gc.sum().item(), rel=1e-9)
     assert Ht.item() == pytest.approx(Hc.sum().item(), rel=1e-9)
@@ -200,12 +207,13 @@ def test_direction_is_indexed_in_tup_params_order(uniform_mlp, batch, mse, name)
             is_order_preserved = False
             break
 
-    H_ok, g_ok, _ = compute_Hg(ps, full_loss, x, y, correct)
+    loss = full_loss(x, y)
+    H_ok, g_ok, _ = compute_Hg(ps, loss, correct)
 
     if is_order_preserved:
         pytest.skip(f"{name} preserves model.parameters() order")
 
-    H_bad, g_bad, _ = compute_Hg(ps, full_loss, x, y, as_model_order)
+    H_bad, g_bad, _ = compute_Hg(ps, loss, as_model_order)
     # If these agree, the ordering is not actually being respected anywhere.
     assert not torch.allclose(g_ok, g_bad), (
         f"partition {name}: permuting `direction` changed nothing, so the "

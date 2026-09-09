@@ -114,7 +114,8 @@ def test_summaries_match_the_whole_dataset_in_one_batch(f64, partition):
     u = ps.reindex(tuple(torch.randn_like(p) for p in model.parameters()), perm)
 
     H, g, order3, instr = opt.compute_avg_Hg(u)
-    H_ref, g_ref, o3_ref = compute_Hg(ps, full_loss, x, y, u)
+    loss = full_loss(x, y)
+    H_ref, g_ref, o3_ref = compute_Hg(ps, loss, u)
 
     assert instr.recompute_lrs and instr.do_update
     assert torch.allclose(H, H_ref, rtol=1e-11, atol=1e-13)
@@ -140,7 +141,8 @@ def test_every_config_branch_reaches_the_same_full_batch_value(f64, cfg_kw):
 
     H, g, order3, _ = opt.compute_avg_Hg(u)
     ref_kw = {k: cfg_kw[k] for k in ("noregul", "diagonal") if k in cfg_kw}
-    H_ref, g_ref, o3_ref = compute_Hg(ps, full_loss, x, y, u, **ref_kw)
+    loss = full_loss(x, y)
+    H_ref, g_ref, o3_ref = compute_Hg(ps, loss, u, **ref_kw)
 
     assert torch.allclose(H, H_ref, rtol=1e-11, atol=1e-13)
     assert torch.allclose(g, g_ref, rtol=1e-11, atol=1e-13)
@@ -162,7 +164,8 @@ def test_summaries_do_not_depend_on_the_batch_size(f64, batch_size):
     u = tuple(torch.randn_like(p) for p in ps.tup_params)
 
     H, g, order3, _ = opt.compute_avg_Hg(u)
-    H_ref, g_ref, o3_ref = compute_Hg(ps, full_loss, x, y, u)
+    loss = full_loss(x, y)
+    H_ref, g_ref, o3_ref = compute_Hg(ps, loss, u)
 
     assert torch.allclose(H, H_ref, rtol=1e-10, atol=1e-13)
     assert torch.allclose(g, g_ref, rtol=1e-10, atol=1e-13)
@@ -457,9 +460,9 @@ def test_the_direction_reaches_compute_Hg_in_tup_params_order(f64, monkeypatch):
     seen = {}
     orig = mod.compute_Hg
 
-    def spy(param_struct, full_loss, x, y, direction, **kw):
+    def spy(param_struct, loss, direction, **kw):
         seen["direction"] = direction
-        return orig(param_struct, full_loss, x, y, direction, **kw)
+        return orig(param_struct, loss, direction, **kw)
 
     monkeypatch.setattr(mod, "compute_Hg", spy)
     opt, loader, full_loss, ps = _make(model, ds, len(ds), partition="wb")
