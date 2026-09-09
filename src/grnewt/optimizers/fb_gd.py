@@ -1,43 +1,52 @@
 import torch
-from torch import Tensor
-from torch.optim import Optimizer
 
 
 class FBGDUpdate:
-    def __init__(
-        self,
-        model,
-        loss_fn,
-        train_loader,
-        *,
-        loader_pre_hook,
-    ):
+    """Updater whose "step" is the exact full-batch gradient.
+
+    Interface expected by NSBase: `.param_groups` (read once, to build the permutation
+    from this producer's order to ParamStructure order) and `.compute_step()` returning
+    one tensor per parameter, in `.param_groups` order. Stateless: the tensors are fresh
+    on every call, so NSBase may normalize them in place.
+
+    `loader` must be a loader nobody else is iterating -- see NewtonSummaryFB.
+    """
+
+    def __init__(self, model, loss_fn, loader, *, loader_pre_hook):
         self.model = model
         self.loss_fn = loss_fn
-        self.train_loader = train_loader
+        self.loader = loader
         self.loader_pre_hook = loader_pre_hook
 
+        # Checked once, not on every step: `len(dataset)` is cheap but the invariant is
+        # a property of the loader, so a violation should be reported at construction.
+        if getattr(loader, "drop_last", False):
+            raise ValueError(
+                "FBGDUpdate needs every sample exactly once; loader has drop_last=True."
+            )
+        self.train_size = len(loader.dataset)
+
         self.param_groups = [{"params": list(model.parameters())}]
+        self.last_loss_avg = None
 
     def compute_step(self):
-        # Compute the dataset size
-        if getattr(self.train_loader, "drop_last", False):
-            raise ValueError(
-                "FBGDUpdate needs every sample exactly once; train_loader has "
-                "drop_last=True."
-            )
-        train_size = len(self.train_loader.dataset)
-
-        # Compute full-batch gradient
-        self.model.zero_grad()
-        for x, y in self.train_loader:
+        self.model.zero_grad(set_to_none=True)
+        loss_avg = torch.zeros(
+            (), 
+            dtype=self.param_groups[0]["params"][0].dtype, 
+            device=self.param_groups[0]["params"][0].device
+        )
+        for x, y in self.loader:
             x, y = self.loader_pre_hook(x, y)
-            curr_loss = self.loss_fn(self.model(x), y) * x.size(0) / train_size
-            curr_loss.backward()
+            loss = self.loss_fn(self.model(x), y) * x.size(0) / self.train_size
+            loss.backward()
+            loss_avg += loss.detach()
 
         grad = tuple(
-            p.grad.clone() if p.grad is not None else torch.zeros_like(p) for p in self.model.parameters()
-            )
-        model.zero_grad(set_to_none=True)
+            p.grad.clone() if p.grad is not None else torch.zeros_like(p)
+            for p in self.model.parameters()
+        )
+        self.model.zero_grad(set_to_none=True)
 
+        self.last_loss_avg = loss_avg.item()
         return grad

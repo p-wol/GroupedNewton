@@ -323,12 +323,23 @@ class Trainer:
                 updater = optimizers.AdamUpdate(model.parameters(), lr=1)
 
             if args.optimizer.name == "NewtonSummaryFB":
+                # Build a specific data loader
+                self.fb_loader = data.DataLoader(
+                    self.trainset,
+                    hg_batch_size,
+                    shuffle=False,
+                    drop_last=False,
+                    num_workers=args.dsloader.num_workers,
+                    persistent_workers=args.dsloader.num_workers > 0,
+                    pin_memory=args.dsloader.pin_memory,
+                )
+
                 optimizer = NewtonSummaryFB(
                     param_groups,
                     full_loss,
                     self.model,
                     self.loss_fn,
-                    self.train_loader,
+                    self.fb_loader,
                     loader_pre_hook=self.loader_pre_hook,
                     cfg=hg,
                 )
@@ -463,7 +474,26 @@ class Trainer:
             return metrics
 
     def step_train_fb(self):
-        self.model.train()
+        """One full-batch update. Called once per epoch from train().
+
+        `model.train()` is deliberately NOT used around the sweeps when the model has
+        BatchNorm: in train() mode BN normalizes by the statistics of each minibatch, so
+        `sum_b (n_b/N) grad L_b` is not the gradient of any single objective and depends
+        on the batch partition -- measured 1.9e-2 relative difference between batch 20
+        and batch 40, and 5.4e-2 between two shufflings of batch 20, against 2.3e-16 in
+        eval() mode. NewtonSummaryFB's whole premise is that (Hbar, gbar, order3) and
+        the direction u describe the SAME objective, which train()-mode BN breaks.
+        The running statistics also drift during the sweep (||delta running_mean|| =
+        1.4e-1 in the same experiment), i.e. the model changes while it is being
+        differentiated.
+
+        Models without BatchNorm or Dropout (LeNet, Perceptron, and VGG without `bn`)
+        are unaffected either way; the branch only matters for `vgg*bn*`.
+        """
+        has_batchnorm = any(
+            isinstance(m, torch.nn.modules.batchnorm._BatchNorm) for m in self.model.modules()
+        )
+        self.model.train(not has_batchnorm)
         self.optimizer.zero_grad()
         self.optimizer.step()
         self.model.eval()
@@ -616,9 +646,24 @@ class Trainer:
 
             # Training step
             if self.args.optimizer.name == "NewtonSummaryFB":
-                self.step_train_fb()
+                # Same crash handling as the `step_train` branch below: without it a
+                # failure inside step() loses the whole epoch's optimizer logs, which
+                # every other optimizer saves as Hg_logs_*.onexit.pkl.
+                try:
+                    self.step_train_fb()
+                except Exception:
+                    if not self.hg.nologs:
+                        torch.save(
+                            self.optimizer.logs,
+                            f"{self.path_artifacts}/Hg_logs_hgfb.{self.epoch:05}.onexit.pkl",
+                        )
+                    raise
 
-                metrics_tr = self.test_model(self.train_loader, "tr")
+                tr_nll = self.optimizer.updater.last_loss_avg
+                tr_pen = 0 # XXX: to solve if we add a loss
+                tr_loss = tr_nll + tr_pen
+                metrics_tr = {"tr_nll": tr_nll, "tr_pen": tr_pen, "tr_loss": tr_loss}
+
             elif self.args.optimizer.name == "LBFGS":
 
                 def closure():

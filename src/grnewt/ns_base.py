@@ -29,7 +29,7 @@ class NSBase(torch.optim.Optimizer):
         self,
         param_groups,
         full_loss,
-        data_loader: DataLoader,
+        data_loader: DataLoader | None,
         updater,
         *,
         loader_pre_hook,
@@ -44,9 +44,16 @@ class NSBase(torch.optim.Optimizer):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        # XXX: data_loader is not necessarily used... (e.g., NewtonSummaryFB)
-        self.fn_data_loader = create_infinite_data_loader(data_loader)
-        self.dl_iter = iter(self.fn_data_loader())
+        # `data_loader` is the source of the minibatches a subclass draws to ESTIMATE
+        # the summaries. A subclass that computes them exactly (NewtonSummaryFB) draws
+        # none and passes None: it must not be handed a loader, because a loader it is
+        # not allowed to iterate is exactly what invites the re-entrancy bug.
+        if data_loader is None:
+            self.fn_data_loader = None
+            self.dl_iter = None
+        else:
+            self.fn_data_loader = create_infinite_data_loader(data_loader)
+            self.dl_iter = iter(self.fn_data_loader())
         self.full_loss = full_loss
         self.updater = updater
         self.loader_pre_hook = loader_pre_hook
