@@ -430,7 +430,7 @@ class Trainer:
                     torch.tensor([0], dtype=self.dtype, device=self.device)
                     for i in range(len(self.topk_acc))
                 ]
-            for i, (images, labels) in enumerate(loader):  # noqa: B007
+            for images, labels in loader:
                 # Convert torch tensor to Variable
                 images, labels = self.loader_pre_hook(images, labels)
 
@@ -512,8 +512,7 @@ class Trainer:
             ]
         self.idx_substep = 0
         self.logs_nlls = []
-        # same as above: `i` is the batch count read after the loop.
-        for i, (images, labels) in enumerate(self.train_loader):  # noqa: B007
+        for images, labels in self.train_loader:
             # Convert torch tensor to Variable
             images, labels = self.loader_pre_hook(images, labels)
 
@@ -527,9 +526,9 @@ class Trainer:
             # TODO: detailed sequence of NLLs
             self.logs_nlls.append(nll.detach())
 
-            cum_nll += nll.detach()
-            cum_pen += pen.detach()
-            cum_loss += loss.detach()
+            cum_nll += nll.detach() * images.size(0) / self.train_size
+            cum_pen += pen.detach() * images.size(0) / self.train_size
+            cum_loss += loss.detach() * images.size(0) / self.train_size
 
             total += labels.size(0)
 
@@ -562,9 +561,9 @@ class Trainer:
             self.optimizer.step()
 
         # Compute performance
-        mean_pen = cum_pen.item() / (i + 1)
-        mean_nll = cum_nll.item() / (i + 1)
-        mean_loss = cum_loss.item() / (i + 1)
+        mean_pen = cum_pen.item()
+        mean_nll = cum_nll.item()
+        mean_loss = cum_loss.item()
 
         self.model.eval()
 
