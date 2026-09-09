@@ -13,7 +13,7 @@ def _scaled_loss(full_loss, weight):
 
 
 def compute_Hg(
-    param_struct, full_loss, x, y, direction, *, noregul=False, diagonal=False, semiH=False
+    param_struct, loss, direction, *, noregul=False, diagonal=False, semiH=False
 ):
     # Define useful variables
     device = param_struct.device
@@ -21,8 +21,6 @@ def compute_Hg(
     nb_groups = param_struct.nb_groups
 
     # Compute gradient
-    loss = full_loss(x, y)
-
     g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)
     g = g_tup.detach()
 
@@ -194,9 +192,7 @@ def _contract(param_struct, batched, direction, start: int, end: int, k: int) ->
 
 def compute_Hg_batched(
     param_struct,
-    full_loss,
-    x,
-    y,
+    loss,
     direction,
     *,
     noregul: bool = False,
@@ -208,7 +204,6 @@ def compute_Hg_batched(
     S = param_struct.nb_groups
     chunk_size = S if chunk_size == -1 else chunk_size
 
-    loss = full_loss(x, y)
     g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)  # (S,), with graph
     g = g_tup.detach()
 
