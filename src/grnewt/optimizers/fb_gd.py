@@ -32,9 +32,9 @@ class FBGDUpdate:
     def compute_step(self):
         self.model.zero_grad(set_to_none=True)
         loss_avg = torch.zeros(
-            (), 
-            dtype=self.param_groups[0]["params"][0].dtype, 
-            device=self.param_groups[0]["params"][0].device
+            (),
+            dtype=self.param_groups[0]["params"][0].dtype,
+            device=self.param_groups[0]["params"][0].device,
         )
         for x, y in self.loader:
             x, y = self.loader_pre_hook(x, y)

@@ -660,7 +660,7 @@ class Trainer:
                     raise
 
                 tr_nll = self.optimizer.updater.last_loss_avg
-                tr_pen = 0 # XXX: to solve if we add a loss
+                tr_pen = 0  # XXX: to solve if we add a loss
                 tr_loss = tr_nll + tr_pen
                 metrics_tr = {"tr_nll": tr_nll, "tr_pen": tr_pen, "tr_loss": tr_loss}
 
