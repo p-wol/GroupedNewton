@@ -9,37 +9,35 @@ class FBGDUpdate:
         model,
         loss_fn,
         train_loader,
-        train_size,
         *,
         loader_pre_hook,
     ):
         self.model = model
         self.loss_fn = loss_fn
         self.train_loader = train_loader
-        self.train_size = train_size
         self.loader_pre_hook = loader_pre_hook
 
-        self.param_groups = [{'params': [p for p in model.parameters()]}]
+        self.param_groups = [{"params": list(model.parameters())}]
 
     def compute_step(self):
-        return fullbatch_gradient(
-                self.loss_fn, 
-                self.model, 
-                self.train_loader, 
-                self.train_size, 
-                loader_pre_hook=self.loader_pre_hook)
+        # Compute the dataset size
+        if getattr(self.train_loader, "drop_last", False):
+            raise ValueError(
+                "FBGDUpdate needs every sample exactly once; train_loader has "
+                "drop_last=True."
+            )
+        train_size = len(self.train_loader.dataset)
 
-def fullbatch_gradient(loss_fn, model, train_loader, train_size, *, loader_pre_hook):
-    # Compute full-batch gradient
-    model.zero_grad()
-    for x, y in train_loader:
-        x, y = loader_pre_hook(x, y)
+        # Compute full-batch gradient
+        self.model.zero_grad()
+        for x, y in self.train_loader:
+            x, y = self.loader_pre_hook(x, y)
+            curr_loss = self.loss_fn(self.model(x), y) * x.size(0) / train_size
+            curr_loss.backward()
 
-        y_hat = model(x)
-        curr_loss = loss_fn(y_hat, y) * x.size(0) / train_size
-        curr_loss.backward()
+        grad = tuple(
+            p.grad.clone() if p.grad is not None else torch.zeros_like(p) for p in self.model.parameters()
+            )
+        model.zero_grad(set_to_none=True)
 
-    grad = tuple(p.grad.clone() for p in model.parameters())
-    model.zero_grad()
-
-    return grad
+        return grad

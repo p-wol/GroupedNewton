@@ -329,7 +329,6 @@ class Trainer:
                     self.model,
                     self.loss_fn,
                     self.train_loader,
-                    self.train_size,
                     loader_pre_hook=self.loader_pre_hook,
                     cfg=hg,
                 )

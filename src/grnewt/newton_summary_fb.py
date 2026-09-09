@@ -14,7 +14,6 @@ class NewtonSummaryFB(NSBase):
         model,
         loss_fn,
         train_loader: DataLoader,
-        train_size: int,
         *,
         loader_pre_hook,
         cfg: HgCfg,
@@ -28,11 +27,31 @@ class NewtonSummaryFB(NSBase):
              the config, and every field this optimizer ignores is rejected at
              composition time by grnewt.config.check_consumed.
         """
-        updater = FBGDUpdate(model, loss_fn, train_loader, train_size, loader_pre_hook=loader_pre_hook)
+        # Create updater
+        ## Create a new DataLoader to avoid problems related to double-use 
+        ## of a data loader with persistent_workers=True
+        self._own_loader = DataLoader(
+            train_loader.dataset,
+            batch_size=train_loader.batch_size,
+            shuffle=False,
+            num_workers=getattr(train_loader, "num_workers", 0),
+            persistent_workers=getattr(train_loader, "num_workers", 0) > 0,
+            pin_memory=getattr(train_loader, "pin_memory", False),
+        )
+
+        updater = FBGDUpdate(model, loss_fn, self._own_loader, loader_pre_hook=loader_pre_hook)
 
         super().__init__(
             param_groups, full_loss, train_loader, updater, loader_pre_hook=loader_pre_hook, cfg=cfg
         )
+
+        if getattr(train_loader, "drop_last", False):
+            raise ValueError(
+                "NewtonSummaryFB needs every sample exactly once; train_loader has "
+                "drop_last=True, which biases Hbar, gbar and order3 by three different "
+                "factors."
+            )
+        train_size = len(train_loader.dataset)
 
         self.train_loader = train_loader
         self.train_size = train_size
