@@ -12,9 +12,7 @@ def _scaled_loss(full_loss, weight):
     return loss_x
 
 
-def compute_Hg(
-    param_struct, loss, direction, *, noregul=False, diagonal=False, semiH=False
-):
+def compute_Hg(param_struct, loss, direction, *, noregul=False, diagonal=False, semiH=False):
     # Define useful variables
     device = param_struct.device
     dtype = param_struct.dtype

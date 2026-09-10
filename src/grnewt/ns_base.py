@@ -14,6 +14,7 @@ class UpdateInstructions:
     recompute_lrs: bool
     do_update: bool
 
+
 def increment_step(func):
     def wrapper(self, *args, **kwargs):
         ret = func(self, *args, **kwargs)
