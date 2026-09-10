@@ -112,9 +112,11 @@ class NSBase(torch.optim.Optimizer):
         raise NotImplementedError
 
     @increment_step
-    def step(self):
+    def step(self, dry_run=False):
         # Function that performs an update
         def make_step(direction):
+            if dry_run:
+                return
             with torch.no_grad():
                 i = 0
                 for group in self.param_groups:
@@ -151,7 +153,7 @@ class NSBase(torch.optim.Optimizer):
             # Do immediately an update if necessary, then end step
             if update_instr.do_update:
                 make_step(direction)
-            return
+            return {"H": H, "g": g, "order3": order3, "lrs": None}
 
         ### Now, we know that update_instr.recompute_lrs is True ###
         ### => compute the lrs                                   ###
@@ -223,6 +225,8 @@ class NSBase(torch.optim.Optimizer):
         ### To finish: perform update if necessary ###
         if update_instr.do_update:
             make_step(direction)
+
+        return {"H": H, "g": g, "order3": order3, "lrs": lrs}
 
 
 def create_infinite_data_loader(data_loader):
