@@ -132,7 +132,7 @@ class NewtonSummary(torch.optim.Optimizer):
         self.logs["order3"].append(order3)
 
         # Compute order3_
-        order3_ = order3.abs().pow(1 / 3)
+        order3_ = order3.abs().pow(1/3)
 
         lrs_found = True
         if self.cfg.noregul:
@@ -163,24 +163,16 @@ class NewtonSummary(torch.optim.Optimizer):
                 self.logs[kk].append(v)
 
             if not lrs_logs["found"]:
-                lrs_found = False
-                print("Nesterov did not converge: lr not updated during this step.")
-                # TODO: throw warning?
-
-        if not lrs_found:
-            lrs = self.curr_lrs
+                raise RuntimeError("Nesterov did not converge: lr not updated during this step.")
 
         ## Additional operations on the lrs
-        r = self.cfg.mom_lrs if self.step_counter > 0 else 0
-        self.curr_lrs = r * self.curr_lrs + (1 - r) * lrs
-        lrs = self.curr_lrs
         if self.cfg.remove_negative:
             lrs = lrs.relu()
 
         ## Assign lrs
         self.logs["lrs_clipped"].append(lrs)
-        self.logs["curr_lrs"].append(self.curr_lrs)
-        for group, lr in zip(self.param_groups, lrs, strict=False):
+        self.logs["curr_lrs"].append(lrs)
+        for group, lr in zip(self.param_groups, lrs, strict=True):
             group["lr"] = group["damping"] * lr.item()
 
         # Store logs of lrs
@@ -190,5 +182,5 @@ class NewtonSummary(torch.optim.Optimizer):
             )
         )
 
-        ### To finish: perform update if necessary ###
+        ### To finish: perform update ###
         make_step(direction)
