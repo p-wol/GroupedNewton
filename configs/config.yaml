@@ -63,7 +63,12 @@ dataset:
 logs_hg:
     use: False
     batch_size: 1000
+    partition: 'trivial'
+    partition_arg: 0
     test_float: False
+    nesterov:
+        use: False
+        damping_int: 1.
 logs_diff:
     use: False
     order: 2

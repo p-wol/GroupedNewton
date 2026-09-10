@@ -19,13 +19,12 @@ from grnewt import (
     NewtonSummaryUniformAvg,
     ParamStructure,
     ReduceDampingOnPlateau,
-    compute_Hg_fullbatch,
     diff_n_fullbatch,
     fullbatch_gradient,
     loader_pre_hooks,
     optimizers,
 )
-from grnewt import partition as build_partition
+from grnewt import partition
 from grnewt.config import Partition, UpdaterName, from_dictconfig, migrate
 from grnewt.datasets import (
     build_CIFAR10,
@@ -73,6 +72,44 @@ def get_dtype(dtype):
         return torch.float
     else:
         raise ValueError(f"Unknown dtype: {dtype}")
+
+def build_partition(model, part, part_arg = None):
+    # Build partition
+    if part is Partition.canonical:
+        param_groups, name_groups = partition.canonical(model)
+    elif part is Partition.wb:
+        param_groups, name_groups = partition.wb(model)
+    elif part is Partition.trivial:
+        param_groups, name_groups = partition.trivial(model)
+    elif part is Partition.blocks:
+        param_groups, name_groups = partition.blocks(model, hg.part_arg)
+    elif part is Partition.alternate:
+        alternate = hg.part_arg
+        if args.model.name == "Perceptron":
+            nlayers = len(model.layers)
+        elif args.model.name == "VGG":
+            nlayers = len(model.features)
+        else:
+            raise NotImplementedError(
+                f"partition=alternate is not defined for model {args.model.name}."
+            )
+        lst_names_w = [
+            [f"{i}.weight" for i in range(nlayers) if i % alternate == r]
+            for r in range(alternate)
+        ]
+        lst_names_b = [
+            [f"{i}.bias" for i in range(nlayers) if i % alternate == r]
+            for r in range(alternate)
+        ]
+        param_groups, name_groups = partition.names_by_lst(
+            model, lst_names_w + lst_names_b
+        )
+    elif part in (Partition.vgg, Partition.perceptron):
+        param_groups, name_groups = model.partition(hg.partition_str)
+    else:
+        raise NotImplementedError(f"Unknown partition: {hg.partition}.")
+
+    return param_groups, name_groups
 
 
 class Trainer:
@@ -263,39 +300,7 @@ class Trainer:
         self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle=True, drop_last=True)
 
         # Build partition
-        if hg.partition is Partition.canonical:
-            param_groups, name_groups = build_partition.canonical(model)
-        elif hg.partition is Partition.wb:
-            param_groups, name_groups = build_partition.wb(model)
-        elif hg.partition is Partition.trivial:
-            param_groups, name_groups = build_partition.trivial(model)
-        elif hg.partition is Partition.blocks:
-            param_groups, name_groups = build_partition.blocks(model, hg.partition_arg)
-        elif hg.partition is Partition.alternate:
-            alternate = hg.partition_arg
-            if args.model.name == "Perceptron":
-                nlayers = len(model.layers)
-            elif args.model.name == "VGG":
-                nlayers = len(model.features)
-            else:
-                raise NotImplementedError(
-                    f"partition=alternate is not defined for model {args.model.name}."
-                )
-            lst_names_w = [
-                [f"{i}.weight" for i in range(nlayers) if i % alternate == r]
-                for r in range(alternate)
-            ]
-            lst_names_b = [
-                [f"{i}.bias" for i in range(nlayers) if i % alternate == r]
-                for r in range(alternate)
-            ]
-            param_groups, name_groups = build_partition.names_by_lst(
-                model, lst_names_w + lst_names_b
-            )
-        elif hg.partition in (Partition.vgg, Partition.perceptron):
-            param_groups, name_groups = model.partition(hg.partition_str)
-        else:
-            raise NotImplementedError(f"Unknown partition: {hg.partition}.")
+        param_groups, name_groups = build_partition(model, hg.partition, hg.partition_arg)
 
         # param_groups = ParamStructure(pgroups)
 
@@ -619,6 +624,7 @@ class Trainer:
             print("tup_params: ")
             for p in self.tup_params:
                 print("    ", p.size())
+            nsfb_logger = self.prepare_nsfb_logger()
 
         # Store the param names - param_groups correspondence
         torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
@@ -637,6 +643,7 @@ class Trainer:
             # If args.logs_hg.use, then compute H, g and order3 with full-batch
             if self.args.logs_hg.use:
                 logs = self.compute_logs_hg()
+                print(logs)
                 torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
 
             if self.args.logs_diff.use:
@@ -776,51 +783,32 @@ class Trainer:
         self.logger.log_metrics(metrics, log_name=log_name)
         """
 
-    def compute_logs_hg(self):
-        logs = {}
-
-        direction = fullbatch_gradient(
-            self.param_struct,
-            self.loss_fn,
-            self.model,
+    def prepare_nsfb_logger(self):
+        param_groups, _ = build_partition(self.model, self.args.logs_hg.partition, self.args.logs_hg.partition_arg)
+        fb_loader = data.DataLoader(
+            self.trainset,
             self.train_loader_logs_hg,
-            self.train_size,
-            loader_pre_hook=self.loader_pre_hook,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.args.dsloader.num_workers,
+            persistent_workers=self.args.dsloader.num_workers > 0,
+            pin_memory=self.args.dsloader.pin_memory,
         )
 
-        H, g, order3 = compute_Hg_fullbatch(
-            self.param_struct,
+        nsfb_logger = NewtonSummaryFB(
+            self.param_groups,
             self.full_loss,
-            self.train_loader_logs_hg,
-            self.train_size,
-            direction,
+            self.model,
+            self.loss_fn,
+            fb_loader,
             loader_pre_hook=self.loader_pre_hook,
+            cfg=hg,
         )
-        order3_ = order3.abs().pow(1 / 3)
 
-        # Compute lrs
-        if not self.hg.nesterov.use:
-            regul_H = self.hg.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
-            lrs = torch.linalg.solve(H + regul_H, g)
-        else:
-            lrs, lrs_logs = nesterov_lrs(
-                H,
-                g,
-                order3_,
-                damping_int=self.hg.nesterov.damping_int,
-                threshold_D_sing=self.hg.nesterov.threshold_D_sing,
-                hard_case_rtol=self.hg.nesterov.hard_case_rtol,
-                refine=self.hg.nesterov.refine,
-            )
-            for k, v in lrs_logs.items():
-                logs["nesterov." + k] = v
+        return nsfb_logger
 
-        logs["H"] = H
-        logs["g"] = g
-        logs["order3"] = order3
-        logs["lrs"] = lrs
-
-        return logs
+    def compute_logs_hg(self, nsfb_logger):
+        return nsfb_logger.step(dry_run=True)
 
     def compute_logs_diff(self):
         logs = {}
