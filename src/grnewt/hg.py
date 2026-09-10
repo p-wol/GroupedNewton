@@ -12,7 +12,55 @@ def _scaled_loss(full_loss, weight):
     return loss_x
 
 
+def _check_loss(loss, *, where):
+    """Validate the `loss` argument of compute_Hg / compute_Hg_batched.
+
+    These functions used to take `(full_loss, x, y)` and build the graph themselves,
+    which made the contract unstateable-but-guaranteed. Taking an already-evaluated
+    tensor is the better interface -- it frees the primitive from the supervised
+    `(x, y)` shape and lets a caller reuse ONE graph for the gradient and for the
+    summaries -- but it moves the contract to the caller, where it is invisible in the
+    signature. Three lines of checking is what makes the trade worth it.
+
+    The dangerous case is a loss with no graph. `ParamStructure.dercon` returns zeros
+    when its input does not require grad -- correct for an inner call on a group that
+    the loss does not depend on, catastrophic for the top-level loss: a single stray
+    `.detach()` or `torch.no_grad()` makes compute_Hg return Hbar = gbar = order3 = 0,
+    nesterov_lrs return lrs = 0, and the run proceed silently without ever moving.
+    Nothing is non-finite and nothing raises.
+    """
+    if callable(loss) and not torch.is_tensor(loss):
+        raise TypeError(
+            f"{where} takes the loss VALUE, not a callable: pass `full_loss(x, y)`, "
+            "not `full_loss`. (The signature changed when the data arguments were "
+            "removed.)"
+        )
+    if not torch.is_tensor(loss):
+        raise TypeError(f"{where}: loss must be a torch.Tensor, got {type(loss).__name__}")
+    if loss.numel() != 1:
+        raise ValueError(
+            f"{where}: loss must be a scalar, got shape {tuple(loss.shape)}. Reduce it "
+            "first (`.mean()`, `.sum()`); a per-sample loss cannot be differentiated "
+            "implicitly."
+        )
+    if not loss.requires_grad:
+        raise RuntimeError(
+            f"{where}: loss does not require grad, so its autograd graph is gone. This "
+            "would return Hbar = gbar = order3 = 0 without raising. Evaluate the loss "
+            "outside `torch.no_grad()` and do not `.detach()` it, and make sure it has "
+            "not already been consumed by a `.backward()` that freed the graph."
+        )
+
+
 def compute_Hg(param_struct, loss, direction, *, noregul=False, diagonal=False, semiH=False):
+    """Reduced derivatives of `loss` along `direction`.
+
+    loss: SCALAR tensor with a live autograd graph whose leaves are the current
+        parameters. Not a callable, not detached, not computed under no_grad, and not
+        already consumed by a `.backward()` -- see _check_loss.
+    """
+    _check_loss(loss, where="compute_Hg")
+
     # Define useful variables
     device = param_struct.device
     dtype = param_struct.dtype
@@ -64,69 +112,22 @@ def compute_Hg(param_struct, loss, direction, *, noregul=False, diagonal=False, 
     return H, g, order3
 
 
-def compute_Hg_fullbatch(
-    param_struct,
-    full_loss,
-    data_loader,
-    dataset_size,
-    direction,
-    *,
-    loader_pre_hook,
-    noregul=False,
-    diagonal=False,
-):
-    # Define useful variables
-    device = param_struct.device
-    dtype = param_struct.dtype
-    nb_groups = param_struct.nb_groups
-
-    # Compute H, g, order3
-    H = torch.zeros(nb_groups, nb_groups, device=device, dtype=dtype)
-    g = torch.zeros(nb_groups, device=device, dtype=dtype)
-    order3 = torch.zeros(nb_groups, device=device, dtype=dtype)
-
-    for x, y in data_loader:
-        # Load samples
-        x, y = loader_pre_hook(x, y)
-
-        loss_x = _scaled_loss(full_loss, x.size(0) / dataset_size)
-        H_, g_, order3_ = compute_Hg(
-            param_struct, loss_x, x, y, direction, noregul=noregul, diagonal=diagonal, semiH=True
-        )
-
-        H += H_
-        g += g_
-        order3 += order3_
-
-    # H was triangular -> symmetrize it
-    H = H + H.t()
-    H.diagonal().mul_(0.5)
-
-    return H, g, order3
-
-
-"""
-batched drop-in for grnewt.hg.compute_Hg.
-
-Written against the actual grnewt API (ParamStructure / dercon), NOT EXECUTED
-(no torch in the authoring environment). Run `test_matches_reference()` first.
-
-Same signature and same return convention as grnewt.hg.compute_Hg:
-    H[i, j]   = u_i^T H_ij u_j
-    g[i]      = <u_i, grad_i>
-    order3[i] = D^3 L[u_i, u_i, u_i]
-
-What changes vs. the original:
-  * the `for i in range(nb_groups)` loop is chunked and vmapped via
-    is_grads_batched, which keeps the existing triangular input restriction
-    (inputs = groups i..S-1) that torch.func.jvp would throw away;
-  * order3 is obtained from the SAME batched second-order graph;
-  * no per-iteration .item(): H and order3 are assembled on device and
-    synchronised once.
-
-Tunable: chunk_size trades memory for launch efficiency. Peak second-order
-graph memory is ~ chunk_size * (activation memory). Start at 4 and raise.
-"""
+# ---------------------------------------------------------------------------
+# Batched variant of compute_Hg.
+#
+# Same return convention:
+#     H[i, j]   = u_i^T H_ij u_j
+#     g[i]      = <u_i, grad_i>
+#     order3[i] = D^3 L[u_i, u_i, u_i]
+#
+# The `for i in range(nb_groups)` loop of compute_Hg is chunked and vmapped via
+# is_grads_batched, which keeps the triangular input restriction (inputs = groups
+# i..S-1) that torch.func.jvp would throw away; order3 comes from the SAME batched
+# second-order graph, and H and order3 are assembled on device.
+#
+# chunk_size trades memory for launch efficiency: peak second-order graph memory is
+# ~ chunk_size * (activation memory).
+# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # optional fused contraction: out[k, s] = sum_{n in group s} R[k, n] * u[n]
 # ---------------------------------------------------------------------------
@@ -201,6 +202,8 @@ def compute_Hg_batched(
     device, dtype = param_struct.device, param_struct.dtype
     S = param_struct.nb_groups
     chunk_size = S if chunk_size == -1 else chunk_size
+
+    _check_loss(loss, where="compute_Hg_batched")
 
     g_tup = param_struct.dercon(loss, direction, 0, None, detach=False)  # (S,), with graph
     g = g_tup.detach()

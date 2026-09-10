@@ -17,7 +17,7 @@ in the paper's experiments live in `experiments/`, not here.
 from . import optimizers, partition
 from .differential import diff_n, diff_n_fullbatch
 from .fullbatch import fullbatch_gradient
-from .hg import compute_Hg, compute_Hg_batched, compute_Hg_fullbatch
+from .hg import compute_Hg, compute_Hg_batched
 
 # from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
