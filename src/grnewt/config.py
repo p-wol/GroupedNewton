@@ -13,11 +13,12 @@ from enum import Enum
 from typing import Any
 
 # Optimizer names, as used by `args.optimizer.name`.
+NS = "NewtonSummary"
 NSFB = "NewtonSummaryFB"
 NSUA = "NewtonSummaryUniformAvg"
 NSSA = "NewtonSummaryStaticAvg"
 NSMA = "NewtonSummaryMovexpAvg"
-ALL_NS = frozenset({NSFB, NSUA, NSSA, NSMA})
+ALL_NS = frozenset({NS, NSFB, NSUA, NSSA, NSMA})
 STO_NS = frozenset({NSUA, NSSA, NSMA})
 
 
@@ -200,9 +201,9 @@ class HgCfg:
         ALL_NS,
         default=False,
     )
-    mom_lrs: float = P("momentum on the learning rates", ALL_NS, default=0.0)
+    mom_lrs: float = P("momentum on the learning rates", STO_NS | {NSFB}, default=0.0)
     maintain_true_lrs: bool = P(
-        "keep the unclipped lrs as the momentum state", ALL_NS, default=True
+        "keep the unclipped lrs as the momentum state", STO_NS | {NSFB}, default=True
     )
     remove_negative: bool = P("clamp negative learning rates to zero", ALL_NS, default=False)
 
