@@ -26,6 +26,7 @@ args=(
     dataset.batch_size=100
     dataset.data_augm=False
     logs_hg.use=True
+    logs_hg.batch_size=1000
     logs_hg.partition='canonical'
     logs_hg.nesterov.use=True
     logs_hg.nesterov.damping_int=1.

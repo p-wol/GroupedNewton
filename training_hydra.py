@@ -75,12 +75,6 @@ def get_dtype(dtype):
 
 def build_partition(model, part, part_arg=None, *, model_name=None, partition_str=None):
     """Build (param_groups, name_groups) from a `Partition` value.
-
-    Module-level and closure-free on purpose: it is called from two places now (the
-    optimizer and the logs_hg diagnostic), which may use DIFFERENT partitions. Every
-    input it needs is an argument -- when this was lifted out of Trainer.build_optimizer
-    the body kept referring to the enclosing `hg` and `args`, which is a NameError on
-    four of the six branches.
     """
     if part is Partition.canonical:
         return partition.canonical(model)
@@ -283,17 +277,9 @@ class Trainer:
 
     def build_optimizer(self, model):
         args = self.args
-        # Single validation boundary. After this line nothing reads a DictConfig:
-        # `hg` is a plain, typed, validated HgCfg. Any field the selected optimizer
-        # does not read raises here rather than being silently dropped.
+
         hg = from_dictconfig(migrate(self.args.optimizer.hg), optimizer_name=args.optimizer.name)
         self.hg = hg
-
-        # The logs_hg node goes through the SAME boundary and the same schema: it is an
-        # HgCfg plus `use`, validated against NewtonSummaryFB because that is what the
-        # diagnostic runs. A setting the logger cannot read is an error here, not a
-        # silent no-op.
-        self.logs_hg = from_dictconfig_logs_hg(migrate(self.args.logs_hg))
 
         # Define useful variables
         def full_loss(x, y):
@@ -608,10 +594,9 @@ class Trainer:
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
         self.build_datasets()
-        # One loader for every full-batch diagnostic (logs_hg and logs_diff). Separate
-        # from self.train_loader, which the training loop is iterating, and from the
-        # optimizer's own fb_loader; shuffle=False and drop_last=False because these are
-        # exact sums over the whole training set.
+
+        # Builds logs loader
+        self.logs_hg = from_dictconfig_logs_hg(migrate(self.args.logs_hg))
         self.logs_loader = data.DataLoader(
             self.trainset,
             self.logs_hg.batch_size,
@@ -660,6 +645,8 @@ class Trainer:
             # parameter has moved, so the quantity is attached to a well-defined point.
             if self.nsfb_logger is not None:
                 logs = self.nsfb_logger.probe()
+                print(logs["lrs"])
+
                 torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
 
             if self.args.logs_diff.use:
@@ -802,16 +789,6 @@ class Trainer:
     def build_nsfb_logger(self):
         """A NewtonSummaryFB used only to observe: `probe()` computes (Hbar, gbar,
         order3, lrs) in full batch without touching the parameters.
-
-        Reusing the optimizer rather than a bespoke routine is deliberate: the logged
-        quantities then come from exactly the code path that the optimizer uses, so they
-        cannot drift from it. The previous hand-rolled `compute_logs_hg` did drift --
-        `compute_Hg_fullbatch` was left on an obsolete signature and raised on every
-        call, untested, for several commits.
-
-        It gets its OWN partition and its own cfg (`logs_hg` is an HgCfg plus `use`), so
-        the diagnostic can be run on, say, the trivial partition while the run itself
-        uses `canonical`.
         """
         logs_cfg = self.logs_hg
         param_groups, _ = build_partition(

@@ -61,9 +61,7 @@ dataset:
         sigma_w: 1.
         sigma_b: .01
 logs_hg:
-    # Same schema as optimizer.hg (it IS an HgCfg plus `use`): every field of
-    # optimizer.hg can be set here, and any field NewtonSummaryFB does not read is
-    # rejected at composition time instead of being silently dropped.
+    # Same schema as optimizer.hg (it is an HgCfg plus `use`)
     use: False
     batch_size: 1000
     partition: 'trivial'
