@@ -25,7 +25,7 @@ from grnewt import (
     optimizers,
 )
 from grnewt import partition
-from grnewt.config import Partition, UpdaterName, from_dictconfig, migrate
+from grnewt.config import Partition, UpdaterName, from_dictconfig, from_dictconfig_logs_hg, migrate
 from grnewt.datasets import (
     build_CIFAR10,
     build_ImageNet,
@@ -598,9 +598,9 @@ class Trainer:
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
         self.build_datasets()
-        self.train_loader_logs_hg = data.DataLoader(self.trainset, self.args.logs_hg.batch_size)
-        self.valid_loader_logs_hg = data.DataLoader(self.validset, self.args.logs_hg.batch_size)
-        self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)
+        #self.train_loader_logs_hg = data.DataLoader(self.trainset, self.args.logs_hg.batch_size)
+        #self.valid_loader_logs_hg = data.DataLoader(self.validset, self.args.logs_hg.batch_size)
+        #self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)
         self.model = self.build_model()
         self.optimizer = self.build_optimizer(self.model)
         self.use_scheduler = self.hg.dmp_auto.use
@@ -784,10 +784,11 @@ class Trainer:
         """
 
     def prepare_nsfb_logger(self):
-        param_groups, _ = build_partition(self.model, self.args.logs_hg.partition, self.args.logs_hg.partition_arg)
+        logs_cfg = from_dictconfig(migrate(self.args.logs_hg))
+        param_groups, _ = build_partition(self.model, logs_cfg.partition, logs_cfg.partition_arg)
         fb_loader = data.DataLoader(
             self.trainset,
-            self.train_loader_logs_hg,
+            logs_cfg.batch_size,
             shuffle=False,
             drop_last=False,
             num_workers=self.args.dsloader.num_workers,

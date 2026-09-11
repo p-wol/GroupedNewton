@@ -1,11 +1,10 @@
-# mypy: allow-untyped-defs
-
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
+from .updater import Updater
 
 
-class AdamUpdate(Optimizer):
+class AdamUpdate(Updater):
     def __init__(
         self,
         params,
@@ -162,14 +161,6 @@ class AdamUpdate(Optimizer):
             lst_updates += updates
 
         return tuple(lst_updates)
-
-    def step(self, tup_updates):
-        with torch.no_grad():
-            j = 0
-            for group in self.param_groups:
-                for param in group["params"]:
-                    param.sub_(tup_updates[j])
-                    j += 1
 
 
 def adam(

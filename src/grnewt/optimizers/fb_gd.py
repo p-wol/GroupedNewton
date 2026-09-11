@@ -1,7 +1,9 @@
 import torch
+from torch.optim import Optimizer
+from .updater import Updater
 
 
-class FBGDUpdate:
+class FBGDUpdate(Updater):
     """Updater whose "step" is the exact full-batch gradient.
 
     Interface expected by NSBase: `.param_groups` (read once, to build the permutation
@@ -26,8 +28,10 @@ class FBGDUpdate:
             )
         self.train_size = len(loader.dataset)
 
-        self.param_groups = [{"params": list(model.parameters())}]
         self.last_loss_avg = None
+
+        defaults = dict()
+        super().__init__(model.parameters(), defaults)
 
     def compute_step(self):
         self.model.zero_grad(set_to_none=True)
