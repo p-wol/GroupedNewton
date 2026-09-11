@@ -1,5 +1,5 @@
 import torch
-from torch.optim import Optimizer
+
 from .updater import Updater
 
 

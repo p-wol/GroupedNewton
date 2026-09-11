@@ -23,8 +23,8 @@ from grnewt import (
     fullbatch_gradient,
     loader_pre_hooks,
     optimizers,
+    partition,
 )
-from grnewt import partition
 from grnewt.config import Partition, UpdaterName, from_dictconfig, from_dictconfig_logs_hg, migrate
 from grnewt.datasets import (
     build_CIFAR10,
@@ -34,7 +34,6 @@ from grnewt.datasets import (
     build_toy_regression,
 )
 from grnewt.models import VGG, AutoencoderMLP, LeNet, Perceptron, Rosenbrock, RosenbrockT
-from grnewt.nesterov import nesterov_lrs
 
 
 def set_seeds(seed):
@@ -73,43 +72,42 @@ def get_dtype(dtype):
     else:
         raise ValueError(f"Unknown dtype: {dtype}")
 
-def build_partition(model, part, part_arg = None):
-    # Build partition
+
+def build_partition(model, part, part_arg=None, *, model_name=None, partition_str=None):
+    """Build (param_groups, name_groups) from a `Partition` value.
+
+    Module-level and closure-free on purpose: it is called from two places now (the
+    optimizer and the logs_hg diagnostic), which may use DIFFERENT partitions. Every
+    input it needs is an argument -- when this was lifted out of Trainer.build_optimizer
+    the body kept referring to the enclosing `hg` and `args`, which is a NameError on
+    four of the six branches.
+    """
     if part is Partition.canonical:
-        param_groups, name_groups = partition.canonical(model)
-    elif part is Partition.wb:
-        param_groups, name_groups = partition.wb(model)
-    elif part is Partition.trivial:
-        param_groups, name_groups = partition.trivial(model)
-    elif part is Partition.blocks:
-        param_groups, name_groups = partition.blocks(model, hg.part_arg)
-    elif part is Partition.alternate:
-        alternate = hg.part_arg
-        if args.model.name == "Perceptron":
+        return partition.canonical(model)
+    if part is Partition.wb:
+        return partition.wb(model)
+    if part is Partition.trivial:
+        return partition.trivial(model)
+    if part is Partition.blocks:
+        return partition.blocks(model, part_arg)
+    if part is Partition.alternate:
+        alternate = part_arg
+        if model_name == "Perceptron":
             nlayers = len(model.layers)
-        elif args.model.name == "VGG":
+        elif model_name == "VGG":
             nlayers = len(model.features)
         else:
-            raise NotImplementedError(
-                f"partition=alternate is not defined for model {args.model.name}."
-            )
+            raise NotImplementedError(f"partition=alternate is not defined for model {model_name}.")
         lst_names_w = [
-            [f"{i}.weight" for i in range(nlayers) if i % alternate == r]
-            for r in range(alternate)
+            [f"{i}.weight" for i in range(nlayers) if i % alternate == r] for r in range(alternate)
         ]
         lst_names_b = [
-            [f"{i}.bias" for i in range(nlayers) if i % alternate == r]
-            for r in range(alternate)
+            [f"{i}.bias" for i in range(nlayers) if i % alternate == r] for r in range(alternate)
         ]
-        param_groups, name_groups = partition.names_by_lst(
-            model, lst_names_w + lst_names_b
-        )
-    elif part in (Partition.vgg, Partition.perceptron):
-        param_groups, name_groups = model.partition(hg.partition_str)
-    else:
-        raise NotImplementedError(f"Unknown partition: {hg.partition}.")
-
-    return param_groups, name_groups
+        return partition.names_by_lst(model, lst_names_w + lst_names_b)
+    if part in (Partition.vgg, Partition.perceptron):
+        return model.partition(partition_str)
+    raise NotImplementedError(f"Unknown partition: {part}.")
 
 
 class Trainer:
@@ -291,6 +289,12 @@ class Trainer:
         hg = from_dictconfig(migrate(self.args.optimizer.hg), optimizer_name=args.optimizer.name)
         self.hg = hg
 
+        # The logs_hg node goes through the SAME boundary and the same schema: it is an
+        # HgCfg plus `use`, validated against NewtonSummaryFB because that is what the
+        # diagnostic runs. A setting the logger cannot read is an error here, not a
+        # silent no-op.
+        self.logs_hg = from_dictconfig_logs_hg(migrate(self.args.logs_hg))
+
         # Define useful variables
         def full_loss(x, y):
             return self.loss_fn(self.model(x), y)
@@ -300,7 +304,13 @@ class Trainer:
         self.hg_loader = data.DataLoader(self.trainset, hg_batch_size, shuffle=True, drop_last=True)
 
         # Build partition
-        param_groups, name_groups = build_partition(model, hg.partition, hg.partition_arg)
+        param_groups, name_groups = build_partition(
+            model,
+            hg.partition,
+            hg.partition_arg,
+            model_name=args.model.name,
+            partition_str=hg.partition_str,
+        )
 
         # param_groups = ParamStructure(pgroups)
 
@@ -598,9 +608,19 @@ class Trainer:
 
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
         self.build_datasets()
-        #self.train_loader_logs_hg = data.DataLoader(self.trainset, self.args.logs_hg.batch_size)
-        #self.valid_loader_logs_hg = data.DataLoader(self.validset, self.args.logs_hg.batch_size)
-        #self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)
+        # One loader for every full-batch diagnostic (logs_hg and logs_diff). Separate
+        # from self.train_loader, which the training loop is iterating, and from the
+        # optimizer's own fb_loader; shuffle=False and drop_last=False because these are
+        # exact sums over the whole training set.
+        self.logs_loader = data.DataLoader(
+            self.trainset,
+            self.logs_hg.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.args.dsloader.num_workers,
+            persistent_workers=self.args.dsloader.num_workers > 0,
+            pin_memory=self.args.dsloader.pin_memory,
+        )
         self.model = self.build_model()
         self.optimizer = self.build_optimizer(self.model)
         self.use_scheduler = self.hg.dmp_auto.use
@@ -620,11 +640,7 @@ class Trainer:
         time_t0 = time.time()
 
         print(self.model)
-        if self.args.logs_hg.use:
-            print("tup_params: ")
-            for p in self.tup_params:
-                print("    ", p.size())
-            nsfb_logger = self.prepare_nsfb_logger()
+        self.nsfb_logger = self.build_nsfb_logger() if self.logs_hg.use else None
 
         # Store the param names - param_groups correspondence
         torch.save(self.name_groups, f"{self.path_artifacts}/ParamNameGroups.pkl")
@@ -640,10 +656,10 @@ class Trainer:
             self.epoch = epoch
             print(f"Epoch {self.epoch}")
 
-            # If args.logs_hg.use, then compute H, g and order3 with full-batch
-            if self.args.logs_hg.use:
-                logs = self.compute_logs_hg()
-                print(logs)
+            # Full-batch (Hbar, gbar, order3, lrs) at the START of the epoch, before any
+            # parameter has moved, so the quantity is attached to a well-defined point.
+            if self.nsfb_logger is not None:
+                logs = self.nsfb_logger.probe()
                 torch.save(logs, f"{self.path_artifacts}/Hg_logs_ext.{self.epoch:05}.pkl")
 
             if self.args.logs_diff.use:
@@ -783,53 +799,53 @@ class Trainer:
         self.logger.log_metrics(metrics, log_name=log_name)
         """
 
-    def prepare_nsfb_logger(self):
-        logs_cfg = from_dictconfig(migrate(self.args.logs_hg))
-        param_groups, _ = build_partition(self.model, logs_cfg.partition, logs_cfg.partition_arg)
-        fb_loader = data.DataLoader(
-            self.trainset,
-            logs_cfg.batch_size,
-            shuffle=False,
-            drop_last=False,
-            num_workers=self.args.dsloader.num_workers,
-            persistent_workers=self.args.dsloader.num_workers > 0,
-            pin_memory=self.args.dsloader.pin_memory,
-        )
+    def build_nsfb_logger(self):
+        """A NewtonSummaryFB used only to observe: `probe()` computes (Hbar, gbar,
+        order3, lrs) in full batch without touching the parameters.
 
-        nsfb_logger = NewtonSummaryFB(
-            self.param_groups,
+        Reusing the optimizer rather than a bespoke routine is deliberate: the logged
+        quantities then come from exactly the code path that the optimizer uses, so they
+        cannot drift from it. The previous hand-rolled `compute_logs_hg` did drift --
+        `compute_Hg_fullbatch` was left on an obsolete signature and raised on every
+        call, untested, for several commits.
+
+        It gets its OWN partition and its own cfg (`logs_hg` is an HgCfg plus `use`), so
+        the diagnostic can be run on, say, the trivial partition while the run itself
+        uses `canonical`.
+        """
+        logs_cfg = self.logs_hg
+        param_groups, _ = build_partition(
+            self.model,
+            logs_cfg.partition,
+            logs_cfg.partition_arg,
+            model_name=self.args.model.name,
+            partition_str=logs_cfg.partition_str,
+        )
+        return NewtonSummaryFB(
+            param_groups,
             self.full_loss,
             self.model,
             self.loss_fn,
-            fb_loader,
+            self.logs_loader,
             loader_pre_hook=self.loader_pre_hook,
-            cfg=hg,
+            cfg=logs_cfg,
         )
-
-        return nsfb_logger
-
-    def compute_logs_hg(self, nsfb_logger):
-        return nsfb_logger.step(dry_run=True)
 
     def compute_logs_diff(self):
         logs = {}
 
-        if self.args.logs_diff.partition == "canonical":
-            param_groups, name_groups = build_partition.canonical(self.model)
-        elif self.args.logs_diff.partition == "wb":
-            param_groups, name_groups = build_partition.wb(self.model)
-        elif self.args.logs_diff.partition == "trivial":
-            param_groups, name_groups = build_partition.trivial(self.model)
-        else:
-            raise NotImplementedError(
-                f"Not implemented: self.args.logs_diff.partition = {self.args.logs_diff.partition}"
-            )
+        # NOTE: `build_partition` used to be the alias of the `grnewt.partition` MODULE;
+        # it is now the function above, so `build_partition.canonical` is an
+        # AttributeError. The result was discarded anyway -- diff_n_fullbatch runs on
+        # self.param_struct, i.e. the optimizer's partition -- so the block is gone.
+        # If logs_diff is meant to use its own partition, build a ParamStructure here
+        # and pass it, rather than computing groups and dropping them.
 
         direction = fullbatch_gradient(
             self.param_struct,
             self.loss_fn,
             self.model,
-            self.train_loader_logs_hg,
+            self.logs_loader,
             self.train_size,
             loader_pre_hook=self.loader_pre_hook,
         )
@@ -838,7 +854,7 @@ class Trainer:
             self.param_struct,
             self.args.logs_diff.order,
             self.full_loss,
-            self.train_loader_logs_hg,
+            self.logs_loader,
             self.train_size,
             direction,
             loader_pre_hook=self.loader_pre_hook,

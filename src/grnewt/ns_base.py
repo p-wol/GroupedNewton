@@ -111,12 +111,70 @@ class NSBase(torch.optim.Optimizer):
     def compute_avg_Hg(self, direction):
         raise NotImplementedError
 
+    # ------------------------------------------------------------------ #
+    # step() is split in three so that the diagnostic path (probe) can reuse the
+    # arithmetic without reusing the side effects. Keeping them together and adding a
+    # `dry_run` flag does not work: `dry_run` only suppressed the parameter update,
+    # while group["lr"], curr_lrs, step_counter and self.logs were still mutated, so a
+    # logger sharing this code path silently perturbed the run it was observing.
+    # ------------------------------------------------------------------ #
+
+    def _direction(self):
+        """The candidate direction u, in ParamStructure order, normalized if asked."""
+        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
+        if self.cfg.normalize_dirs:
+            self.dir_norm = self.normalize_dirs_(direction)
+        return direction
+
+    def _solve_lrs(self, H, g, order3):
+        """Solve the reduced problem. Pure: returns (lrs, found, nesterov_logs)."""
+        order3_ = order3.abs().pow(1 / 3)
+
+        if self.cfg.noregul:
+            return torch.linalg.solve(H, g), True, {}
+        if not self.cfg.nesterov.use:
+            regul_H = self.cfg.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
+            return torch.linalg.solve(H + regul_H, g), True, {}
+
+        nest = self.cfg.nesterov
+        lrs, lrs_logs = nesterov_lrs(
+            H,
+            g,
+            order3_,
+            damping_int=nest.damping_int,
+            threshold_D_sing=nest.threshold_D_sing,
+            hard_case_rtol=nest.hard_case_rtol,
+            refine=nest.refine,
+        )
+        return lrs, bool(lrs_logs["found"]), lrs_logs
+
+    def probe(self):
+        """(Hbar, gbar, order3, lrs) at the current point, with NO side effect.
+
+        Parameters, group["lr"], curr_lrs, step_counter and self.logs are all left
+        untouched, so this can be called on a separate NewtonSummaryFB instance --
+        possibly with a different partition and a different cfg -- to log what a
+        full-batch step WOULD be, without perturbing the run.
+
+        The one effect it cannot avoid: `updater.compute_step()` recomputes `.grad`
+        (FBGDUpdate zeroes and refills it). Call it before the training step of the
+        epoch, not between a `backward()` and a `step()`.
+
+        Returns a plain dict, safe to `torch.save`: lrs is None when the reduced
+        problem has no solution, and `nesterov.*` entries are present only when the
+        cubic solver was used.
+        """
+        direction = self._direction()
+        H, g, order3, _ = self.compute_avg_Hg(direction)
+        lrs, found, nest_logs = self._solve_lrs(H, g, order3)
+        out = {"H": H, "g": g, "order3": order3, "lrs": lrs if found else None}
+        out.update({f"nesterov.{k}": v for k, v in nest_logs.items()})
+        return out
+
     @increment_step
-    def step(self, dry_run=False):
+    def step(self):
         # Function that performs an update
         def make_step(direction):
-            if dry_run:
-                return
             with torch.no_grad():
                 i = 0
                 for group in self.param_groups:
@@ -124,36 +182,21 @@ class NSBase(torch.optim.Optimizer):
                         p.add_(direction[i], alpha=-group["lr"])
                         i += 1
 
-        # Compute the direction
-        direction = self.param_struct.reindex(self.updater.compute_step(), self._dir_perm)
-
-        # Normalize if required
-        # direction_normed = tuple(d.clone() for d in direction)
-        if self.cfg.normalize_dirs:
-            # self.dir_norm = self.normalize_dirs_(direction_normed)
-            self.dir_norm = self.normalize_dirs_(direction)
+        direction = self._direction()
 
         # Compute the averages of H, g, order3
-        # H, g, order3, update_instr = self.compute_avg_Hg(direction_normed)
         H, g, order3, update_instr = self.compute_avg_Hg(direction)
 
         # XXX: if all non-Hg updates normalize the direction, then, as the norm
         #      of direction decreases, our method will *overshoot* the objective
         #      for lrs. Unresolved issue.
-        """
-        # Recompute the direction by taking into account the norms
-        if self.cfg.normalize_dirs and not update_instr.recompute_lrs:
-            for d, n in zip(direction, self.dir_norm, strict=True):
-                if n > 0:
-                    d.div_(n)
-        """
 
         ### If we do not need to recompute the lrs ###
         if not update_instr.recompute_lrs:
             # Do immediately an update if necessary, then end step
             if update_instr.do_update:
                 make_step(direction)
-            return {"H": H, "g": g, "order3": order3, "lrs": None}
+            return
 
         ### Now, we know that update_instr.recompute_lrs is True ###
         ### => compute the lrs                                   ###
@@ -163,43 +206,11 @@ class NSBase(torch.optim.Optimizer):
         self.logs["g"].append(g)
         self.logs["order3"].append(order3)
 
-        # Compute order3_
-        order3_ = order3.abs().pow(1 / 3)
-
-        lrs_found = True
-        if self.cfg.noregul:
-            # no regularization
-            lrs = torch.linalg.solve(H, g)
-        elif not self.cfg.nesterov.use:
-            # with regularization, but no Nesterov cubic regul
-            # => Tikhonov regularization
-            regul_H = self.cfg.ridge * torch.eye(H.size(0), dtype=self.dtype, device=self.device)
-            lrs = torch.linalg.solve(H + regul_H, g)
-        else:
-            # regularization with Nesterov cubic
-            nest = self.cfg.nesterov
-            lrs, lrs_logs = nesterov_lrs(
-                H,
-                g,
-                order3_,
-                damping_int=nest.damping_int,
-                threshold_D_sing=nest.threshold_D_sing,
-                hard_case_rtol=nest.hard_case_rtol,
-                refine=nest.refine,
-            )
-
-            for k, v in lrs_logs.items():
-                kk = "nesterov." + k
-                if kk not in self.logs.keys():
-                    self.logs[kk] = []
-                self.logs[kk].append(v)
-
-            if not lrs_logs["found"]:
-                lrs_found = False
-                print("Nesterov did not converge: lr not updated during this step.")
-                # TODO: throw warning?
-
+        lrs, lrs_found, lrs_logs = self._solve_lrs(H, g, order3)
+        for k, v in lrs_logs.items():
+            self.logs.setdefault("nesterov." + k, []).append(v)
         if not lrs_found:
+            print("Nesterov did not converge: lr not updated during this step.")
             lrs = self.curr_lrs
 
         ## Additional operations on the lrs
@@ -225,8 +236,6 @@ class NSBase(torch.optim.Optimizer):
         ### To finish: perform update if necessary ###
         if update_instr.do_update:
             make_step(direction)
-
-        return {"H": H, "g": g, "order3": order3, "lrs": lrs}
 
 
 def create_infinite_data_loader(data_loader):

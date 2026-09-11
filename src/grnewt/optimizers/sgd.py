@@ -1,6 +1,6 @@
 import torch
 from torch import Tensor
-from torch.optim import Optimizer
+
 from .updater import Updater
 
 

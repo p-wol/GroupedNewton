@@ -1,13 +1,12 @@
 import torch
-from torch import Tensor
 from torch.optim import Optimizer
 
 
 class Updater(Optimizer):
     def __init__(self, params, defaults):
         super().__init__(params, defaults)
-                
-    def compute_step(self, closure = None):
+
+    def compute_step(self, closure=None):
         raise NotImplementedError
 
     def step(self, tup_updates):

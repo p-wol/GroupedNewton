@@ -252,19 +252,26 @@ class HgCfg:
                 "noregul short-circuits the cubic solver (newton_summary*.py)"
             )
 
+
 @dataclass(kw_only=True, slots=True)
-class LogsCfg:
-    use: bool = P("use logs of Hg/lrs", ALL_NS, default=False)
-    partition: Partition = P("group construction rule", ALL_NS, default=Partition.canonical)
-    partition_arg: int | None = P(
-        "integer argument of partition in {blocks, alternate}; unused otherwise",
-        ALL_NS,
-        default=None,
+class LogsCfg(HgCfg):
+    """The `logs_hg` node: run a NewtonSummaryFB in observation mode every epoch.
+
+    It is an `HgCfg` plus `use`, deliberately: the point of the diagnostic is to report
+    what a full-batch optimizer WOULD compute at this point, so it must be configurable
+    exactly like one and must go through the same validation. A parallel schema would
+    have to be kept in sync by hand with every field added to HgCfg, and `check_consumed`
+    would not apply to it.
+
+    Only the fields NewtonSummaryFB reads have an effect here; the rest are rejected by
+    `check_consumed(cfg, "NewtonSummaryFB")` like anywhere else, so a dead setting in the
+    logs node is an error rather than a silent no-op.
+    """
+
+    use: bool = P(
+        "compute (Hbar, gbar, order3, lrs) in full batch at every epoch", ALL_NS, default=False
     )
-    nesterov: NesterovCfg = field(default_factory=NesterovCfg)
-    batch_size: int = P(
-        "batch size for the (H, g) estimation; -1 = dataset batch size", ALL_NS, default=-1
-    )
+
 
 # ---------------------------------------------------------------------------------
 # Boundary helpers
@@ -282,13 +289,16 @@ def _walk(cfg, prefix: str = ""):
             yield path, v, f
 
 
-def check_consumed(cfg: HgCfg, optimizer_name: str) -> list[str]:
+def check_consumed(cfg: HgCfg, optimizer_name: str, *, prefix: str = "optimizer.hg") -> list[str]:
     """Fields set away from their default but not read by `optimizer_name`.
 
     Returns a list of human-readable diagnostics; empty means the config is fully
     honoured. This turns 'silently ignored' into an explicit, pre-submission error.
+
+    `prefix` names the config node in the message: the same schema now backs both
+    `optimizer.hg` and `logs_hg`.
     """
-    default = HgCfg()
+    default = type(cfg)()
     out: list[str] = []
     for path, value, f in _walk(cfg):
         used_by = f.metadata.get("used_by")
@@ -297,7 +307,7 @@ def check_consumed(cfg: HgCfg, optimizer_name: str) -> list[str]:
         dflt = getattr(_resolve(default, path.split(".")[:-1]), f.name)
         if value != dflt:
             out.append(
-                f"optimizer.hg.{path} = {value!r} (default {dflt!r}) is not read by "
+                f"{prefix}.{path} = {value!r} (default {dflt!r}) is not read by "
                 f"{optimizer_name}; it is read by {sorted(used_by)}"
             )
     return out
@@ -361,13 +371,19 @@ def from_dictconfig(node, *, optimizer_name: str | None = None, strict: bool = T
 def from_dictconfig_logs_hg(node, *, strict: bool = True) -> LogsCfg:
     """Validate a composed `logs_hg` DictConfig and return a real LogsCfg.
 
-    Call this once, at the boundary. Everything downstream sees a plain dataclass:
-    typed, autocompleted by the IDE, and ~2 orders of magnitude faster to read than a
-    DictConfig (measured: ~13 us vs ~26 ns per nested attribute access).
+    Same boundary discipline as `from_dictconfig`, and the same schema underneath, so
+    `migrate()` applies unchanged and there is nothing to keep in sync. The diagnostic
+    is a NewtonSummaryFB, so that is what the config is checked against.
     """
     from omegaconf import OmegaConf
 
     cfg: LogsCfg = OmegaConf.to_object(OmegaConf.merge(OmegaConf.structured(LogsCfg), node))
+    problems = check_consumed(cfg, NSFB, prefix="logs_hg")
+    if problems and strict:
+        raise ValueError(
+            f"{len(problems)} setting(s) in the logs_hg node would be silently ignored "
+            "by the NewtonSummaryFB used to compute them:\n  " + "\n  ".join(problems)
+        )
     return cfg
 
 
