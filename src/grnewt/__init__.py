@@ -14,10 +14,13 @@ The package depends only on torch, numpy and scipy. Models and datasets used
 in the paper's experiments live in `experiments/`, not here.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
+
 from . import optimizers, partition
 from .differential import diff_n, diff_n_fullbatch
 from .fullbatch import fullbatch_gradient
-from .hg import compute_Hg, compute_Hg_batched
+from .hg import compute_Hg, compute_Hg_batched, compute_Hg_fullbatch
 
 # from .hg_batched import compute_Hg_batched
 from .nesterov import nesterov_lrs
@@ -30,6 +33,11 @@ from .newton_summary_uniform_avg import NewtonSummaryUniformAvg
 from .newton_summary_vanilla import NewtonSummaryVanilla
 from .param_struct import ParamStructure
 from .reduce_damping_on_plateau import ReduceDampingOnPlateau
+
+try:  # declared in __all__: `from grnewt import *` raised AttributeError without it
+    __version__ = _version("GroupedNewton")
+except PackageNotFoundError:  # running from a source tree that was never installed
+    __version__ = "unknown"
 
 
 def __getattr__(name):

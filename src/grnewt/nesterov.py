@@ -391,7 +391,16 @@ def nesterov_lrs(
                 bracket=(t_a, t_b),
                 h_bracket=(h_a, h_b),
             )
-        t = scipy.optimize.brentq(sec.h, t_a, t_b, xtol=1e-300, rtol=8.9e-16, maxiter=200)
+        # disp=False: a non-converged brentq is a solver failure like the others
+        # (found=False, the caller keeps its previous lrs), not an exception that
+        # kills the run.
+        t, res = scipy.optimize.brentq(
+            sec.h, t_a, t_b, xtol=1e-300, rtol=8.9e-16, maxiter=200, full_output=True, disp=False
+        )
+        if not res.converged:
+            return _ret(
+                None, "brentq_maxiter", r_converged=False, bracket=(t_a, t_b), brentq_flag=res.flag
+            )
         t = _polish(sec, t, t_a, t_b)
         r = sec.x_of_t(t)
         y = b / (sec.mu + t)
@@ -447,7 +456,24 @@ def nesterov_lrs(
                     bracket=(t_a2, t_b2),
                     h_bracket=(h_a2, h_b2),
                 )
-            t2 = scipy.optimize.brentq(sec_ps.h, t_a2, t_b2, xtol=1e-300, rtol=8.9e-16, maxiter=200)
+            t2, res2 = scipy.optimize.brentq(
+                sec_ps.h,
+                t_a2,
+                t_b2,
+                xtol=1e-300,
+                rtol=8.9e-16,
+                maxiter=200,
+                full_output=True,
+                disp=False,
+            )
+            if not res2.converged:
+                return _ret(
+                    None,
+                    "hard_case_brentq_maxiter",
+                    r_converged=False,
+                    bracket=(t_a2, t_b2),
+                    brentq_flag=res2.flag,
+                )
             t2 = _polish(sec_ps, t2, t_a2, t_b2)
             r = sec_ps.x_of_t(t2)
             y = torch.zeros_like(b)

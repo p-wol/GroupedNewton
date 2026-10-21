@@ -112,6 +112,43 @@ def compute_Hg(param_struct, loss, direction, *, noregul=False, diagonal=False, 
     return H, g, order3
 
 
+def compute_Hg_fullbatch(
+    param_struct,
+    full_loss,
+    data_loader,
+    dataset_size,
+    direction,
+    *,
+    loader_pre_hook,
+    noregul=False,
+    diagonal=False,
+):
+    """Full-batch (H, g, order3) along `direction`, accumulated over `data_loader`.
+
+    Each minibatch loss `full_loss(x, y)` (a MEAN over the batch) is weighted by
+    `x.size(0) / dataset_size`; H, g and order3 are linear in the loss, so the sum
+    over the loader is the full-batch value whatever the batch sizes, provided the
+    loader visits every sample exactly once and `full_loss` does not depend on the
+    batch composition (no BatchNorm in train mode, no dropout).
+    """
+    nb_groups = param_struct.nb_groups
+    H = torch.zeros(nb_groups, nb_groups, device=param_struct.device, dtype=param_struct.dtype)
+    g = torch.zeros(nb_groups, device=param_struct.device, dtype=param_struct.dtype)
+    order3 = torch.zeros(nb_groups, device=param_struct.device, dtype=param_struct.dtype)
+
+    for x, y in data_loader:
+        x, y = loader_pre_hook(x, y)
+        loss = full_loss(x, y) * (x.size(0) / dataset_size)
+        H_, g_, order3_ = compute_Hg(
+            param_struct, loss, direction, noregul=noregul, diagonal=diagonal
+        )
+        H += H_
+        g += g_
+        order3 += order3_
+
+    return H, g, order3
+
+
 # ---------------------------------------------------------------------------
 # Batched variant of compute_Hg.
 #

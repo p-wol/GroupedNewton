@@ -578,10 +578,7 @@ class Trainer:
 
         return metrics
 
-    def pre_train(self):
-        self.tup_params = tuple(p for n, p in self.model.named_parameters())
-        self.tup_names = tuple(n for n, p in self.model.named_parameters())
-
+    def build_loader_pre_hook(self):
         if self.args.dataset.autoencoder:
             f_loader_pre_hook = loader_pre_hooks.regression
         else:
@@ -591,8 +588,16 @@ class Trainer:
             x, y, device=self.device, dtype=self.dtype, non_blocking=self.args.dsloader.non_blocking
         )
 
+    def pre_train(self):
+        self.tup_params = tuple(p for n, p in self.model.named_parameters())
+        self.tup_names = tuple(n for n, p in self.model.named_parameters())
+        self.build_loader_pre_hook()
+
     def train(self, ckpt_name="last_ckpt", log_name="metrics"):
         self.build_datasets()
+        # build_optimizer() hands self.loader_pre_hook to the optimizer, so it must exist
+        # before that call for every dataset (ToyRegression and None never set it).
+        self.build_loader_pre_hook()
         self.train_loader_logs_hg = data.DataLoader(self.trainset, self.args.logs_hg.batch_size)
         self.valid_loader_logs_hg = data.DataLoader(self.validset, self.args.logs_hg.batch_size)
         self.test_loader_logs_hg = data.DataLoader(self.testset, self.args.logs_hg.batch_size)

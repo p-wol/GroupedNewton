@@ -150,3 +150,52 @@ def test_solver_failures_are_reported_not_silent():
     for found, r in zip(opt.logs["nesterov.found"], opt.logs["nesterov.r"], strict=False):
         if found:
             assert torch.isfinite(torch.as_tensor(r)).all()
+
+
+def test_training_entry_point_runs_end_to_end(tmp_path):
+    """`main_hydra.py` -> `training_hydra.Trainer` must complete a (tiny) run, with the
+    full-batch `logs_hg` path on. Guards C27 (training_hydra imported a name grnewt no
+    longer defined) and C37 (the optimizer was built before `loader_pre_hook` existed
+    for ToyRegression / None). Success is the `DONE` sentinel, not the exit code alone:
+    under Hydra a failed task can still exit 0 (STATE V31)."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    pytest.importorskip("hydra")
+    pytest.importorskip("torchvision")
+    repo = Path(__file__).resolve().parents[1]
+    env = dict(
+        os.environ, GRNEWT_DATASETS=str(tmp_path / "ds"), GRNEWT_RESULTS=str(tmp_path / "res")
+    )
+    cmd = [
+        sys.executable,
+        str(repo / "main_hydra.py"),
+        "machine=none",
+        "run_id=smoke",
+        "system.device=-2",
+        "dataset.name=ToyRegression",
+        "model.name=Perceptron",
+        "model.args='4-8-1'",
+        "dataset.train_size=200",
+        "dataset.valid_size=50",
+        "dataset.test_size=50",
+        "dataset.batch_size=20",
+        "dataset.teacher.args='4-1'",
+        "logs_hg.use=True",
+        "logs_hg.batch_size=30",
+        "optimizer.epochs=2",
+        "optimizer.name=NewtonSummaryUniformAvg",
+        "optimizer.hg.period_hg=2",
+        "optimizer.hg.uniform_avg.period=2",
+        "optimizer.hg.nesterov.use=True",
+        "optimizer.hg.remove_negative=True",
+    ]
+    proc = subprocess.run(cmd, cwd=repo, env=env, capture_output=True, text=True, timeout=110)
+    out = tmp_path / "res" / "tests" / "smoke"
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    assert (out / "DONE").exists(), proc.stdout[-2000:] + proc.stderr[-2000:]
+    assert sorted(p.name for p in (out / "artifacts").glob("Hg_logs_ext.*.pkl")), (
+        "logs_hg not written"
+    )

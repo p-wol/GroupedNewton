@@ -58,7 +58,6 @@ class NSBase(torch.optim.Optimizer):
         self.updater = updater
         self.loader_pre_hook = loader_pre_hook
         self.cfg = cfg
-        self.curr_lrs = 0
         self.dir_norm = None
 
         # `damping` is per-parameter-group state, not a hyperparameter of the run:
@@ -69,6 +68,13 @@ class NSBase(torch.optim.Optimizer):
         self.param_struct = ParamStructure(param_groups)
         self.device = self.param_struct.device
         self.dtype = self.param_struct.dtype
+
+        # Previous lrs, reused when the solver fails. Zeros of the right shape, not the
+        # integer 0: a failure at the FIRST recomputation must give a zero step, not a
+        # TypeError (iterating an int) or an AttributeError (`int.relu`).
+        self.curr_lrs = torch.zeros(
+            self.param_struct.nb_groups, dtype=self.dtype, device=self.device
+        )
 
         # See ParamStructure.build_reindex.
         self._dir_perm = self.param_struct.build_reindex(

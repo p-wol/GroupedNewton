@@ -53,10 +53,16 @@ class NewtonSummaryUniformAvg(NSBase):
             # returned average was exactly 0 at step 0, the two accumulators
             # stayed aliased for the whole first period, and every later period
             # silently dropped its first sample while `_up` was biased low by
-            # (P-1)/P.  Since H, g and D all carry the SAME wrong weight W, the
-            # net effect on the step is lambda_eff = W^2 * lambda_int (verified);
-            # in the reference LeNet/CIFAR configuration W cycled through
-            # {3/4, 4/5, 5/6}, i.e. lambda_eff/lambda_int in {0.56, 0.64, 0.69}.
+            # (P-1)/P.  H, g and order3 all carried the SAME wrong weight W (in
+            # the reference LeNet/CIFAR configuration W cycled through
+            # {3/4, 4/5, 5/6}), and a common factor does NOT change the step:
+            # eta(W H, W g, W order3) = eta(H, g, order3) on the Nesterov branch
+            # (D scales as W^(1/3)), exactly on the `noregul` branch, and on the
+            # `ridge` branch it acts as ridge / W.  (An earlier version of this
+            # comment claimed lambda_eff = W^2 * lambda_int; that was wrong.)
+            # What the bug did change: a zero average at step 0 (hence a zero
+            # step when warmup = 0), averages one sample shorter than intended,
+            # and non-uniform weights during the first period.
             if self.step_counter == 0:
                 for key, curr in dct_HgD.items():
                     self.dct_HgD_avgs[f"{key}_up"] = torch.zeros_like(curr)
@@ -87,10 +93,13 @@ class NewtonSummaryUniformAvg(NSBase):
                 contrib = curr / n
                 self.dct_HgD_avgs[key].mul_((n - 1) / n).add_(contrib)
 
-        # Return the H, g, order3 to use
-        H = self.dct_HgD_avgs["H_use"]
-        g = self.dct_HgD_avgs["g_use"]
-        order3 = self.dct_HgD_avgs["D_use"]
+        # Return the H, g, order3 to use -- as COPIES: the `_use` accumulators keep being
+        # mutated in place for the rest of the period, and NSBase stores what is
+        # returned here in self.logs, so returning the accumulators themselves made
+        # every log entry of a period show the period's last value.
+        H = self.dct_HgD_avgs["H_use"].clone()
+        g = self.dct_HgD_avgs["g_use"].clone()
+        order3 = self.dct_HgD_avgs["D_use"].clone()
 
         return H, g, order3
 
